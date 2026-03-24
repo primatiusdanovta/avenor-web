@@ -1,179 +1,135 @@
 <template>
     <Head title="User Management" />
 
-    <div class="stack">
-        <section class="panel-grid users-admin-grid">
-            <div class="panel-card">
-                <div class="panel-head">
-                    <div>
-                        <h3>Tambah User Baru</h3>
-                        <p>Form ini hanya tersedia untuk superadmin.</p>
+    <div class="row">
+        <div class="col-lg-4">
+            <div class="card card-outline card-primary">
+                <div class="card-header"><h3 class="card-title">Tambah User</h3></div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input v-model="createForm.nama" type="text" class="form-control" placeholder="username baru">
+                        <small v-if="createForm.errors.nama" class="text-danger">{{ createForm.errors.nama }}</small>
                     </div>
-                </div>
-
-                <form class="stack" @submit.prevent="submitCreate">
-                    <label class="field">
-                        <span>Username</span>
-                        <input v-model="createForm.nama" type="text" placeholder="username baru">
-                        <small v-if="createForm.errors.nama" class="field-error">{{ createForm.errors.nama }}</small>
-                    </label>
-
-                    <label class="field">
-                        <span>Role</span>
-                        <select v-model="createForm.role">
-                            <option v-for="role in roles" :key="role" :value="role">{{ role }}</option>
-                        </select>
-                    </label>
-
-                    <label class="field">
-                        <span>Status</span>
-                        <select v-model="createForm.status">
-                            <option v-for="status in statuses" :key="status" :value="status">{{ status }}</option>
-                        </select>
-                    </label>
-
-                    <label class="field">
-                        <span>Password</span>
-                        <input v-model="createForm.password" type="password" placeholder="minimal 8 karakter">
-                        <small v-if="createForm.errors.password" class="field-error">{{ createForm.errors.password }}</small>
-                    </label>
-
-                    <label class="field">
-                        <span>Konfirmasi Password</span>
-                        <input v-model="createForm.password_confirmation" type="password" placeholder="ulang password">
-                    </label>
-
-                    <button type="submit" class="primary-button" :disabled="createForm.processing">
+                    <div class="form-group">
+                        <label>Role</label>
+                        <Select2Input v-model="createForm.role" :options="roles" placeholder="Pilih role" />
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <Select2Input v-model="createForm.status" :options="statuses" placeholder="Pilih status" />
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input v-model="createForm.password" type="password" class="form-control" placeholder="minimal 8 karakter">
+                        <small v-if="createForm.errors.password" class="text-danger">{{ createForm.errors.password }}</small>
+                    </div>
+                    <div class="form-group">
+                        <label>Konfirmasi Password</label>
+                        <input v-model="createForm.password_confirmation" type="password" class="form-control" placeholder="ulang password">
+                    </div>
+                    <button type="button" class="btn btn-primary" :disabled="createForm.processing" @click="submitCreate">
                         {{ createForm.processing ? 'Menyimpan...' : 'Tambah User' }}
                     </button>
-                </form>
+                </div>
             </div>
 
-            <div class="panel-card">
-                <div class="panel-head">
-                    <div>
-                        <h3>Edit User</h3>
-                        <p>Pilih salah satu user dari tabel untuk diperbarui.</p>
+            <div class="card card-outline card-warning">
+                <div class="card-header"><h3 class="card-title">Edit User</h3></div>
+                <div v-if="selectedUser" class="card-body">
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input v-model="editForm.nama" type="text" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>Role</label>
+                        <Select2Input v-model="editForm.role" :options="roles" placeholder="Pilih role" />
+                    </div>
+                    <div class="form-group">
+                        <label>Status</label>
+                        <Select2Input v-model="editForm.status" :options="statuses" placeholder="Pilih status" />
+                    </div>
+                    <div class="form-group">
+                        <label>Password Baru</label>
+                        <input v-model="editForm.password" type="password" class="form-control" placeholder="kosongkan jika tidak diubah">
+                    </div>
+                    <div class="form-group">
+                        <label>Konfirmasi Password Baru</label>
+                        <input v-model="editForm.password_confirmation" type="password" class="form-control">
+                    </div>
+                    <div class="d-flex flex-wrap">
+                        <button type="button" class="btn btn-warning mr-2 mb-2" :disabled="editForm.processing" @click="submitEdit">Simpan</button>
+                        <button type="button" class="btn btn-secondary mb-2" @click="clearSelection">Batal</button>
                     </div>
                 </div>
+                <div v-else class="card-body text-muted">Pilih user dari tabel untuk mulai edit.</div>
+            </div>
+        </div>
 
-                <div v-if="selectedUser" class="stack">
-                    <label class="field">
-                        <span>Username</span>
-                        <input v-model="editForm.nama" type="text">
-                    </label>
-
-                    <label class="field">
-                        <span>Role</span>
-                        <select v-model="editForm.role">
-                            <option v-for="role in roles" :key="role" :value="role">{{ role }}</option>
-                        </select>
-                    </label>
-
-                    <label class="field">
-                        <span>Status</span>
-                        <select v-model="editForm.status">
-                            <option v-for="status in statuses" :key="status" :value="status">{{ status }}</option>
-                        </select>
-                    </label>
-
-                    <label class="field">
-                        <span>Password Baru</span>
-                        <input v-model="editForm.password" type="password" placeholder="kosongkan jika tidak diubah">
-                    </label>
-
-                    <label class="field">
-                        <span>Konfirmasi Password Baru</span>
-                        <input v-model="editForm.password_confirmation" type="password">
-                    </label>
-
-                    <div class="filter-actions">
-                        <button type="button" class="primary-button" @click="submitEdit" :disabled="editForm.processing">Simpan Perubahan</button>
-                        <button type="button" class="ghost-button" @click="clearSelection">Batal</button>
+        <div class="col-lg-8">
+            <div class="card card-outline card-success">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="card-title">Daftar User</h3>
+                    <div class="d-flex align-items-center">
+                        <input v-model="searchForm.search" type="text" class="form-control form-control-sm mr-2" placeholder="Cari username">
+                        <button type="button" class="btn btn-sm btn-outline-primary" @click="submitSearch">Cari</button>
                     </div>
                 </div>
-
-                <div v-else class="empty-state">
-                    Pilih user dari tabel di bawah untuk memulai edit.
+                <div class="card-body p-0 table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead><tr><th>ID</th><th>Username</th><th>Role</th><th>Status</th><th>Created At</th><th>Aksi</th></tr></thead>
+                        <tbody>
+                            <tr v-for="user in users" :key="user.id_user">
+                                <td>{{ user.id_user }}</td>
+                                <td>
+                                    <button type="button" class="btn btn-link p-0 font-weight-bold text-left" @click="selectUser(user)">{{ user.nama }}</button>
+                                </td>
+                                <td><span class="badge badge-info text-capitalize">{{ user.role }}</span></td>
+                                <td>
+                                    <span class="badge" :class="user.status === 'aktif' ? 'badge-success' : 'badge-secondary'">{{ user.status }}</span>
+                                </td>
+                                <td>{{ user.created_at }}</td>
+                                <td>
+                                    <button type="button" class="btn btn-xs btn-warning mr-1" @click="selectUser(user)">Edit</button>
+                                    <button type="button" class="btn btn-xs btn-danger" @click="removeUser(user)">Hapus</button>
+                                </td>
+                            </tr>
+                            <tr v-if="!users.length"><td colspan="6" class="text-center text-muted">Belum ada user.</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
-        </section>
 
-        <section class="panel-card">
-            <div class="panel-head">
-                <div>
-                    <h3>Daftar User</h3>
-                    <p>CRUD Inertia hanya tersedia untuk superadmin.</p>
-                </div>
-                <div class="filter-actions">
-                    <input v-model="searchForm.search" class="inline-input" type="text" placeholder="Cari username">
-                    <button type="button" class="ghost-button" @click="submitSearch">Cari</button>
+            <div class="card card-outline card-info" v-if="selectedUser">
+                <div class="card-header"><h3 class="card-title">Ringkasan User Terpilih</h3></div>
+                <div class="card-body">
+                    <p><strong>ID:</strong> {{ selectedUser.id_user }}</p>
+                    <p><strong>Username:</strong> {{ selectedUser.nama }}</p>
+                    <p><strong>Role:</strong> {{ selectedUser.role }}</p>
+                    <p><strong>Status:</strong> {{ selectedUser.status }}</p>
+                    <p class="mb-0"><strong>Dibuat:</strong> {{ selectedUser.created_at }}</p>
                 </div>
             </div>
-
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Username</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th>Created At</th>
-                            <th>Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="user in users" :key="user.id_user">
-                            <td>{{ user.id_user }}</td>
-                            <td>{{ user.nama }}</td>
-                            <td>{{ user.role }}</td>
-                            <td>{{ user.status }}</td>
-                            <td>{{ user.created_at }}</td>
-                            <td class="action-row">
-                                <button type="button" class="ghost-button" @click="selectUser(user)">Edit</button>
-                                <button type="button" class="danger-button" @click="removeUser(user)">Hapus</button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
+        </div>
     </div>
 </template>
 
 <script setup>
 import { computed } from 'vue';
-import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import Select2Input from '../../Components/Select2Input.vue';
 
 defineOptions({ layout: AppLayout });
 
-const props = defineProps({
-    filters: Object,
-    users: Array,
-    roles: Array,
-    statuses: Array,
-});
-
-const page = usePage();
-const selectedUser = computed(() => props.users.find((item) => item.id_user === editForm.id_user) ?? null);
-
+const props = defineProps({ filters: Object, users: Array, roles: Array, statuses: Array });
 const searchForm = useForm({ search: props.filters.search ?? '' });
 const createForm = useForm({ nama: '', role: 'admin', status: 'aktif', password: '', password_confirmation: '' });
 const editForm = useForm({ id_user: null, nama: '', role: 'admin', status: 'aktif', password: '', password_confirmation: '' });
+const selectedUser = computed(() => props.users.find((item) => item.id_user === editForm.id_user) ?? null);
 
-const submitSearch = () => {
-    searchForm.get('/users', { preserveState: true, preserveScroll: true, replace: true });
-};
-
-const submitCreate = () => {
-    createForm.post('/users', {
-        preserveScroll: true,
-        onSuccess: () => createForm.reset(),
-    });
-};
-
+const submitSearch = () => searchForm.get('/users', { preserveState: true, preserveScroll: true, replace: true });
+const submitCreate = () => createForm.post('/users', { preserveScroll: true, onSuccess: () => createForm.reset() });
 const selectUser = (user) => {
     editForm.id_user = user.id_user;
     editForm.nama = user.nama;
@@ -182,24 +138,13 @@ const selectUser = (user) => {
     editForm.password = '';
     editForm.password_confirmation = '';
 };
-
 const clearSelection = () => {
     editForm.reset();
     editForm.id_user = null;
 };
-
-const submitEdit = () => {
-    editForm.put(`/users/${editForm.id_user}`, {
-        preserveScroll: true,
-        onSuccess: () => clearSelection(),
-    });
-};
-
+const submitEdit = () => editForm.put(`/users/${editForm.id_user}`, { preserveScroll: true, onSuccess: () => clearSelection() });
 const removeUser = (user) => {
-    if (!window.confirm(`Hapus user ${user.nama}?`)) {
-        return;
-    }
-
+    if (!window.confirm(`Hapus user ${user.nama}?`)) return;
     router.delete(`/users/${user.id_user}`, { preserveScroll: true });
 };
 </script>

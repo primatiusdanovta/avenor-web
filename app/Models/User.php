@@ -40,4 +40,19 @@ class User extends Authenticatable
     {
         return $this->hasMany(Attendance::class, 'user_id', 'id_user');
     }
+
+    public function marketingLocations(): HasMany
+    {
+        return $this->hasMany(MarketingLocation::class, 'user_id', 'id_user');
+    }
+
+    public function productOnhands(): HasMany
+    {
+        return $this->hasMany(ProductOnhand::class, 'user_id', 'id_user');
+    }
+
+    public function offlineSales(): HasMany
+    {
+        return $this->hasMany(OfflineSale::class, 'id_user', 'id_user');
+    }
 }

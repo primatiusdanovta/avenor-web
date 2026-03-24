@@ -21,10 +21,7 @@
                 <form class="stack" @submit.prevent="submitAttendance">
                     <label class="field">
                         <span>Area</span>
-                        <select v-model="attendanceForm.area_id">
-                            <option value="">Pilih area</option>
-                            <option v-for="area in areas" :key="area.id" :value="area.id">{{ area.name }} - {{ area.region }}</option>
-                        </select>
+                        <Select2Input v-model="attendanceForm.area_id" :options="areaOptions" value-key="value" label-key="label" placeholder="Pilih area" />
                         <small v-if="attendanceForm.errors.area_id" class="field-error">{{ attendanceForm.errors.area_id }}</small>
                     </label>
 
@@ -46,11 +43,7 @@
 
                     <label class="field">
                         <span>Status</span>
-                        <select v-model="attendanceForm.status">
-                            <option value="hadir">hadir</option>
-                            <option value="terlambat">terlambat</option>
-                            <option value="izin">izin</option>
-                        </select>
+                        <Select2Input v-model="attendanceForm.status" :options="statuses" placeholder="Pilih status" />
                     </label>
 
                     <label class="field">
@@ -127,33 +120,18 @@
 </template>
 
 <script setup>
+import { computed } from 'vue';
 import { Deferred, Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import Select2Input from '../../Components/Select2Input.vue';
 
 defineOptions({ layout: AppLayout });
 
-const props = defineProps({
-    kpis: Array,
-    summary: Object,
-    areas: Array,
-    recentAttendances: Array,
-    areaPerformance: {
-        type: Array,
-        default: undefined,
-    },
-});
-
+const props = defineProps({ kpis: Array, summary: Object, areas: Array, recentAttendances: Array, areaPerformance: { type: Array, default: undefined } });
 const today = new Date().toISOString().slice(0, 10);
-
-const attendanceForm = useForm({
-    area_id: '',
-    attendance_date: today,
-    check_in: '08:00',
-    check_out: '17:00',
-    status: 'hadir',
-    notes: '',
-});
-
+const areaOptions = computed(() => props.areas.map((area) => ({ value: area.id, label: `${area.name} - ${area.region}` })));
+const statuses = ['hadir', 'terlambat', 'izin'];
+const attendanceForm = useForm({ area_id: '', attendance_date: today, check_in: '08:00', check_out: '17:00', status: 'hadir', notes: '' });
 const submitAttendance = () => {
     attendanceForm.post('/marketing/attendance', {
         preserveScroll: true,

@@ -1,35 +1,50 @@
 <template>
     <Head :title="`Login - ${branding.title}`" />
 
-    <div class="login-page">
-        <div class="login-card">
-            <img :src="branding.logo" alt="Primatama" class="login-logo">
-            <p class="login-eyebrow">Secure Access</p>
-            <h1>{{ branding.title }}</h1>
-            <p class="login-subtitle">{{ branding.subtitle }}</p>
+    <div class="login-page bg-adminlte">
+        <div class="login-box">
+            <div class="login-logo">
+                <img :src="branding.logo" alt="Primatama" class="login-brand-logo mb-3">
+                <div><b>Avenor</b> Web</div>
+            </div>
 
-            <form class="login-form" @submit.prevent="submit">
-                <label class="field">
-                    <span>Username</span>
-                    <input v-model="form.nama" type="text" autocomplete="username" placeholder="Masukkan username">
-                    <small v-if="form.errors.nama" class="field-error">{{ form.errors.nama }}</small>
-                </label>
+            <div class="card card-outline card-primary shadow-lg">
+                <div class="card-body login-card-body">
+                    <p class="login-box-msg">{{ branding.subtitle }}</p>
 
-                <label class="field">
-                    <span>Password</span>
-                    <input v-model="form.password" type="password" autocomplete="current-password" placeholder="Masukkan password">
-                    <small v-if="form.errors.password" class="field-error">{{ form.errors.password }}</small>
-                </label>
+                    <form @submit.prevent="submit">
+                        <div class="input-group mb-3">
+                            <input v-model="form.nama" type="text" class="form-control" placeholder="Username" autocomplete="username">
+                            <div class="input-group-append">
+                                <div class="input-group-text"><span class="fas fa-user"></span></div>
+                            </div>
+                        </div>
+                        <div v-if="form.errors.nama" class="text-danger text-sm mb-3">{{ form.errors.nama }}</div>
 
-                <label class="remember-row">
-                    <input v-model="form.remember" type="checkbox">
-                    <span>Ingat saya</span>
-                </label>
+                        <div class="input-group mb-3">
+                            <input v-model="form.password" type="password" class="form-control" placeholder="Password" autocomplete="current-password">
+                            <div class="input-group-append">
+                                <div class="input-group-text"><span class="fas fa-lock"></span></div>
+                            </div>
+                        </div>
+                        <div v-if="form.errors.password" class="text-danger text-sm mb-3">{{ form.errors.password }}</div>
 
-                <button type="submit" class="primary-button" :disabled="form.processing">
-                    {{ form.processing ? 'Memproses...' : 'Login' }}
-                </button>
-            </form>
+                        <div class="row">
+                            <div class="col-7">
+                                <div class="icheck-primary">
+                                    <input id="remember" v-model="form.remember" type="checkbox">
+                                    <label for="remember">Ingat saya</label>
+                                </div>
+                            </div>
+                            <div class="col-5">
+                                <button type="submit" class="btn btn-primary btn-block" :disabled="form.processing">
+                                    {{ form.processing ? 'Memproses...' : 'Login' }}
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 </template>
@@ -37,22 +52,11 @@
 <script setup>
 import { Head, useForm } from '@inertiajs/vue3';
 
-defineProps({
-    branding: {
-        type: Object,
-        required: true,
-    },
-});
+defineProps({ branding: Object });
 
-const form = useForm({
-    nama: '',
-    password: '',
-    remember: true,
-});
+const form = useForm({ nama: '', password: '', remember: true });
 
 const submit = () => {
-    form.post('/login', {
-        preserveScroll: true,
-    });
+    form.post('/login', { preserveScroll: true });
 };
 </script>

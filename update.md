@@ -1,16 +1,16 @@
 # Update Proyek Avenor Web
 
-## Ringkasan Teknologi
+## Ringkasan Stack
 
 - Laravel 12
-- PostgreSQL (`pgsql`)
+- PostgreSQL
 - Inertia.js + Vue 3
 - Vite
-- AdminLTE telah terpasang di tahap awal proyek
+- AdminLTE
 
 ## Konfigurasi Database
 
-Project saat ini sudah diarahkan ke PostgreSQL dengan konfigurasi berikut:
+Project sudah diarahkan ke PostgreSQL dengan konfigurasi berikut:
 
 - Database: `avenor_web`
 - Username: `pgsql`
@@ -18,111 +18,212 @@ Project saat ini sudah diarahkan ke PostgreSQL dengan konfigurasi berikut:
 - Host: `127.0.0.1`
 - Port: `5432`
 
-## Fitur Yang Sudah Dibuat
+## Modul Yang Sudah Dibuat
 
-### 1. Autentikasi Login
+### 1. Autentikasi dan Keamanan
 
 - Login menggunakan `nama` sebagai username
-- Password sudah menggunakan hashing Laravel
-- Session login memakai auth bawaan Laravel
+- Password menggunakan hash bawaan Laravel
+- Session auth memakai Laravel Auth
 - Session di-regenerate setelah login
 - Logout menghapus session dengan aman
 - Proteksi CSRF aktif
 - Rate limit login aktif
-- Redirect setelah login langsung ke dashboard utama
 - Hanya user dengan status `aktif` yang dapat login
+- Redirect setelah login langsung ke dashboard utama
 
-### 2. Branding Login
+### 2. Tampilan AdminLTE
 
-- Logo login menggunakan file `resources/img/primatama.png`
-- Logo sudah dipublikasikan untuk dipakai di halaman login
+- Halaman login menggunakan layout AdminLTE
+- Dashboard menggunakan layout AdminLTE
+- Logo login dan sidebar memakai `resources/img/primatama.png`
+- Navigasi sidebar menyesuaikan role user
 
-### 3. Struktur User Custom
+### 3. Struktur User dan Role
 
-Tabel `users` menggunakan struktur:
+Tabel `users` menggunakan struktur berikut:
 
 - `id_user`
 - `nama`
 - `status`
-- `role`
 - `password`
+- `role`
 - `created_at`
 
-Role yang dipakai:
+Role yang aktif di sistem:
 
 - `superadmin`
 - `admin`
 - `marketing`
 - `reseller`
 
-### 4. Dummy Data User
+### 4. Dashboard Berbasis Role
 
-Seeder sudah dibuat untuk 4 akun dummy berdasarkan role.
+- Dashboard utama berbasis Inertia SPA
+- Deferred props digunakan untuk data statistik
+- `WhenVisible` digunakan untuk lazy loading data tertentu
+- Quick action berbeda untuk tiap role
+- Ringkasan inventory dan statistik user tersedia di dashboard
 
-### 5. Dashboard Berbasis Role
+### 5. User Management
 
-- Dashboard dibuat dengan Inertia.js
-- Menu sidebar menyesuaikan role
-- Ringkasan dashboard menampilkan statistik user
-- Deferred props digunakan untuk data yang dimuat setelah render awal
-- `WhenVisible` digunakan untuk lazy loading recent users
-- Navigasi antar halaman menggunakan SPA visit Inertia
+Hanya `superadmin` yang dapat mengakses modul user management.
 
-### 6. User Management Hanya Untuk Superadmin
-
-Fitur CRUD user berbasis Inertia hanya bisa diakses oleh `superadmin`.
-
-Fitur yang tersedia:
+Fitur:
 
 - Lihat daftar user
 - Cari user
-- Tambah user baru
+- Tambah user
 - Edit user
 - Hapus user
-- Form create dan edit berbasis Inertia form handling
-- Validasi backend untuk username unik, role, status, dan password
 
-### 7. KPI Marketing
+### 6. Marketing Management
 
-Halaman KPI khusus role `marketing` sudah dibuat.
+Dapat diakses oleh `superadmin` dan `admin`.
 
-KPI yang ditampilkan:
+Fitur:
 
-- Total absensi bulan berjalan
-- Total hadir tepat waktu
-- Total terlambat
-- Coverage area
+- CRUD akun marketing
+- Lihat status absensi hari ini
+- Lihat lokasi terakhir marketing
+- Lihat map lokasi marketing
+- Lihat daftar barang yang dibawa marketing hari ini
+- Lihat status request pengembalian barang
+- Approval atau penolakan request pengembalian barang
 
-Tambahan:
+### 7. Absensi Marketing
 
-- Ringkasan area aktif
-- Riwayat absensi terbaru
-- Performa area dengan deferred props
+Halaman absensi hanya untuk role `marketing`.
 
-### 8. Absensi Marketing Berbasis Area
+Fitur:
 
-Sudah dibuat modul absensi marketing dengan tabel:
+- Check in otomatis
+- Check out otomatis
+- Tanggal, jam check in, dan jam check out diambil otomatis dari server
+- Koordinat lokasi wajib aktif saat check in dan check out
+- Lokasi marketing direkam otomatis setiap 1 jam
+- Status absensi: `hadir`, `terlambat`, `izin`, `sakit`
+- Riwayat absensi tersedia
+- List barang yang dibawa hari ini tersedia di halaman absensi
+- Checkout ditolak jika masih ada barang yang belum selesai diproses
+- Warning checkout: `Barang belum dikembalikan`
+- Jika barang habis terjual sesuai quantity yang dibawa, checkout tetap diperbolehkan tanpa input pengembalian
 
-- `areas`
-- `attendances`
+### 8. Product Management
 
-Fitur absensi:
+Dapat diakses oleh `superadmin` dan `admin`.
 
-- Input absensi berdasarkan area
-- Tanggal absensi
-- Check in
-- Check out
-- Status: `hadir`, `terlambat`, `izin`
-- Catatan aktivitas
+Tabel `products`:
 
-### 9. Data Area dan Absensi Dummy
+- `id_product`
+- `nama_product`
+- `harga`
+- `harga_modal`
+- `stock`
+- `gambar`
+- `created_at`
 
-Seeder saat ini juga membuat:
+Fitur:
 
-- 3 area dummy
-- 6 data absensi dummy untuk user marketing
+- CRUD product
+- Upload gambar product
+- Stock otomatis berkurang saat barang diambil marketing atau reseller
+- Stock otomatis bertambah setelah pengembalian disetujui admin atau superadmin
 
-## Credentials Akun Dummy
+### 9. Product On Hand Marketing dan Reseller
+
+Halaman product untuk `marketing` dan `reseller` mengambil data dari `product_onhands`.
+
+Tabel `product_onhands`:
+
+- `id_product_onhand`
+- `user_id`
+- `id_product`
+- `nama_product`
+- `quantity`
+- `quantity_dikembalikan`
+- `return_status`
+- `approved_by`
+- `assignment_date`
+- `created_at`
+
+Fitur:
+
+- Ambil barang dengan pilihan product dari master product
+- Product picker sudah searchable saat memilih
+- Marketing wajib absensi check in sebelum mengambil barang
+- Marketing dan reseller dapat membawa lebih dari 1 product
+- Tabel khusus `Pengembalian Barang Yang Dibawa Hari Ini`
+- Request pengembalian barang tersedia
+- Pengembalian barang wajib approval admin atau superadmin
+- Status pengembalian: `belum`, `pending`, `disetujui`, `tidak_disetujui`
+- Status otomatis `selesai_terjual` jika quantity penjualan sama dengan quantity barang yang dibawa
+- Request baru ditolak jika masih ada pending approval
+- Warning request ganda: `Masih ada antrian yang belum disetujui`
+- Validasi pengembalian tidak boleh melebihi quantity pengambilan
+- Validasi pengembalian tidak boleh melebihi sisa barang yang belum terjual
+
+### 10. Penjualan Offline
+
+Tersedia untuk `marketing`, `reseller`, `admin`, dan `superadmin`.
+
+Tabel `offline_sales`:
+
+- `id_penjualan_offline`
+- `id_user`
+- `id_product`
+- `id_product_onhand`
+- `promo_id`
+- `nama`
+- `nama_product`
+- `quantity`
+- `harga`
+- `kode_promo`
+- `promo`
+- `bukti_pembelian`
+- `approval_status`
+- `approved_by`
+- `approved_at`
+- `created_at`
+
+Fitur:
+
+- Input penjualan offline dengan upload bukti pembelian
+- Product picker sudah searchable saat memilih
+- Harga otomatis diambil dari product
+- Promo otomatis memotong harga jika valid
+- Marketing dan reseller hanya melihat data penjualan miliknya sendiri
+- Admin dan superadmin dapat melihat seluruh data penjualan
+- Admin dan superadmin dapat edit, hapus, approve, dan reject penjualan
+- Penjualan dari marketing dan reseller membutuhkan approval admin atau superadmin
+- Penjualan untuk marketing dan reseller ditautkan ke batch product on-hand aktif hari itu
+- Validasi quantity penjualan tidak boleh melebihi barang yang dibawa
+
+### 11. Promo Management
+
+Dapat diakses oleh `admin` dan `superadmin`.
+
+Tabel `promos`:
+
+- `kode_promo`
+- `nama_promo`
+- `potongan`
+- `masa_aktif`
+- `minimal_quantity`
+- `minimal_belanja`
+- `created_at`
+
+Fitur:
+
+- CRUD promo
+- `kode_promo` otomatis digenerate dari nama promo dan tanggal pembuatan
+- Promo expired tidak muncul di form penjualan
+- Promo expired tidak bisa digunakan
+- Validasi minimal quantity dan minimal belanja aktif saat penjualan dibuat
+- Informasi minimal quantity dan minimal pembelian ditampilkan saat promo dipilih
+- Warning promo jika syarat belum terpenuhi: `Pembelian belum mencapai syarat`
+
+## Kredensial Akun Dummy
 
 Gunakan akun berikut untuk login:
 
@@ -146,27 +247,51 @@ Gunakan akun berikut untuk login:
 - Username: `reseller`
 - Password: `Reseller123!`
 
-## Route Utama Yang Tersedia
+## Route Utama
 
 - `/login`
 - `/dashboard`
-- `/users` -> hanya `superadmin`
-- `/marketing/kpi` -> hanya `marketing`
+- `/users`
+- `/marketing`
+- `/marketing/attendance`
+- `/products`
+- `/promos`
+- `/offline-sales`
+
+## Migration Tambahan Penting
+
+Migration tambahan terbaru:
+
+- `2026_03_24_000011_add_id_product_onhand_to_offline_sales_table.php`
+
+Fungsi migration ini:
+
+- menambahkan `id_product_onhand` ke tabel `offline_sales`
+- menghubungkan penjualan offline dengan batch barang yang dibawa
+- membuat validasi stock on-hand lebih akurat per pengambilan
+
+## Data Dummy Tambahan
+
+Seeder saat ini juga menyiapkan:
+
+- product dummy
+- promo dummy
+- riwayat absensi dummy marketing
+- riwayat lokasi dummy marketing
 
 ## Status Verifikasi
 
 Yang sudah diverifikasi:
 
-- Migrasi PostgreSQL berhasil dijalankan
-- Seeder berhasil dijalankan
-- Build frontend berhasil
-- Test otomatis Laravel berhasil lulus
+- `php artisan migrate:fresh --seed` berhasil
+- `php artisan test` berhasil lulus
+- `npm run build` berhasil
+- `php artisan storage:link` berhasil
 
-## Catatan
+## Catatan Teknis
 
-Jika ingin melanjutkan pengembangan, langkah berikut yang disarankan:
-
-- CRUD area untuk superadmin
-- Filter KPI marketing per tanggal atau per area
-- Approval workflow absensi
-- Permission middleware per role yang lebih formal
+- Upload gambar product dan bukti pembelian menggunakan disk `public`
+- Link storage publik sudah dibuat ke `public/storage`
+- Validasi checkout marketing bergantung pada sisa barang yang dibawa, barang terjual, dan request pengembalian
+- Approval pengembalian barang dilakukan dari halaman marketing milik admin atau superadmin
+- Searchable product picker digunakan di halaman product marketing, reseller, admin, superadmin, dan penjualan offline

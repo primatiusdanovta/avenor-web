@@ -14,12 +14,16 @@ class Attendance extends Model
 
     protected $fillable = [
         'user_id',
-        'area_id',
         'attendance_date',
         'check_in',
+        'check_in_latitude',
+        'check_in_longitude',
         'check_out',
+        'check_out_latitude',
+        'check_out_longitude',
         'status',
         'notes',
+        'created_at',
     ];
 
     protected function casts(): array
@@ -27,16 +31,15 @@ class Attendance extends Model
         return [
             'attendance_date' => 'date',
             'created_at' => 'datetime',
+            'check_in_latitude' => 'float',
+            'check_in_longitude' => 'float',
+            'check_out_latitude' => 'float',
+            'check_out_longitude' => 'float',
         ];
     }
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id', 'id_user');
-    }
-
-    public function area(): BelongsTo
-    {
-        return $this->belongsTo(Area::class);
     }
 }

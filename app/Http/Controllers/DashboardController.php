@@ -3,6 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
+use App\Models\MarketingLocation;
+use App\Models\OfflineSale;
+use App\Models\Product;
+use App\Models\ProductOnhand;
+use App\Models\Promo;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,25 +24,39 @@ class DashboardController extends Controller
 
         if ($user->role === 'superadmin') {
             $quickActions[] = ['label' => 'Kelola User', 'href' => '/users'];
+            $quickActions[] = ['label' => 'Monitoring Marketing', 'href' => '/marketing'];
+            $quickActions[] = ['label' => 'Approvals', 'href' => '/approvals'];
+            $quickActions[] = ['label' => 'Products', 'href' => '/products'];
+            $quickActions[] = ['label' => 'Promos', 'href' => '/promos'];
+            $quickActions[] = ['label' => 'Penjualan Offline', 'href' => '/offline-sales'];
             $roleHighlights = [
-                ['title' => 'CRUD User', 'description' => 'Tambah, edit, dan hapus user langsung dari panel Inertia.'],
-                ['title' => 'Kontrol Akses', 'description' => 'Superadmin menjadi satu-satunya role yang bisa mengakses modul user management.'],
+                ['title' => 'Kontrol Master Data', 'description' => 'Superadmin mengelola user, product, promo, penjualan offline, serta approval pengambilan dan pengembalian barang.'],
+                ['title' => 'Monitoring Marketing', 'description' => 'Lihat lokasi terakhir, absensi hari ini, barang yang dibawa, dan status pengembalian marketing.'],
             ];
         } elseif ($user->role === 'marketing') {
-            $quickActions[] = ['label' => 'Lihat KPI Marketing', 'href' => '/marketing/kpi'];
+            $quickActions[] = ['label' => 'Absensi', 'href' => '/marketing/attendance'];
+            $quickActions[] = ['label' => 'Products', 'href' => '/products'];
+            $quickActions[] = ['label' => 'Penjualan Offline', 'href' => '/offline-sales'];
             $roleHighlights = [
-                ['title' => 'KPI Personal', 'description' => 'Pantau absensi, coverage area, dan performa kunjungan area aktif.'],
-                ['title' => 'Absensi Area', 'description' => 'Input absensi marketing terhubung langsung dengan area yang dikunjungi.'],
+                ['title' => 'Absensi Otomatis', 'description' => 'Tanggal, jam check in/check out, dan koordinat lokasi diambil otomatis saat tombol dijalankan.'],
+                ['title' => 'Barang On Hand', 'description' => 'Marketing dapat mengambil barang setelah check in, input penjualan, dan request pengembalian sebelum checkout.'],
             ];
         } elseif ($user->role === 'admin') {
+            $quickActions[] = ['label' => 'Monitoring Marketing', 'href' => '/marketing'];
+            $quickActions[] = ['label' => 'Approvals', 'href' => '/approvals'];
+            $quickActions[] = ['label' => 'Products', 'href' => '/products'];
+            $quickActions[] = ['label' => 'Promos', 'href' => '/promos'];
+            $quickActions[] = ['label' => 'Penjualan Offline', 'href' => '/offline-sales'];
             $roleHighlights = [
-                ['title' => 'Monitoring Operasional', 'description' => 'Gunakan dashboard untuk memantau kondisi user dan distribusi role.'],
-                ['title' => 'Akses Terbatas', 'description' => 'Admin tidak memiliki akses CRUD user dan KPI marketing.'],
+                ['title' => 'Approval Operasional', 'description' => 'Admin menyetujui penjualan offline, pengambilan barang, dan pengembalian barang dari marketing/reseller.'],
+                ['title' => 'Master Data', 'description' => 'Admin mengelola product, promo, dan akun marketing.'],
             ];
         } else {
+            $quickActions[] = ['label' => 'Products', 'href' => '/products'];
+            $quickActions[] = ['label' => 'Penjualan Offline', 'href' => '/offline-sales'];
             $roleHighlights = [
-                ['title' => 'Akses Ringkas', 'description' => 'Reseller hanya melihat dashboard utama sesuai izin akses yang tersedia.'],
-                ['title' => 'Status Akun', 'description' => 'Pastikan akun aktif untuk menjaga akses ke sistem.'],
+                ['title' => 'Stock On Hand', 'description' => 'Reseller melihat barang yang dibawa, menginput penjualan, dan mengirim request pengembalian jika ada sisa.'],
+                ['title' => 'Akses Ringkas', 'description' => 'Reseller hanya melihat data miliknya sendiri untuk product dan penjualan offline.'],
             ];
         }
 
@@ -51,7 +70,8 @@ class DashboardController extends Controller
             'quickActions' => $quickActions,
             'roleHighlights' => $roleHighlights,
             'canViewUsers' => $user->role === 'superadmin',
-            'canViewMarketingKpi' => $user->role === 'marketing',
+            'canManageMarketing' => in_array($user->role, ['superadmin', 'admin'], true),
+            'canViewMarketingAttendance' => $user->role === 'marketing',
             'roleStats' => Inertia::defer(fn () => User::query()
                 ->select('role', DB::raw('COUNT(*) as total'))
                 ->groupBy('role')
@@ -59,12 +79,6 @@ class DashboardController extends Controller
                 ->get()
                 ->map(fn ($row) => ['role' => $row->role, 'total' => (int) $row->total])
                 ->values()),
-            'systemInfo' => Inertia::defer(fn () => [
-                'database' => config('database.default'),
-                'sessionDriver' => config('session.driver'),
-                'queue' => config('queue.default'),
-                'locale' => config('app.locale'),
-            ]),
             'recentUsers' => Inertia::optional(fn () => User::query()
                 ->latest('created_at')
                 ->limit(6)
@@ -77,12 +91,21 @@ class DashboardController extends Controller
                     'created_at' => optional($item->created_at)->format('Y-m-d H:i:s'),
                 ])
                 ->values()),
-            'marketingSnapshot' => $user->role === 'marketing'
+            'marketingSnapshot' => in_array($user->role, ['superadmin', 'admin'], true)
                 ? Inertia::defer(fn () => [
-                    'attendanceCount' => Attendance::query()->where('user_id', $user->id_user)->count(),
-                    'lateCount' => Attendance::query()->where('user_id', $user->id_user)->where('status', 'terlambat')->count(),
+                    'totalMarketing' => User::query()->where('role', 'marketing')->count(),
+                    'activeToday' => Attendance::query()->whereDate('attendance_date', now()->toDateString())->count(),
+                    'latestPing' => optional(MarketingLocation::query()->latest('recorded_at')->first()?->recorded_at)->format('Y-m-d H:i:s'),
+                    'todayCarriedItems' => ProductOnhand::query()->whereDate('assignment_date', now()->toDateString())->count(),
+                    'pendingSales' => OfflineSale::query()->where('approval_status', 'pending')->count(),
                 ])
                 : null,
+            'inventorySummary' => Inertia::defer(fn () => [
+                'products' => Product::count(),
+                'promos' => Promo::query()->whereDate('masa_aktif', '>=', today())->count(),
+                'pendingReturns' => ProductOnhand::query()->where('return_status', 'pending')->count(),
+                'pendingSales' => OfflineSale::query()->where('approval_status', 'pending')->count(),
+            ]),
         ]);
     }
 }

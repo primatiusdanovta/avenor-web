@@ -18,10 +18,7 @@
 
                 <label class="field">
                     <span>Role</span>
-                    <select v-model="form.role">
-                        <option value="">Semua role</option>
-                        <option v-for="role in roles" :key="role" :value="role">{{ role }}</option>
-                    </select>
+                    <Select2Input v-model="form.role" :options="roleOptions" placeholder="Semua role" />
                 </label>
 
                 <div class="filter-actions">
@@ -61,54 +58,24 @@
             </div>
 
             <div class="pagination-row">
-                <Link
-                    v-for="link in users.links"
-                    :key="`${link.label}-${link.url}`"
-                    :href="link.url || '/users'"
-                    class="page-link"
-                    :class="{ active: link.active, disabled: !link.url }"
-                    v-html="link.label"
-                    preserve-scroll
-                />
+                <Link v-for="link in users.links" :key="`${link.label}-${link.url}`" :href="link.url || '/users'" class="page-link" :class="{ active: link.active, disabled: !link.url }" v-html="link.label" preserve-scroll />
             </div>
         </section>
     </div>
 </template>
 
 <script setup>
+import { computed } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import Select2Input from '../../Components/Select2Input.vue';
 
 defineOptions({ layout: AppLayout });
 
-const props = defineProps({
-    filters: {
-        type: Object,
-        required: true,
-    },
-    roles: {
-        type: Array,
-        required: true,
-    },
-    users: {
-        type: Object,
-        required: true,
-    },
-});
-
-const form = useForm({
-    search: props.filters.search ?? '',
-    role: props.filters.role ?? '',
-});
-
-const submit = () => {
-    form.get('/users', {
-        preserveState: true,
-        preserveScroll: true,
-        replace: true,
-    });
-};
-
+const props = defineProps({ filters: Object, roles: Array, users: Object });
+const roleOptions = computed(() => [{ value: '', label: 'Semua role' }, ...props.roles.map((role) => ({ value: role, label: role }))]);
+const form = useForm({ search: props.filters.search ?? '', role: props.filters.role ?? '' });
+const submit = () => form.get('/users', { preserveState: true, preserveScroll: true, replace: true });
 const reset = () => {
     form.search = '';
     form.role = '';
