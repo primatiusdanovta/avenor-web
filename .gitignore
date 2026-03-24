@@ -1,6 +1,12 @@
 *.log
 .DS_Store
 .env
+/node_modules
+/storage/*.key
+/storage/logs/*
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
 .env.backup
 .env.production
 .phpactor.json
@@ -16,9 +22,42 @@
 /public/build
 /public/hot
 /public/storage
-/storage/*.key
-/storage/pail
-/vendor
+
 Homestead.json
 Homestead.yaml
+Thumbs.db
+*.rar
+# Dependency folders (sangat berat, tidak perlu masuk Git)
+node_modules/
+dist/
+plugins/
+
+# Laravel spesifik (jika pakai Laravel)
+# app
+# bootstrap
+# config
+# database
+# resources
+# routes
+# storage
+vendor
+# composer.json
+# artisan
+.env
+# /storage/*.key
+public/storage
+public/hot
+
+# Log & Temporary files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.phpunit.result.cache
+/bootstrap/cache/*
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/storage/logs
+# OS spesifik
+.DS_Store
 Thumbs.db
