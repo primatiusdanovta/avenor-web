@@ -24,10 +24,10 @@
 <body class="hold-transition sidebar-mini layout-fixed layout-navbar-fixed">
     @inertia
 
-    <script src="{{ asset('vendor/jquery/jquery.min.js') }}"></script>
+    <!-- <script src="{{ asset('vendor/jquery/jquery.min.js') }}"></script>
     <script src="{{ asset('vendor/bootstrap/js/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ asset('vendor/overlayScrollbars/js/jquery.overlayScrollbars.min.js') }}"></script>
     <script src="{{ asset('vendor/select2/js/select2.full.min.js') }}"></script>
-    <script src="{{ asset('vendor/adminlte/dist/js/adminlte.min.js') }}"></script>
+    <script src="{{ asset('vendor/adminlte/dist/js/adminlte.min.js') }}"></script> -->
 </body>
 </html>
