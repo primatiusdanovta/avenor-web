@@ -15,6 +15,7 @@
         "vite": "^7.0.7"
     },
     "dependencies": {
+        "@inertiajs/progress": "^0.2.7",
         "@inertiajs/vue3": "^2.3.18",
         "@vitejs/plugin-vue": "^6.0.5",
         "admin-lte": "^4.0.0-rc7",
