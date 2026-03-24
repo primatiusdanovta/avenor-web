@@ -48,8 +48,13 @@ progress.init({
 router.on('finish', () => {
     setTimeout(() => {
         if (window.$) {
-            $('[data-widget="pushmenu"]').PushMenu?.('init')
-            $('[data-widget="treeview"]').Treeview?.('init')
+            $('[data-widget="pushmenu"]').each(function () {
+                $(this).PushMenu()
+            })
+
+            $('[data-widget="treeview"]').each(function () {
+                $(this).Treeview()
+            })
         }
     }, 100)
 })
