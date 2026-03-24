@@ -54,6 +54,7 @@
                     <div class="card-header"><h3 class="card-title">Ringkasan Inventory</h3></div>
                     <div class="card-body">
                         <p class="mb-1"><strong>Total Product:</strong> {{ inventorySummary.products }}</p>
+                        <p class="mb-1"><strong>Raw Material:</strong> {{ inventorySummary.rawMaterials ?? 0 }}</p>
                         <p class="mb-1"><strong>Promo Aktif:</strong> {{ inventorySummary.promos }}</p>
                         <p class="mb-1"><strong>Pending Return:</strong> {{ inventorySummary.pendingReturns }}</p>
                         <p class="mb-0"><strong>Pending Sales:</strong> {{ inventorySummary.pendingSales }}</p>

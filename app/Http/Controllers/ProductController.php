@@ -97,7 +97,6 @@ class ProductController extends Controller
         $validated = $request->validate([
             'nama_product' => ['required', 'string', 'max:255', 'unique:products,nama_product'],
             'harga' => ['required', 'numeric', 'min:0'],
-            'harga_modal' => ['required', 'numeric', 'min:0'],
             'stock' => ['required', 'integer', 'min:0'],
             'gambar' => ['nullable', 'image', 'max:3072'],
         ]);
@@ -107,7 +106,7 @@ class ProductController extends Controller
         Product::query()->create([
             'nama_product' => $validated['nama_product'],
             'harga' => $validated['harga'],
-            'harga_modal' => $validated['harga_modal'],
+            'harga_modal' => 0,
             'stock' => $validated['stock'],
             'gambar' => $path,
             'created_at' => now(),
@@ -123,7 +122,6 @@ class ProductController extends Controller
         $validated = $request->validate([
             'nama_product' => ['required', 'string', 'max:255', Rule::unique('products', 'nama_product')->ignore($product->id_product, 'id_product')],
             'harga' => ['required', 'numeric', 'min:0'],
-            'harga_modal' => ['required', 'numeric', 'min:0'],
             'stock' => ['required', 'integer', 'min:0'],
             'gambar' => ['nullable', 'image', 'max:3072'],
         ]);
@@ -131,7 +129,6 @@ class ProductController extends Controller
         $payload = [
             'nama_product' => $validated['nama_product'],
             'harga' => $validated['harga'],
-            'harga_modal' => $validated['harga_modal'],
             'stock' => $validated['stock'],
         ];
 

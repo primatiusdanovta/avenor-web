@@ -8,6 +8,7 @@ use App\Models\OfflineSale;
 use App\Models\Product;
 use App\Models\ProductOnhand;
 use App\Models\Promo;
+use App\Models\RawMaterial;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,11 +27,13 @@ class DashboardController extends Controller
             $quickActions[] = ['label' => 'Kelola User', 'href' => '/users'];
             $quickActions[] = ['label' => 'Monitoring Marketing', 'href' => '/marketing'];
             $quickActions[] = ['label' => 'Approvals', 'href' => '/approvals'];
+            $quickActions[] = ['label' => 'Raw Material', 'href' => '/raw-materials'];
+            $quickActions[] = ['label' => 'HPP', 'href' => '/hpp'];
             $quickActions[] = ['label' => 'Products', 'href' => '/products'];
             $quickActions[] = ['label' => 'Promos', 'href' => '/promos'];
             $quickActions[] = ['label' => 'Penjualan Offline', 'href' => '/offline-sales'];
             $roleHighlights = [
-                ['title' => 'Kontrol Master Data', 'description' => 'Superadmin mengelola user, product, promo, penjualan offline, serta approval pengambilan dan pengembalian barang.'],
+                ['title' => 'Kontrol Master Data', 'description' => 'Superadmin mengelola user, raw material, HPP product, promo, penjualan offline, serta approval pengambilan dan pengembalian barang.'],
                 ['title' => 'Monitoring Marketing', 'description' => 'Lihat lokasi terakhir, absensi hari ini, barang yang dibawa, dan status pengembalian marketing.'],
             ];
         } elseif ($user->role === 'marketing') {
@@ -102,6 +105,7 @@ class DashboardController extends Controller
                 : null,
             'inventorySummary' => Inertia::defer(fn () => [
                 'products' => Product::count(),
+                'rawMaterials' => RawMaterial::count(),
                 'promos' => Promo::query()->whereDate('masa_aktif', '>=', today())->count(),
                 'pendingReturns' => ProductOnhand::query()->where('return_status', 'pending')->count(),
                 'pendingSales' => OfflineSale::query()->where('approval_status', 'pending')->count(),

@@ -57,7 +57,7 @@ class ExampleTest extends TestCase
     {
         $this->seed();
         $user = User::where('nama', 'marketing')->firstOrFail();
-        $product = Product::firstOrFail();
+        $product = $this->createProduct();
 
         Attendance::query()->create([
             'user_id' => $user->id_user,
@@ -83,7 +83,7 @@ class ExampleTest extends TestCase
     {
         $this->seed();
         $user = User::where('nama', 'marketing')->firstOrFail();
-        $product = Product::firstOrFail();
+        $product = $this->createProduct();
 
         ProductOnhand::query()->create([
             'user_id' => $user->id_user,
@@ -114,7 +114,7 @@ class ExampleTest extends TestCase
     {
         $this->seed();
         $user = User::where('nama', 'marketing')->firstOrFail();
-        $product = Product::firstOrFail();
+        $product = $this->createProduct();
         $onhand = ProductOnhand::query()->create([
             'user_id' => $user->id_user,
             'id_product' => $product->id_product,
@@ -140,7 +140,7 @@ class ExampleTest extends TestCase
     {
         $this->seed();
         $user = User::where('nama', 'marketing')->firstOrFail();
-        $product = Product::firstOrFail();
+        $product = $this->createProduct();
         $onhand = ProductOnhand::query()->create([
             'user_id' => $user->id_user,
             'id_product' => $product->id_product,
@@ -188,5 +188,16 @@ class ExampleTest extends TestCase
             ->assertStatus(303);
 
         $this->assertTrue(MarketingLocation::query()->where('user_id', $user->id_user)->where('source', 'heartbeat')->exists());
+    }
+
+    private function createProduct(): Product
+    {
+        return Product::query()->create([
+            'nama_product' => 'Product Test',
+            'harga' => 100000,
+            'harga_modal' => 75000,
+            'stock' => 20,
+            'created_at' => now(),
+        ]);
     }
 }

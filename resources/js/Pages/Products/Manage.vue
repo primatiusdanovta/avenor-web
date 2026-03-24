@@ -10,8 +10,9 @@
                         <div class="form-group"><label>Nama Product</label><input v-model="createForm.nama_product" type="text" class="form-control"></div>
                         <div class="form-row">
                             <div class="form-group col-md-6"><label>Harga</label><input v-model="createForm.harga" type="number" min="0" class="form-control"></div>
-                            <div class="form-group col-md-6"><label>Harga Modal</label><input v-model="createForm.harga_modal" type="number" min="0" class="form-control"></div>
+                            <div class="form-group col-md-6"><label>Harga Modal</label><input :value="0" type="number" min="0" class="form-control" disabled></div>
                         </div>
+                        <small class="text-muted d-block mb-3">Harga modal diisi otomatis dari halaman HPP.</small>
                         <div class="form-group"><label>Stock</label><input v-model="createForm.stock" type="number" min="0" class="form-control"></div>
                         <div class="form-group"><label>Gambar</label><input type="file" class="form-control" accept="image/*" @input="createForm.gambar = $event.target.files[0]"></div>
                         <button type="submit" class="btn btn-primary" :disabled="createForm.processing">Simpan Product</button>
@@ -25,8 +26,9 @@
                     <div class="form-group"><label>Nama Product</label><input v-model="editForm.nama_product" type="text" class="form-control"></div>
                     <div class="form-row">
                         <div class="form-group col-md-6"><label>Harga</label><input v-model="editForm.harga" type="number" min="0" class="form-control"></div>
-                        <div class="form-group col-md-6"><label>Harga Modal</label><input v-model="editForm.harga_modal" type="number" min="0" class="form-control"></div>
+                        <div class="form-group col-md-6"><label>Harga Modal</label><input :value="editForm.harga_modal" type="number" min="0" class="form-control" disabled></div>
                     </div>
+                    <small class="text-muted d-block mb-3">Ubah harga modal melalui halaman HPP jika komposisi raw material berubah.</small>
                     <div class="form-group"><label>Stock</label><input v-model="editForm.stock" type="number" min="0" class="form-control"></div>
                     <div class="form-group"><label>Gambar Baru</label><input type="file" class="form-control" accept="image/*" @input="editForm.gambar = $event.target.files[0]"></div>
                     <div class="d-flex flex-wrap">
@@ -77,15 +79,15 @@ defineOptions({ layout: AppLayout });
 
 const props = defineProps({ products: Array });
 const keyword = ref('');
-const createForm = useForm({ nama_product: '', harga: '', harga_modal: '', stock: 0, gambar: null });
-const editForm = useForm({ id_product: null, nama_product: '', harga: '', harga_modal: '', stock: 0, gambar: null });
+const createForm = useForm({ nama_product: '', harga: '', stock: 0, gambar: null });
+const editForm = useForm({ id_product: null, nama_product: '', harga: '', harga_modal: 0, stock: 0, gambar: null });
 const filteredProducts = computed(() => props.products.filter((item) => item.nama_product.toLowerCase().includes(keyword.value.toLowerCase())));
 const toCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0);
 
 const submitCreate = () => createForm.post('/products', { forceFormData: true, preserveScroll: true, onSuccess: () => createForm.reset() });
 const pickEdit = (item) => Object.assign(editForm, { id_product: item.id_product, nama_product: item.nama_product, harga: item.harga, harga_modal: item.harga_modal, stock: item.stock, gambar: null });
 const submitEdit = () => {
-    editForm.transform((data) => ({ ...data, _method: 'put' })).post(`/products/${editForm.id_product}`, {
+    editForm.transform((data) => ({ id_product: data.id_product, nama_product: data.nama_product, harga: data.harga, stock: data.stock, gambar: data.gambar, _method: 'put' })).post(`/products/${editForm.id_product}`, {
         forceFormData: true,
         preserveScroll: true,
         onSuccess: () => editForm.reset(),

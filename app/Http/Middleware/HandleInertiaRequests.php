@@ -23,6 +23,8 @@ class HandleInertiaRequests extends Middleware
             $navigation[] = ['label' => 'User Management', 'href' => '/users', 'icon' => 'fas fa-users-cog'];
             $navigation[] = ['label' => 'Marketing', 'href' => '/marketing', 'icon' => 'fas fa-map-marker-alt'];
             $navigation[] = ['label' => 'Approvals', 'href' => '/approvals', 'icon' => 'fas fa-clipboard-check'];
+            $navigation[] = ['label' => 'Raw Material', 'href' => '/raw-materials', 'icon' => 'fas fa-industry'];
+            $navigation[] = ['label' => 'HPP', 'href' => '/hpp', 'icon' => 'fas fa-calculator'];
             $navigation[] = ['label' => 'Products', 'href' => '/products', 'icon' => 'fas fa-boxes'];
             $navigation[] = ['label' => 'Promos', 'href' => '/promos', 'icon' => 'fas fa-tags'];
             $navigation[] = ['label' => 'Penjualan Offline', 'href' => '/offline-sales', 'icon' => 'fas fa-cash-register'];

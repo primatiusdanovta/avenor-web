@@ -3,11 +3,13 @@
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\HppController;
 use App\Http\Controllers\MarketingAttendanceController;
 use App\Http\Controllers\MarketingManagementController;
 use App\Http\Controllers\OfflineSaleController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PromoController;
+use App\Http\Controllers\RawMaterialController;
 use App\Http\Controllers\SuperAdminUserController;
 use Illuminate\Support\Facades\Route;
 
@@ -36,6 +38,13 @@ Route::middleware('auth')->group(function () {
     Route::delete('/marketing/{user}', [MarketingManagementController::class, 'destroy'])->name('marketing.destroy');
 
     Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals.index');
+    Route::get('/hpp', [HppController::class, 'index'])->name('hpp.index');
+    Route::post('/hpp', [HppController::class, 'store'])->name('hpp.store');
+    Route::delete('/hpp/{hppCalculation}', [HppController::class, 'destroy'])->name('hpp.destroy');
+    Route::get('/raw-materials', [RawMaterialController::class, 'index'])->name('raw-materials.index');
+    Route::post('/raw-materials', [RawMaterialController::class, 'store'])->name('raw-materials.store');
+    Route::put('/raw-materials/{rawMaterial}', [RawMaterialController::class, 'update'])->name('raw-materials.update');
+    Route::delete('/raw-materials/{rawMaterial}', [RawMaterialController::class, 'destroy'])->name('raw-materials.destroy');
 
     Route::get('/marketing/attendance', [MarketingAttendanceController::class, 'index'])->name('marketing.attendance.index');
     Route::post('/marketing/attendance/check-in', [MarketingAttendanceController::class, 'checkIn'])->name('marketing.attendance.check-in');

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Product extends Model
 {
@@ -27,5 +28,10 @@ class Product extends Model
     public function onhands(): HasMany
     {
         return $this->hasMany(ProductOnhand::class, 'id_product', 'id_product');
+    }
+
+    public function hppCalculation(): HasOne
+    {
+        return $this->hasOne(HppCalculation::class, 'id_product', 'id_product');
     }
 }
