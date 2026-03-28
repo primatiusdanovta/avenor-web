@@ -14,7 +14,9 @@ class OfflineSale extends Model
     public $timestamps = false;
 
     protected $fillable = [
+        'transaction_code',
         'id_user',
+        'id_pelanggan',
         'id_product',
         'id_product_onhand',
         'promo_id',
@@ -46,6 +48,11 @@ class OfflineSale extends Model
         return $this->belongsTo(User::class, 'id_user', 'id_user');
     }
 
+    public function customer(): BelongsTo
+    {
+        return $this->belongsTo(Customer::class, 'id_pelanggan', 'id_pelanggan');
+    }
+
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'id_product', 'id_product');
@@ -61,3 +68,4 @@ class OfflineSale extends Model
         return $this->belongsTo(Promo::class, 'promo_id');
     }
 }
+

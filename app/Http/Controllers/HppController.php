@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\HppCalculation;
 use App\Models\Product;
 use App\Models\RawMaterial;
+use App\Support\RawMaterialUsage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -30,12 +31,13 @@ class HppController extends Controller
 
         $rawMaterials = RawMaterial::query()
             ->orderBy('nama_rm')
-            ->get(['id_rm', 'nama_rm', 'satuan', 'harga_satuan'])
+            ->get(['id_rm', 'nama_rm', 'satuan', 'harga_satuan', 'total_quantity'])
             ->map(fn (RawMaterial $material) => [
                 'id_rm' => $material->id_rm,
                 'nama_rm' => $material->nama_rm,
                 'satuan' => $material->satuan,
                 'harga_satuan' => (float) $material->harga_satuan,
+                'total_quantity' => (float) $material->total_quantity,
                 'option_label' => $material->nama_rm . ' | ' . $material->satuan,
             ])
             ->values();
@@ -55,8 +57,10 @@ class HppController extends Controller
                     'nama_rm' => $item->nama_rm,
                     'satuan' => $item->satuan,
                     'presentase' => (float) $item->presentase,
+                    'usage_quantity' => RawMaterialUsage::calculateUsageQuantity((float) $item->presentase, $item->satuan),
                     'harga_satuan' => (float) $item->harga_satuan,
                     'harga_final' => (float) $item->harga_final,
+                    'total_stock' => (float) $item->total_stock,
                 ])->values(),
             ])
             ->values();
@@ -87,17 +91,18 @@ class HppController extends Controller
             $calculation->items()->delete();
             foreach ($validated['items'] as $item) {
                 $rawMaterial = RawMaterial::query()->findOrFail($item['id_rm']);
-                $presentase = (float) $item['presentase'];
+                $inputValue = (float) $item['presentase'];
                 $hargaSatuan = (float) $rawMaterial->harga_satuan;
-                $hargaFinal = (($presentase / 100) * 50 ) * $hargaSatuan;
+                $hargaFinal = RawMaterialUsage::calculateItemCost($inputValue, $hargaSatuan, (string) $rawMaterial->satuan);
 
                 $calculation->items()->create([
                     'id_rm' => $rawMaterial->id_rm,
                     'nama_rm' => $rawMaterial->nama_rm,
                     'satuan' => $rawMaterial->satuan,
-                    'presentase' => $presentase,
+                    'presentase' => $inputValue,
                     'harga_satuan' => $hargaSatuan,
                     'harga_final' => $hargaFinal,
+                    'total_stock' => (float) $rawMaterial->total_quantity,
                     'created_at' => now(),
                 ]);
             }
@@ -130,7 +135,7 @@ class HppController extends Controller
             'id_product' => ['required', 'exists:products,id_product'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.id_rm' => ['required', 'distinct', 'exists:raw_materials,id_rm'],
-            'items.*.presentase' => ['required', 'numeric', 'min:0.01', 'max:100'],
+            'items.*.presentase' => ['required', 'numeric', 'min:0.01'],
         ], [
             'items.*.id_rm.distinct' => 'Raw material tidak boleh dipilih lebih dari sekali.',
         ]);
@@ -146,7 +151,12 @@ class HppController extends Controller
         return collect($items)->sum(function (array $item) use ($rawMaterials) {
             $rawMaterial = $rawMaterials->get($item['id_rm']);
             $hargaSatuan = (float) ($rawMaterial?->harga_satuan ?? 0);
-            return (((float) $item['presentase'] / 100) * 50) * $hargaSatuan;
+
+            return RawMaterialUsage::calculateItemCost(
+                (float) $item['presentase'],
+                $hargaSatuan,
+                (string) ($rawMaterial?->satuan ?? '')
+            );
         });
     }
 }

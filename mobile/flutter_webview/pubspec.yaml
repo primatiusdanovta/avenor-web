@@ -1,0 +1,16 @@
+name: avenor_webview
+publish_to: 'none'
+description: Avenor Web mobile wrapper using Flutter WebView.
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  webview_flutter: ^4.10.0
+
+flutter:
+  uses-material-design: true

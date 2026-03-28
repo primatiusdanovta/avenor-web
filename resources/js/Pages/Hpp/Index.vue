@@ -24,10 +24,12 @@
                             <Select2Input v-model="item.id_rm" :options="rawMaterials" value-key="id_rm" label-key="option_label" placeholder="Pilih raw material" />
                         </div>
                         <div class="form-group mb-2">
-                            <label>Presentase (%)</label>
-                            <input v-model="item.presentase" type="number" min="0.01" max="100" step="0.01" class="form-control">
+                            <label>{{ itemLabel(item) }}</label>
+                            <input v-model="item.presentase" type="number" min="0.01" step="0.01" class="form-control">
                         </div>
                         <div class="small text-muted">Harga Satuan: {{ toCurrency(itemState(item).hargaSatuan) }} / {{ itemState(item).satuan }}</div>
+                        <div class="small text-muted">Pemakaian per Product: {{ formatNumber(itemState(item).usageQuantity) }} {{ itemState(item).satuan }}</div>
+                        <div class="small text-muted">Total Stock RM: {{ formatNumber(itemState(item).totalStock) }} {{ itemState(item).satuan }}</div>
                         <div class="small text-muted">Harga Final: {{ toCurrency(itemState(item).hargaFinal) }}</div>
                     </div>
 
@@ -53,7 +55,10 @@
                                 <td>{{ toCurrency(item.total_hpp) }}</td>
                                 <td>
                                     <div v-for="detail in item.items" :key="`${item.id_hpp}-${detail.id_rm}`" class="text-sm">
-                                        {{ detail.nama_rm }} - {{ detail.presentase }}% x {{ toCurrency(detail.harga_satuan) }} = {{ toCurrency(detail.harga_final) }}
+                                        {{ detail.nama_rm }} - {{ detail.satuan === 'ML' ? `${detail.presentase}%` : `${formatNumber(detail.presentase)} pcs` }}
+                                        | pakai {{ formatNumber(detail.usage_quantity) }} {{ detail.satuan }}
+                                        | stock {{ formatNumber(detail.total_stock) }} {{ detail.satuan }}
+                                        | {{ toCurrency(detail.harga_final) }}
                                     </div>
                                 </td>
                                 <td>{{ item.updated_at }}</td>
@@ -83,20 +88,30 @@ const props = defineProps({ products: Array, rawMaterials: Array, calculations: 
 
 const emptyItem = () => ({ key: `${Date.now()}-${Math.random()}`, id_rm: '', presentase: '' });
 const form = useForm({ id_product: '', items: [emptyItem()] });
-
 const rawMaterialMap = computed(() => Object.fromEntries(props.rawMaterials.map((item) => [String(item.id_rm), item])));
+
 const itemState = (item) => {
     const rawMaterial = rawMaterialMap.value[String(item.id_rm)] ?? null;
     const hargaSatuan = Number(rawMaterial?.harga_satuan || 0);
-    const presentase = Number(item.presentase || 0);
+    const inputValue = Number(item.presentase || 0);
+    const isMl = String(rawMaterial?.satuan || '').trim().toUpperCase() === 'ML';
+    const usageQuantity = isMl ? ((inputValue / 100) * 50) : inputValue;
     return {
         satuan: rawMaterial?.satuan || '-',
         hargaSatuan,
-        hargaFinal: ((presentase / 100) * 50) * hargaSatuan,
+        usageQuantity,
+        totalStock: Number(rawMaterial?.total_quantity || 0),
+        hargaFinal: usageQuantity * hargaSatuan,
     };
+};
+
+const itemLabel = (item) => {
+    const satuan = String(rawMaterialMap.value[String(item.id_rm)]?.satuan || '').trim().toUpperCase();
+    return satuan === 'ML' ? 'Presentase (%)' : 'Pemakaian (pcs)';
 };
 const totalHpp = computed(() => form.items.reduce((total, item) => total + itemState(item).hargaFinal, 0));
 const toCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 2 }).format(value || 0);
+const formatNumber = (value) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(Number(value || 0));
 const addItem = () => form.items.push(emptyItem());
 const removeItem = (index) => form.items.splice(index, 1);
 const submitForm = () => form.post('/hpp', { preserveScroll: true, onSuccess: () => { form.reset(); form.items = [emptyItem()]; } });

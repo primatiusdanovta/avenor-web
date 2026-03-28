@@ -12,7 +12,7 @@
                         <div class="form-group"><label>Masa Aktif</label><input v-model="createForm.masa_aktif" type="date" class="form-control"></div>
                         <div class="form-group"><label>Minimal Quantity</label><input v-model="createForm.minimal_quantity" type="number" min="1" class="form-control"></div>
                         <div class="form-group"><label>Minimal Belanja</label><input v-model="createForm.minimal_belanja" type="number" min="0" class="form-control"></div>
-                        <button class="btn btn-primary" :disabled="createForm.processing">Simpan Promo</button>
+                        <button class="btn btn-primary" style="margin-top: 10px;" :disabled="createForm.processing">Simpan Promo</button>
                     </form>
                 </div>
             </div>

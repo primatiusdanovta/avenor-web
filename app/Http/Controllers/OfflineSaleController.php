@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Customer;
 use App\Models\OfflineSale;
 use App\Models\Product;
 use App\Models\ProductOnhand;
@@ -9,7 +10,11 @@ use App\Models\Promo;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -21,23 +26,13 @@ class OfflineSaleController extends Controller
         $isManager = in_array($user->role, ['superadmin', 'admin'], true);
 
         $sales = OfflineSale::query()
+            ->with('customer')
             ->when(! $isManager, fn ($query) => $query->where('id_user', $user->id_user))
             ->orderByDesc('created_at')
-            ->get()
-            ->map(fn (OfflineSale $sale) => [
-                'id_penjualan_offline' => $sale->id_penjualan_offline,
-                'id_user' => $sale->id_user,
-                'nama' => $sale->nama,
-                'nama_product' => $sale->nama_product,
-                'quantity' => (int) $sale->quantity,
-                'harga' => (float) $sale->harga,
-                'kode_promo' => $sale->kode_promo,
-                'promo' => $sale->promo,
-                'approval_status' => $sale->approval_status,
-                'bukti_pembelian' => $sale->bukti_pembelian ? Storage::disk('public')->url($sale->bukti_pembelian) : null,
-                'created_at' => optional($sale->created_at)->format('Y-m-d H:i:s'),
-            ])
-            ->values();
+            ->orderByDesc('id_penjualan_offline')
+            ->get();
+
+        $transactions = $this->transformTransactions($sales);
 
         $products = $isManager
             ? Product::query()->orderBy('nama_product')->get(['id_product', 'nama_product', 'harga'])
@@ -67,10 +62,24 @@ class OfflineSaleController extends Controller
             ])
             ->values();
 
+        $customers = Customer::query()
+            ->orderByDesc('pembelian_terakhir')
+            ->orderByDesc('id_pelanggan')
+            ->get()
+            ->map(fn (Customer $customer) => [
+                'id_pelanggan' => $customer->id_pelanggan,
+                'nama' => $customer->nama,
+                'no_telp' => $customer->no_telp,
+                'tiktok_instagram' => $customer->tiktok_instagram,
+                'pembelian_terakhir' => optional($customer->pembelian_terakhir)->format('Y-m-d H:i:s'),
+            ])
+            ->values();
+
         return Inertia::render('Sales/Index', [
-            'sales' => $sales,
+            'sales' => $transactions,
             'products' => $products,
             'promos' => $promos,
+            'customers' => $customers,
             'canApprove' => $isManager,
             'canManageAll' => $isManager,
             'currentRole' => $user->role,
@@ -81,64 +90,46 @@ class OfflineSaleController extends Controller
     {
         $user = $request->user();
         $isManager = in_array($user->role, ['superadmin', 'admin'], true);
+        $validated = $this->validateTransactionPayload($request);
 
-        $validated = $request->validate([
-            'id_product' => ['required', 'exists:products,id_product'],
-            'quantity' => ['required', 'integer', 'min:1'],
-            'promo_id' => ['nullable', 'exists:promos,id'],
-            'bukti_pembelian' => ['required', 'image', 'max:4096'],
-        ]);
+        [$products, $promo, $lineSubtotals, $onhands, $totalQuantity, $subtotal] = $this->prepareTransactionContext($validated, $user->id_user, $isManager);
 
-        $product = Product::query()->findOrFail($validated['id_product']);
-        $promo = empty($validated['promo_id']) ? null : Promo::query()->findOrFail($validated['promo_id']);
-        $subtotal = (float) $product->harga * (int) $validated['quantity'];
+        $this->validatePromoEligibility($promo, $totalQuantity, $subtotal);
 
-        if ($promo && $promo->masa_aktif->lt(today())) {
-            return back()->withErrors(['promo_id' => 'Promo sudah tidak aktif.']);
-        }
+        $path = $request->file('bukti_pembelian')?->store('offline-sales', 'public');
+        $timestamp = now();
+        $transactionCode = $this->generateTransactionCode();
+        $discounts = $this->allocateDiscounts($lineSubtotals, (float) ($promo?->potongan ?? 0));
 
-        if ($promo && $validated['quantity'] < $promo->minimal_quantity) {
-            return back()->withErrors(['promo_id' => 'Pembelian belum mencapai syarat']);
-        }
+        DB::transaction(function () use ($validated, $user, $isManager, $products, $promo, $path, $timestamp, $discounts, $lineSubtotals, $onhands, $transactionCode): void {
+            $customer = $this->resolveCustomer($validated, $timestamp);
 
-        if ($promo && $subtotal < (float) $promo->minimal_belanja) {
-            return back()->withErrors(['promo_id' => 'Pembelian belum mencapai syarat']);
-        }
+            foreach ($validated['items'] as $index => $item) {
+                $product = $products->get($item['id_product']);
+                $lineSubtotal = $lineSubtotals[$index] ?? 0;
+                $lineDiscount = $discounts[$index] ?? 0;
 
-        $onhand = null;
-        if (! $isManager) {
-            $onhand = $this->resolveOnhandForSale($user->id_user, $product->id_product);
-
-            if (! $onhand) {
-                return back()->withErrors(['id_product' => 'Barang belum diambil untuk hari ini.']);
+                OfflineSale::query()->create([
+                    'transaction_code' => $transactionCode,
+                    'id_user' => $user->id_user,
+                    'id_pelanggan' => $customer?->id_pelanggan,
+                    'id_product' => $product?->id_product,
+                    'id_product_onhand' => $isManager ? null : ($onhands[(int) $item['id_product']]?->id_product_onhand ?? null),
+                    'promo_id' => $promo?->id,
+                    'nama' => $user->nama,
+                    'nama_product' => $product?->nama_product,
+                    'quantity' => (int) $item['quantity'],
+                    'harga' => max($lineSubtotal - $lineDiscount, 0),
+                    'kode_promo' => $promo?->kode_promo,
+                    'promo' => $promo?->nama_promo,
+                    'bukti_pembelian' => $path,
+                    'approval_status' => $isManager ? 'disetujui' : 'pending',
+                    'approved_by' => $isManager ? $user->id_user : null,
+                    'approved_at' => $isManager ? $timestamp : null,
+                    'created_at' => $timestamp,
+                ]);
             }
-
-            $available = $this->availableForOnhand($onhand);
-            if ($validated['quantity'] > $available) {
-                return back()->withErrors(['quantity' => 'Quantity penjualan melebihi barang yang dibawa.']);
-            }
-        }
-
-        $total = max($subtotal - ($promo ? (float) $promo->potongan : 0), 0);
-        $path = $request->file('bukti_pembelian')->store('offline-sales', 'public');
-
-        OfflineSale::query()->create([
-            'id_user' => $user->id_user,
-            'id_product' => $product->id_product,
-            'id_product_onhand' => $onhand?->id_product_onhand,
-            'promo_id' => $promo?->id,
-            'nama' => $user->nama,
-            'nama_product' => $product->nama_product,
-            'quantity' => $validated['quantity'],
-            'harga' => $total,
-            'kode_promo' => $promo?->kode_promo,
-            'promo' => $promo?->nama_promo,
-            'bukti_pembelian' => $path,
-            'approval_status' => $isManager ? 'disetujui' : 'pending',
-            'approved_by' => $isManager ? $user->id_user : null,
-            'approved_at' => $isManager ? now() : null,
-            'created_at' => now(),
-        ]);
+        });
 
         return redirect()->route('offline-sales.index')->with('success', 'Penjualan offline berhasil disimpan.');
     }
@@ -147,56 +138,112 @@ class OfflineSaleController extends Controller
     {
         abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
 
-        $validated = $request->validate([
-            'quantity' => ['required', 'integer', 'min:1'],
-        ]);
+        $validated = $this->validateTransactionPayload($request, false);
+        $transactionSales = $this->transactionSales($sale);
+        $userId = (int) $sale->id_user;
 
-        $product = Product::query()->find($sale->id_product);
-        $promo = $sale->promo_id ? Promo::query()->find($sale->promo_id) : null;
-        $subtotal = (float) ($product?->harga ?? 0) * $validated['quantity'];
+        [$products, $promo, $lineSubtotals, $onhands, $totalQuantity, $subtotal] = $this->prepareTransactionContext(
+            $validated,
+            $userId,
+            true,
+            $transactionSales
+        );
 
-        if ($promo && $validated['quantity'] < $promo->minimal_quantity) {
-            return back()->withErrors(['quantity' => 'Pembelian belum mencapai syarat']);
-        }
+        $this->validatePromoEligibility($promo, $totalQuantity, $subtotal);
 
-        if ($promo && $subtotal < (float) $promo->minimal_belanja) {
-            return back()->withErrors(['quantity' => 'Pembelian belum mencapai syarat']);
-        }
+        $timestamp = now();
+        $discounts = $this->allocateDiscounts($lineSubtotals, (float) ($promo?->potongan ?? 0));
 
-        $owner = User::query()->find($sale->id_user);
-        if ($sale->id_product_onhand && $owner && in_array($owner->role, ['marketing', 'reseller'], true)) {
-            $available = $this->availableForOnhand($sale->onhand, $sale->id_penjualan_offline) + $sale->quantity;
-            if ($validated['quantity'] > $available) {
-                return back()->withErrors(['quantity' => 'Quantity penjualan melebihi barang yang dibawa.']);
+        DB::transaction(function () use ($validated, $sale, $transactionSales, $products, $promo, $timestamp, $discounts, $lineSubtotals): void {
+            $customer = $this->resolveCustomer($validated, $timestamp);
+            $existingByProduct = $transactionSales->keyBy('id_product');
+            $keepIds = [];
+
+            foreach ($validated['items'] as $index => $item) {
+                $product = $products->get($item['id_product']);
+                $lineSubtotal = $lineSubtotals[$index] ?? 0;
+                $lineDiscount = $discounts[$index] ?? 0;
+                $existing = $existingByProduct->get((int) $item['id_product']);
+
+                if ($existing) {
+                    $existing->update([
+                        'id_pelanggan' => $customer?->id_pelanggan,
+                        'promo_id' => $promo?->id,
+                        'nama_product' => $product?->nama_product,
+                        'quantity' => (int) $item['quantity'],
+                        'harga' => max($lineSubtotal - $lineDiscount, 0),
+                        'kode_promo' => $promo?->kode_promo,
+                        'promo' => $promo?->nama_promo,
+                    ]);
+
+                    $keepIds[] = $existing->id_penjualan_offline;
+                    continue;
+                }
+
+                $created = OfflineSale::query()->create([
+                    'transaction_code' => $sale->transaction_code,
+                    'id_user' => $sale->id_user,
+                    'id_pelanggan' => $customer?->id_pelanggan,
+                    'id_product' => $product?->id_product,
+                    'id_product_onhand' => null,
+                    'promo_id' => $promo?->id,
+                    'nama' => $sale->nama,
+                    'nama_product' => $product?->nama_product,
+                    'quantity' => (int) $item['quantity'],
+                    'harga' => max($lineSubtotal - $lineDiscount, 0),
+                    'kode_promo' => $promo?->kode_promo,
+                    'promo' => $promo?->nama_promo,
+                    'bukti_pembelian' => $sale->bukti_pembelian,
+                    'approval_status' => $sale->approval_status,
+                    'approved_by' => $sale->approved_by,
+                    'approved_at' => $sale->approved_at,
+                    'created_at' => $sale->created_at,
+                ]);
+
+                $keepIds[] = $created->id_penjualan_offline;
             }
-        }
 
-        $sale->update([
-            'quantity' => $validated['quantity'],
-            'harga' => max($subtotal - ($promo ? (float) $promo->potongan : 0), 0),
-        ]);
+            $toDelete = $transactionSales->whereNotIn('id_penjualan_offline', $keepIds);
 
-        return redirect()->route('offline-sales.index')->with('success', 'Penjualan offline berhasil diperbarui.');
+            foreach ($toDelete as $row) {
+                $row->delete();
+            }
+        });
+
+        return redirect()->route('offline-sales.index')->with('success', 'Transaksi penjualan offline berhasil diperbarui.');
     }
 
     public function destroy(Request $request, OfflineSale $sale): RedirectResponse
     {
         abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
 
-        if ($sale->bukti_pembelian) {
-            Storage::disk('public')->delete($sale->bukti_pembelian);
+        $transactionSales = $this->transactionSales($sale);
+        $receiptPath = $sale->bukti_pembelian;
+
+        DB::transaction(function () use ($transactionSales): void {
+            foreach ($transactionSales as $row) {
+                $row->delete();
+            }
+        });
+
+        if ($receiptPath) {
+            $isSharedReceipt = OfflineSale::query()
+                ->where('bukti_pembelian', $receiptPath)
+                ->exists();
+
+            if (! $isSharedReceipt) {
+                Storage::disk('public')->delete($receiptPath);
+            }
         }
 
-        $sale->delete();
-
-        return redirect()->route('offline-sales.index')->with('success', 'Penjualan offline berhasil dihapus.');
+        return redirect()->route('offline-sales.index')->with('success', 'Transaksi penjualan offline berhasil dihapus.');
     }
 
     public function approve(Request $request, OfflineSale $sale): RedirectResponse
     {
         abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
 
-        $sale->update([
+        $this->transactionSales($sale)->each->update([
             'approval_status' => 'disetujui',
             'approved_by' => $request->user()->id_user,
             'approved_at' => now(),
@@ -209,13 +256,226 @@ class OfflineSaleController extends Controller
     {
         abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
 
-        $sale->update([
+        $this->transactionSales($sale)->each->update([
             'approval_status' => 'ditolak',
             'approved_by' => $request->user()->id_user,
             'approved_at' => now(),
         ]);
 
         return redirect()->route('offline-sales.index')->with('success', 'Penjualan offline ditolak.');
+    }
+
+    private function transformTransactions(Collection $sales): Collection
+    {
+        return $sales
+            ->groupBy(fn (OfflineSale $sale) => $sale->transaction_code ?: 'legacy-' . $sale->id_penjualan_offline)
+            ->map(function (Collection $items) {
+                /** @var OfflineSale $first */
+                $first = $items->first();
+
+                return [
+                    'transaction_code' => $first->transaction_code,
+                    'id_penjualan_offline' => $first->id_penjualan_offline,
+                    'id_user' => $first->id_user,
+                    'nama_penjual' => $first->nama,
+                    'nama_customer' => $first->customer?->nama,
+                    'no_telp' => $first->customer?->no_telp,
+                    'tiktok_instagram' => $first->customer?->tiktok_instagram,
+                    'promo_id' => $first->promo_id,
+                    'promo' => $first->promo,
+                    'kode_promo' => $first->kode_promo,
+                    'approval_status' => $first->approval_status,
+                    'bukti_pembelian' => $first->bukti_pembelian ? Storage::disk('public')->url($first->bukti_pembelian) : null,
+                    'created_at' => optional($first->created_at)->format('Y-m-d H:i:s'),
+                    'total_quantity' => (int) $items->sum('quantity'),
+                    'total_harga' => (float) $items->sum('harga'),
+                    'items' => $items->map(fn (OfflineSale $sale) => [
+                        'id_penjualan_offline' => $sale->id_penjualan_offline,
+                        'id_product' => $sale->id_product,
+                        'nama_product' => $sale->nama_product,
+                        'quantity' => (int) $sale->quantity,
+                        'harga' => (float) $sale->harga,
+                    ])->values(),
+                ];
+            })
+            ->sortByDesc('created_at')
+            ->values();
+    }
+
+    private function validateTransactionPayload(Request $request, bool $requireReceipt = true): array
+    {
+        $request->merge([
+            'customer_no_telp' => $this->normalizePhone($request->input('customer_no_telp')),
+        ]);
+
+        $rules = [
+            'customer_nama' => ['nullable', 'string', 'max:255'],
+            'customer_no_telp' => ['nullable', 'string', 'max:30'],
+            'customer_tiktok_instagram' => ['nullable', 'string', 'max:255'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.id_product' => ['required', 'distinct', 'exists:products,id_product'],
+            'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'promo_id' => ['nullable', 'exists:promos,id'],
+            'bukti_pembelian' => [$requireReceipt ? 'required' : 'nullable', 'image', 'max:4096'],
+        ];
+
+        return $request->validate($rules, [
+            'items.*.id_product.distinct' => 'Product tidak boleh dipilih lebih dari sekali dalam satu transaksi.',
+        ]);
+    }
+
+    private function prepareTransactionContext(array $validated, int $userId, bool $isManager, ?Collection $existingSales = null): array
+    {
+        $productIds = collect($validated['items'])->pluck('id_product')->all();
+        $products = Product::query()->whereIn('id_product', $productIds)->get()->keyBy('id_product');
+        $promo = empty($validated['promo_id']) ? null : Promo::query()->findOrFail($validated['promo_id']);
+
+        $lineSubtotals = [];
+        $onhands = [];
+        $totalQuantity = 0;
+        $subtotal = 0.0;
+
+        foreach ($validated['items'] as $item) {
+            $product = $products->get($item['id_product']);
+            $quantity = (int) $item['quantity'];
+            $lineSubtotal = (float) ($product?->harga ?? 0) * $quantity;
+
+            $lineSubtotals[] = $lineSubtotal;
+            $totalQuantity += $quantity;
+            $subtotal += $lineSubtotal;
+
+            if (! $isManager) {
+                $ignoreSaleId = $existingSales?->firstWhere('id_product', (int) $item['id_product'])?->id_penjualan_offline;
+                $onhand = $this->resolveOnhandForSale($userId, (int) $item['id_product']);
+
+                if (! $onhand) {
+                    throw ValidationException::withMessages(['items' => 'Ada product yang belum diambil untuk hari ini.']);
+                }
+
+                if ($quantity > $this->availableForOnhand($onhand, $ignoreSaleId)) {
+                    throw ValidationException::withMessages(['items' => 'Quantity penjualan melebihi barang yang dibawa.']);
+                }
+
+                $onhands[(int) $item['id_product']] = $onhand;
+            }
+        }
+
+        return [$products, $promo, $lineSubtotals, $onhands, $totalQuantity, $subtotal];
+    }
+
+    private function validatePromoEligibility(?Promo $promo, int $totalQuantity, float $subtotal): void
+    {
+        if (! $promo) {
+            return;
+        }
+
+        if ($promo->masa_aktif->lt(today())) {
+            throw ValidationException::withMessages(['promo_id' => 'Promo sudah tidak aktif.']);
+        }
+
+        if ($totalQuantity < $promo->minimal_quantity || $subtotal < (float) $promo->minimal_belanja) {
+            throw ValidationException::withMessages(['promo_id' => 'Pembelian belum mencapai syarat']);
+        }
+    }
+
+    private function resolveCustomer(array $validated, $timestamp): ?Customer
+    {
+        $nama = trim((string) ($validated['customer_nama'] ?? ''));
+        $noTelp = $validated['customer_no_telp'] ?? null;
+        $social = trim((string) ($validated['customer_tiktok_instagram'] ?? ''));
+
+        if ($nama === '' && empty($noTelp) && $social === '') {
+            return null;
+        }
+
+        $payload = [
+            'nama' => $nama !== '' ? $nama : null,
+            'no_telp' => $noTelp ?: null,
+            'tiktok_instagram' => $social !== '' ? $social : null,
+            'pembelian_terakhir' => $timestamp,
+        ];
+
+        $customer = $noTelp
+            ? Customer::query()->where('no_telp', $noTelp)->first()
+            : null;
+
+        if ($customer) {
+            $updates = [
+                'pembelian_terakhir' => $timestamp,
+            ];
+
+            if ($payload['nama']) {
+                $updates['nama'] = $payload['nama'];
+            }
+
+            if ($payload['tiktok_instagram']) {
+                $updates['tiktok_instagram'] = $payload['tiktok_instagram'];
+            }
+
+            $customer->update($updates);
+
+            return $customer->fresh();
+        }
+
+        $payload['created_at'] = $timestamp;
+
+        return Customer::query()->create($payload);
+    }
+
+    private function allocateDiscounts(array $lineSubtotals, float $discount): array
+    {
+        $discount = max(round($discount, 2), 0);
+        $subtotal = array_sum($lineSubtotals);
+
+        if ($discount <= 0 || $subtotal <= 0) {
+            return array_fill(0, count($lineSubtotals), 0.0);
+        }
+
+        $allocated = [];
+        $remaining = $discount;
+        $lastIndex = array_key_last($lineSubtotals);
+
+        foreach ($lineSubtotals as $index => $lineSubtotal) {
+            if ($index === $lastIndex) {
+                $allocated[$index] = min($remaining, $lineSubtotal);
+                continue;
+            }
+
+            $portion = round(($lineSubtotal / $subtotal) * $discount, 2);
+            $portion = min($portion, $lineSubtotal, $remaining);
+            $allocated[$index] = $portion;
+            $remaining = round($remaining - $portion, 2);
+        }
+
+        return $allocated;
+    }
+
+    private function normalizePhone(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = preg_replace('/\D+/', '', $value) ?? '';
+
+        return $normalized !== '' ? $normalized : null;
+    }
+
+    private function generateTransactionCode(): string
+    {
+        return 'TRX-' . now()->format('YmdHis') . '-' . strtoupper(Str::random(8));
+    }
+
+    private function transactionSales(OfflineSale $sale): Collection
+    {
+        if (! $sale->transaction_code) {
+            return collect([$sale]);
+        }
+
+        return OfflineSale::query()
+            ->where('transaction_code', $sale->transaction_code)
+            ->orderBy('id_penjualan_offline')
+            ->get();
     }
 
     private function availableOnhandProducts(int $userId)
@@ -270,3 +530,5 @@ class OfflineSaleController extends Controller
         return max((int) $onhand->quantity - $soldQty - $returnedQty, 0);
     }
 }
+
+

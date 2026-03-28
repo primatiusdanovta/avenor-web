@@ -48,7 +48,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .phpunit.result.cache
-
+tests/ 
+tools
 # OS spesifik
 .DS_Store
 Thumbs.db

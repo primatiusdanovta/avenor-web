@@ -6,29 +6,31 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Area extends Model
+class Customer extends Model
 {
     use HasFactory;
 
+    protected $primaryKey = 'id_pelanggan';
     public $timestamps = false;
 
     protected $fillable = [
-        'name',
-        'region',
-        'target_visits',
-        'active',
+        'nama',
+        'no_telp',
+        'tiktok_instagram',
+        'created_at',
+        'pembelian_terakhir',
     ];
 
     protected function casts(): array
     {
         return [
-            'active' => 'boolean',
             'created_at' => 'datetime',
+            'pembelian_terakhir' => 'datetime',
         ];
     }
 
-    public function attendances(): HasMany
+    public function offlineSales(): HasMany
     {
-        return $this->hasMany(Attendance::class);
+        return $this->hasMany(OfflineSale::class, 'id_pelanggan', 'id_pelanggan');
     }
 }

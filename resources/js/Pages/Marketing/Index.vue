@@ -11,7 +11,7 @@
                         <div class="form-group"><label>Status</label><Select2Input v-model="createForm.status" :options="statuses" placeholder="Pilih status" /></div>
                         <div class="form-group"><label>Password</label><input v-model="createForm.password" type="password" class="form-control"></div>
                         <div class="form-group"><label>Konfirmasi Password</label><input v-model="createForm.password_confirmation" type="password" class="form-control"></div>
-                        <button type="submit" class="btn btn-primary" :disabled="createForm.processing">Tambah Marketing</button>
+                        <button type="submit" class="btn btn-primary" style="margin-top: 10px;" :disabled="createForm.processing">Tambah Marketing</button>
                     </form>
                 </div>
             </div>

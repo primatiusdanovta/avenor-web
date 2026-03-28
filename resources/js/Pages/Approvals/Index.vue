@@ -1,7 +1,7 @@
 <template>
     <Head title="Approvals" />
 
-    <div class="row">
+    <div class="row approvals-row">
         <div class="col-lg-12">
             <div class="card card-outline card-primary">
                 <div class="card-header"><h3 class="card-title">Approval Pengambilan Barang</h3></div>
@@ -31,7 +31,7 @@
         </div>
     </div>
 
-    <div class="row">
+    <div class="row approvals-row">
         <div class="col-lg-12">
             <div class="card card-outline card-warning">
                 <div class="card-header"><h3 class="card-title">Approval Pengembalian Barang</h3></div>
@@ -79,3 +79,9 @@ const rejectTake = (item) => router.post(`/products/onhand/${item.id_product_onh
 const approveReturn = (item) => router.post(`/products/onhand/${item.id_product_onhand}/approve`, {}, { preserveScroll: true });
 const rejectReturn = (item) => router.post(`/products/onhand/${item.id_product_onhand}/reject`, {}, { preserveScroll: true });
 </script>
+
+<style scoped>
+.approvals-row {
+    margin-bottom: 10px;
+}
+</style>

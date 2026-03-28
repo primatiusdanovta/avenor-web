@@ -80,7 +80,7 @@
                                     <div v-else-if="item.sold_out" class="text-success text-sm">Tidak wajib return</div>
                                     <div v-else-if="item.has_pending_request" class="text-warning text-sm">Masih ada antrian yang belum disetujui</div>
                                     <div v-else class="input-group input-group-sm">
-                                        <input :value="returnInputs[item.id_product_onhand] ?? item.quantity_dikembalikan" type="number" min="0" :max="item.max_return" class="form-control" @input="returnInputs[item.id_product_onhand] = Number($event.target.value)">
+                                        <input :value="returnInputs[item.id_product_onhand] ?? item.max_return" type="number" min="1" :max="item.max_return" class="form-control" @input="returnInputs[item.id_product_onhand] = Number($event.target.value)">
                                         <div class="input-group-append">
                                             <button class="btn btn-outline-primary" @click="submitReturn(item)">Request</button>
                                         </div>
@@ -109,5 +109,6 @@ const returnInputs = reactive({});
 const takeForm = useForm({ id_product: '', quantity: 1 });
 
 const submitTake = () => takeForm.post('/products/take', { preserveScroll: true, onSuccess: () => takeForm.reset('id_product', 'quantity') });
-const submitReturn = (item) => router.put(`/products/onhand/${item.id_product_onhand}/return`, { quantity_dikembalikan: Number(returnInputs[item.id_product_onhand] ?? item.quantity_dikembalikan ?? 0) }, { preserveScroll: true });
+const submitReturn = (item) => router.put(`/products/onhand/${item.id_product_onhand}/return`, { quantity_dikembalikan: Number(returnInputs[item.id_product_onhand] ?? item.max_return ?? 0) }, { preserveScroll: true });
 </script>
+

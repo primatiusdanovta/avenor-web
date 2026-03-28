@@ -3,16 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
+use App\Models\HppCalculationItem;
 use App\Models\OfflineSale;
 use App\Models\Product;
 use App\Models\ProductOnhand;
+use App\Models\RawMaterial;
+use App\Support\RawMaterialUsage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 class ProductController extends Controller
 {
@@ -101,16 +106,32 @@ class ProductController extends Controller
             'gambar' => ['nullable', 'image', 'max:3072'],
         ]);
 
+        if ((int) $validated['stock'] > 0) {
+            throw ValidationException::withMessages([
+                'stock' => 'Product baru harus dibuat dengan stock 0. Setelah HPP dibuat, tambahkan stock melalui edit product.',
+            ]);
+        }
+
         $path = $request->file('gambar')?->store('products', 'public');
 
-        Product::query()->create([
-            'nama_product' => $validated['nama_product'],
-            'harga' => $validated['harga'],
-            'harga_modal' => 0,
-            'stock' => $validated['stock'],
-            'gambar' => $path,
-            'created_at' => now(),
-        ]);
+        try {
+            DB::transaction(function () use ($validated, $path): void {
+                Product::query()->create([
+                    'nama_product' => $validated['nama_product'],
+                    'harga' => $validated['harga'],
+                    'harga_modal' => 0,
+                    'stock' => $validated['stock'],
+                    'gambar' => $path,
+                    'created_at' => now(),
+                ]);
+            });
+        } catch (Throwable $exception) {
+            if ($path) {
+                Storage::disk('public')->delete($path);
+            }
+
+            throw $exception;
+        }
 
         return redirect()->route('products.index')->with('success', 'Product berhasil ditambahkan.');
     }
@@ -132,15 +153,35 @@ class ProductController extends Controller
             'stock' => $validated['stock'],
         ];
 
-        if ($request->hasFile('gambar')) {
-            if ($product->gambar) {
-                Storage::disk('public')->delete($product->gambar);
-            }
+        $newImagePath = null;
+        $oldImagePath = $product->gambar;
 
-            $payload['gambar'] = $request->file('gambar')->store('products', 'public');
+        if ($request->hasFile('gambar')) {
+            $newImagePath = $request->file('gambar')->store('products', 'public');
+            $payload['gambar'] = $newImagePath;
         }
 
-        $product->update($payload);
+        try {
+            DB::transaction(function () use ($product, $payload, $validated): void {
+                $previousStock = (int) $product->stock;
+                $product->update($payload);
+
+                $stockIncrease = max((int) $validated['stock'] - $previousStock, 0);
+                if ($stockIncrease > 0) {
+                    $this->consumeRawMaterialsForProduct($product->fresh(), $stockIncrease);
+                }
+            });
+        } catch (Throwable $exception) {
+            if ($newImagePath) {
+                Storage::disk('public')->delete($newImagePath);
+            }
+
+            throw $exception;
+        }
+
+        if ($newImagePath && $oldImagePath) {
+            Storage::disk('public')->delete($oldImagePath);
+        }
 
         return redirect()->route('products.index')->with('success', 'Product berhasil diperbarui.');
     }
@@ -229,7 +270,7 @@ class ProductController extends Controller
         }
 
         $validated = $request->validate([
-            'quantity_dikembalikan' => ['required', 'integer', 'min:0'],
+            'quantity_dikembalikan' => ['required', 'integer', 'min:1'],
         ]);
 
         if ($validated['quantity_dikembalikan'] > (int) $onhand->quantity) {
@@ -389,6 +430,59 @@ class ProductController extends Controller
             'sold_out' => $soldOut,
             'status_label' => $statusLabel,
         ];
+    }
+
+    private function consumeRawMaterialsForProduct(Product $product, int $stockIncrease): void
+    {
+        if ($stockIncrease <= 0) {
+            return;
+        }
+
+        $calculation = $product->hppCalculation()
+            ->with('items')
+            ->first();
+
+        if (! $calculation || $calculation->items->isEmpty()) {
+            throw ValidationException::withMessages([
+                'stock' => 'HPP product belum dibuat. Buat HPP terlebih dahulu sebelum menambah stock product.',
+            ]);
+        }
+
+        foreach ($calculation->items as $item) {
+            $rawMaterial = RawMaterial::query()
+                ->lockForUpdate()
+                ->findOrFail($item->id_rm);
+
+            $usagePerProduct = RawMaterialUsage::calculateUsageQuantity((float) $item->presentase, $item->satuan);
+            $requiredQuantity = round($usagePerProduct * $stockIncrease, 2);
+            $availableQuantity = (float) $rawMaterial->total_quantity;
+
+            if ($requiredQuantity > $availableQuantity) {
+                throw ValidationException::withMessages([
+                    'stock' => sprintf(
+                        'Stock raw material %s tidak mencukupi. Dibutuhkan %s %s, tersedia %s %s.',
+                        $rawMaterial->nama_rm,
+                        number_format($requiredQuantity, 2, '.', ''),
+                        $rawMaterial->satuan,
+                        number_format($availableQuantity, 2, '.', ''),
+                        $rawMaterial->satuan
+                    ),
+                ]);
+            }
+
+            $remainingQuantity = round($availableQuantity - $requiredQuantity, 2);
+            $remainingStock = RawMaterialUsage::recalculatePackageStock($remainingQuantity, (float) $rawMaterial->quantity);
+
+            $rawMaterial->update([
+                'total_quantity' => $remainingQuantity,
+                'stock' => $remainingStock,
+                'harga_total' => round($remainingStock * (float) $rawMaterial->harga, 2),
+            ]);
+
+            HppCalculationItem::query()
+                ->where('id_rm', $rawMaterial->id_rm)
+                ->update(['total_stock' => $remainingQuantity]);
+        }
     }
 
     private function soldForOnhand(ProductOnhand $onhand): int

@@ -31,10 +31,11 @@ class RawMaterial extends Model
             'harga' => 'decimal:2',
             'harga_satuan' => 'decimal:2',
             'harga_total' => 'decimal:2',
-            'quantity' => 'integer',
-            'stock' => 'integer',
-            'total_quantity' => 'integer',
+            'quantity' => 'decimal:2',
+            'stock' => 'decimal:2',
+            'total_quantity' => 'decimal:2',
             'created_at' => 'datetime',
         ];
     }
 }
+

@@ -22,6 +22,7 @@ class HppCalculationItem extends Model
         'presentase',
         'harga_satuan',
         'harga_final',
+        'total_stock',
         'created_at',
     ];
 
@@ -31,6 +32,7 @@ class HppCalculationItem extends Model
             'presentase' => 'decimal:2',
             'harga_satuan' => 'decimal:2',
             'harga_final' => 'decimal:2',
+            'total_stock' => 'decimal:2',
             'created_at' => 'datetime',
         ];
     }
@@ -45,3 +47,4 @@ class HppCalculationItem extends Model
         return $this->belongsTo(RawMaterial::class, 'id_rm', 'id_rm');
     }
 }
+

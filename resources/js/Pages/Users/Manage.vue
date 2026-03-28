@@ -28,7 +28,7 @@
                         <label>Konfirmasi Password</label>
                         <input v-model="createForm.password_confirmation" type="password" class="form-control" placeholder="ulang password">
                     </div>
-                    <button type="button" class="btn btn-primary" :disabled="createForm.processing" @click="submitCreate">
+                    <button type="button" class="btn btn-primary" style="margin-top: 10px;" :disabled="createForm.processing" @click="submitCreate">
                         {{ createForm.processing ? 'Menyimpan...' : 'Tambah User' }}
                     </button>
                 </div>
@@ -84,10 +84,8 @@
                                 <td>
                                     <button type="button" class="btn btn-link p-0 font-weight-bold text-left" @click="selectUser(user)">{{ user.nama }}</button>
                                 </td>
-                                <td><span class="badge badge-info text-capitalize">{{ user.role }}</span></td>
-                                <td>
-                                    <span class="badge" :class="user.status === 'aktif' ? 'badge-success' : 'badge-secondary'">{{ user.status }}</span>
-                                </td>
+                                <td><span class="text-dark text-capitalize font-weight-bold">{{ user.role }}</span></td>
+                                <td><span class="text-dark font-weight-bold">{{ user.status }}</span></td>
                                 <td>{{ user.created_at }}</td>
                                 <td>
                                     <button type="button" class="btn btn-xs btn-warning mr-1" @click="selectUser(user)">Edit</button>

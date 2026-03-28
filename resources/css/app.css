@@ -14,15 +14,10 @@ body {
     object-fit: contain;
 }
 
-.adminlte-avatar {
-    width: 34px;
-    height: 34px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.15);
-    color: #fff;
-    display: grid;
-    place-items: center;
-    font-weight: 700;
+.app-header {
+    position: sticky;
+    top: 0;
+    z-index: 1035;
 }
 
 .brand-link {
@@ -36,8 +31,27 @@ body {
     margin-right: 0.75rem;
 }
 
-.gap-2 {
-    gap: 0.5rem;
+.app-sidebar .nav-link.active {
+    background-color: rgba(13, 110, 253, 0.2);
+    color: #fff;
+}
+
+.app-sidebar .nav-link:not(.active) {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.app-sidebar .nav-link:hover {
+    color: #fff;
+}
+
+.app-sidebar .brand-link,
+.app-sidebar .brand-text,
+.app-sidebar .nav-icon {
+    color: inherit;
+}
+
+.app-content-header {
+    padding-bottom: 0.5rem;
 }
 
 .card .table td,
@@ -49,14 +63,61 @@ body {
     font-size: 56px;
 }
 
+.card {
+    border-radius: 0.9rem;
+    box-shadow: 0 0.5rem 1.25rem rgba(15, 23, 42, 0.06);
+}
+
+.card-header {
+    padding: 0.9rem 1rem;
+}
+
+.card-header .card-title {
+    font-weight: 600;
+}
+
+.card-body {
+    padding: 1rem;
+}
+
+.form-group label {
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+}
+
+.table-responsive {
+    overflow-x: auto;
+}
+
+.table td,
+.table th {
+    white-space: nowrap;
+}
+
+.table td .text-sm,
+.table th .text-sm {
+    white-space: normal;
+}
+
+.select2-container {
+    width: 100% !important;
+}
+
+.select2-container--bootstrap4 .select2-selection {
+    min-height: calc(2.25rem + 2px);
+}
+
+.select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered {
+    line-height: 2.25rem;
+}
+
+.select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow {
+    height: calc(2.25rem + 2px);
+}
+
 @media (max-width: 991.98px) {
-    .content-header .text-right {
+    .app-content-header .text-end {
         text-align: left !important;
         margin-top: 0.75rem;
     }
 }
-.select2-container { width: 100% !important; }
-.select2-container--bootstrap4 .select2-selection { min-height: calc(2.25rem + 2px); }
-.select2-container--bootstrap4 .select2-selection--single .select2-selection__rendered { line-height: 2.25rem; }
-.select2-container--bootstrap4 .select2-selection--single .select2-selection__arrow { height: calc(2.25rem + 2px); }
-

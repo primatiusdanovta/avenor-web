@@ -13,9 +13,10 @@
                             <div class="form-group col-md-6"><label>Harga Modal</label><input :value="0" type="number" min="0" class="form-control" disabled></div>
                         </div>
                         <small class="text-muted d-block mb-3">Harga modal diisi otomatis dari halaman HPP.</small>
-                        <div class="form-group"><label>Stock</label><input v-model="createForm.stock" type="number" min="0" class="form-control"></div>
+                        <div class="form-group"><label>Stock Awal</label><input v-model="createForm.stock" type="number" min="0" class="form-control"></div>
+                        <small class="text-muted d-block mb-3">Buat product baru dengan stock 0 terlebih dahulu. Setelah HPP dibuat, stock ditambah lewat form edit agar raw material ikut terpotong otomatis.</small>
                         <div class="form-group"><label>Gambar</label><input type="file" class="form-control" accept="image/*" @input="createForm.gambar = $event.target.files[0]"></div>
-                        <button type="submit" class="btn btn-primary" :disabled="createForm.processing">Simpan Product</button>
+                        <button type="submit" class="btn btn-primary" style="margin-top: 10px;" :disabled="createForm.processing">Simpan Product</button>
                     </form>
                 </div>
             </div>
@@ -96,3 +97,6 @@ const submitEdit = () => {
 const resetEdit = () => editForm.reset();
 const removeProduct = (item) => { if (window.confirm(`Hapus product ${item.nama_product}?`)) router.delete(`/products/${item.id_product}`, { preserveScroll: true }); };
 </script>
+
+
+

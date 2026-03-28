@@ -2,6 +2,8 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Product;
+use App\Models\RawMaterial;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -27,6 +29,8 @@ class HandleInertiaRequests extends Middleware
             $navigation[] = ['label' => 'HPP', 'href' => '/hpp', 'icon' => 'fas fa-calculator'];
             $navigation[] = ['label' => 'Products', 'href' => '/products', 'icon' => 'fas fa-boxes'];
             $navigation[] = ['label' => 'Promos', 'href' => '/promos', 'icon' => 'fas fa-tags'];
+            $navigation[] = ['label' => 'Pelanggan', 'href' => '/customers', 'icon' => 'fas fa-address-book'];
+            $navigation[] = ['label' => 'Content Creator', 'href' => '/content-creators', 'icon' => 'fas fa-photo-video'];
             $navigation[] = ['label' => 'Penjualan Offline', 'href' => '/offline-sales', 'icon' => 'fas fa-cash-register'];
         }
 
@@ -35,6 +39,8 @@ class HandleInertiaRequests extends Middleware
             $navigation[] = ['label' => 'Approvals', 'href' => '/approvals', 'icon' => 'fas fa-clipboard-check'];
             $navigation[] = ['label' => 'Products', 'href' => '/products', 'icon' => 'fas fa-boxes'];
             $navigation[] = ['label' => 'Promos', 'href' => '/promos', 'icon' => 'fas fa-tags'];
+            $navigation[] = ['label' => 'Pelanggan', 'href' => '/customers', 'icon' => 'fas fa-address-book'];
+            $navigation[] = ['label' => 'Content Creator', 'href' => '/content-creators', 'icon' => 'fas fa-photo-video'];
             $navigation[] = ['label' => 'Penjualan Offline', 'href' => '/offline-sales', 'icon' => 'fas fa-cash-register'];
         }
 
@@ -53,6 +59,32 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'appName' => config('app.name'),
             'navigation' => $navigation,
+            'inventoryAlerts' => in_array($user?->role, ['superadmin', 'admin'], true) ? [
+                'products' => Product::query()
+                    ->where('stock', '<', 20)
+                    ->orderBy('stock')
+                    ->orderBy('nama_product')
+                    ->get(['id_product', 'nama_product', 'stock'])
+                    ->map(fn (Product $product) => [
+                        'id' => $product->id_product,
+                        'name' => $product->nama_product,
+                        'value' => (int) $product->stock,
+                        'unit' => 'pcs',
+                    ])
+                    ->values(),
+                'rawMaterials' => RawMaterial::query()
+                    ->where('total_quantity', '<', 200)
+                    ->orderBy('total_quantity')
+                    ->orderBy('nama_rm')
+                    ->get(['id_rm', 'nama_rm', 'total_quantity', 'satuan'])
+                    ->map(fn (RawMaterial $material) => [
+                        'id' => $material->id_rm,
+                        'name' => $material->nama_rm,
+                        'value' => (float) $material->total_quantity,
+                        'unit' => $material->satuan,
+                    ])
+                    ->values(),
+            ] : null,
             'auth' => [
                 'user' => $user ? [
                     'id_user' => $user->id_user,
