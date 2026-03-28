@@ -4,7 +4,7 @@
             <div class="container-fluid">
                 <ul class="navbar-nav">
                     <li class="nav-item">
-                        <a class="nav-link" data-lte-toggle="sidebar" href="#" role="button" onclick="document.body.classList.toggle('sidebar-collapse')">
+                        <a class="nav-link"  href="#" role="button" @click="toggleSidebar">
                             <i class="fas fa-bars"></i>
                         </a>
                     </li>
@@ -25,7 +25,7 @@
             <div class="sidebar-brand">
                 <Link href="/dashboard" class="brand-link text-decoration-none">
                     <img :src="logoUrl" alt="Primatama" class="brand-image opacity-75 shadow-sm bg-white p-1 rounded-circle">
-                    <span class="brand-text fw-light">Avenor</span>
+                    <span class="brand-text fw-light">Avenor Perfume</span>
                 </Link>
             </div>
 
@@ -86,7 +86,7 @@ defineProps({
 });
 
 const page = usePage();
-const logoUrl = '/img/primatama.png';
+const logoUrl = '/img/logo.png';
 const user = computed(() => page.props.auth?.user ?? null);
 const navigation = computed(() => page.props.navigation ?? []);
 const currentUrl = computed(() => page.url ?? '');
@@ -98,6 +98,16 @@ let locationInterval = null;
 watch(() => page.url, () => {
     showFlashSuccess.value = true;
 });
+
+const toggleSidebar = () => {
+  const body = document.body
+
+  if (window.innerWidth < 992) {
+    body.classList.toggle('sidebar-open')
+  } else {
+    body.classList.toggle('sidebar-collapse')
+  }
+}
 
 const isActive = (path) => currentUrl.value.startsWith(path);
 

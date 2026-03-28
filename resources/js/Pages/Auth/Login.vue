@@ -4,8 +4,8 @@
     <div class="login-page bg-adminlte">
         <div class="login-box">
             <div class="login-logo">
-                <img :src="branding.logo" alt="Primatama" class="login-brand-logo mb-3">
-                <div><b>Avenor</b> Web</div>
+                <img :src="branding.logo" alt="Primatama" class="login-brand-logo">
+                <div><b>Avenor</b> Perfume</div>
             </div>
 
             <div class="card card-outline card-primary shadow-lg">
