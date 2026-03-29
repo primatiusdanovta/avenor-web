@@ -16,7 +16,7 @@
         </div>
 
         <div class="row">
-            <div class="col-lg-6">
+            <div class="col-md-12 col-lg-6">
                 <div class="card card-outline card-warning h-100">
                     <div class="card-header"><h3 class="card-title">Ringkasan Inventory</h3></div>
                     <div class="card-body">
@@ -54,7 +54,7 @@
 
         <template v-if="dashboardData?.mode === 'manager'">
             <div class="row">
-                <div class="col-lg-6">
+                <div class="col-md-12 col-lg-6">
                     <div class="card card-outline card-success">
                         <div class="card-header"><h3 class="card-title">Gross Profit</h3></div>
                         <div class="card-body">
@@ -63,7 +63,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-6">
+                <div class="col-md-12 col-lg-6">
                     <div class="card card-outline card-info">
                         <div class="card-header"><h3 class="card-title">Net Profit</h3></div>
                         <div class="card-body">
@@ -75,7 +75,7 @@
             </div>
 
             <div class="row">
-                <div class="col-lg-6">
+                <div class="col-md-12 col-lg-6">
                     <div class="card card-outline card-primary h-100">
                         <div class="card-header"><h3 class="card-title">5 Produk Terlaris</h3></div>
                         <div class="card-body">
@@ -83,7 +83,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-6">
+                <div class="col-md-12 col-lg-6">
                     <div class="card card-outline card-secondary h-100">
                         <div class="card-header"><h3 class="card-title">Top 5 Produk</h3></div>
                         <div class="card-body p-0 table-responsive">
@@ -100,7 +100,7 @@
             </div>
 
             <div class="row">
-                <div class="col-lg-6">
+                <div class="col-md-12 col-lg-6">
                     <div class="card card-outline card-primary">
                         <div class="card-header"><h3 class="card-title">Top 10 Marketing</h3></div>
                         <div class="card-body p-0 table-responsive">
@@ -114,7 +114,7 @@
                         </div>
                     </div>
                 </div>
-                <div class="col-lg-6">
+                <div class="col-md-12 col-lg-6">
                     <div class="card card-outline card-warning">
                         <div class="card-header"><h3 class="card-title">Top 10 Seller</h3></div>
                         <div class="card-body p-0 table-responsive">
@@ -133,19 +133,19 @@
 
         <template v-else>
             <div class="row">
-                <div class="col-lg-4">
+                <div class="col-md-12 col-lg-4">
                     <div class="card card-outline card-primary">
                         <div class="card-header"><h3 class="card-title">Grafik Absensi</h3></div>
                         <div class="card-body"><SimpleBarChart :labels="dashboardData.attendance_chart.labels" :values="dashboardData.attendance_chart.values" color="#fd7e14" empty-message="Belum ada data absensi." /></div>
                     </div>
                 </div>
-                <div class="col-lg-4">
+                <div class="col-md-12 col-lg-4">
                     <div class="card card-outline card-success">
                         <div class="card-header"><h3 class="card-title">Grafik Penjualan</h3></div>
                         <div class="card-body"><SimpleBarChart :labels="dashboardData.sales_chart.labels" :values="dashboardData.sales_chart.values" color="#198754" empty-message="Belum ada data penjualan." /></div>
                     </div>
                 </div>
-                <div class="col-lg-4">
+                <div class="col-md-12 col-lg-4">
                     <div class="card card-outline card-info">
                         <div class="card-header"><h3 class="card-title">Jam Kerja per Hari</h3></div>
                         <div class="card-body"><SimpleBarChart :labels="dashboardData.hours_chart.labels" :values="dashboardData.hours_chart.values" color="#0dcaf0" empty-message="Belum ada data jam kerja." /></div>
@@ -154,13 +154,13 @@
             </div>
 
             <div class="row">
-                <div class="col-lg-6">
+                <div class="col-md-12 col-lg-6">
                     <div class="card card-outline card-primary h-100">
                         <div class="card-header"><h3 class="card-title">5 Produk Terlaris</h3></div>
                         <div class="card-body"><SimplePieChart :labels="dashboardData.top_products_chart.labels" :values="dashboardData.top_products_chart.values" /></div>
                     </div>
                 </div>
-                <div class="col-lg-6">
+                <div class="col-md-12 col-lg-6">
                     <div class="card card-outline card-secondary h-100">
                         <div class="card-header"><h3 class="card-title">Top 5 Produk Anda</h3></div>
                         <div class="card-body p-0 table-responsive">
@@ -265,3 +265,4 @@ const formatStock = (value) => new Intl.NumberFormat('id-ID', { maximumFractionD
     margin-bottom: 10px;
 }
 </style>
+

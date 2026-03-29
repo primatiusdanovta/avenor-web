@@ -4,7 +4,7 @@
             <div class="container-fluid">
                 <ul class="navbar-nav">
                     <li class="nav-item">
-                        <a class="nav-link"  href="#" role="button" @click="toggleSidebar">
+                        <a href="#" class="nav-link" data-widget="pushmenu" @click.prevent>
                             <i class="fas fa-bars"></i>
                         </a>
                     </li>
@@ -33,7 +33,7 @@
                 <nav class="mt-2">
                     <ul
                         class="nav sidebar-menu flex-column"
-                        data-lte-toggle="treeview"
+                        data-widget="treeview"
                         role="navigation"
                         aria-label="Main navigation"
                         data-accordion="false"
@@ -99,16 +99,6 @@ watch(() => page.url, () => {
     showFlashSuccess.value = true;
 });
 
-const toggleSidebar = () => {
-  const body = document.body
-
-  if (window.innerWidth < 992) {
-    body.classList.toggle('sidebar-open')
-  } else {
-    body.classList.toggle('sidebar-collapse')
-  }
-}
-
 const isActive = (path) => currentUrl.value.startsWith(path);
 
 const sendMarketingLocation = (source = 'heartbeat') => {
@@ -124,6 +114,45 @@ const sendMarketingLocation = (source = 'heartbeat') => {
 };
 
 onMounted(() => {
+    // Ensure AdminLTE is properly initialized for this layout
+    // This will be called AFTER Vue renders the sidebar
+    setTimeout(() => {
+        if (window.adminlte) {
+            
+            // Get sidebar and toggle button
+            const sidebar = document.querySelector('.app-sidebar');
+            const toggleButton = document.querySelector('[data-widget="pushmenu"]');
+            
+            if (sidebar && window.adminlte.PushMenu) {
+                // Create PushMenu instance
+                const pushMenu = new window.adminlte.PushMenu(sidebar);
+                
+                // If button exists and PushMenu has a toggle method, ensure event listeners work
+                if (toggleButton && typeof pushMenu.toggle === 'function') {
+                    // Add explicit click handler as fallback for Vue-rendered elements
+                    toggleButton.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        pushMenu.toggle();
+                               });
+                        }
+            }
+            
+            // Initialize treeviews
+            const treeviews = document.querySelectorAll('[data-widget="treeview"]');
+            if (window.adminlte.Treeview && treeviews.length > 0) {
+                treeviews.forEach(el => {
+                    try {
+                        new window.adminlte.Treeview(el);
+                    } catch (e) {
+                        console.warn('⚠️ Treeview error:', e.message);
+                    }
+                });
+                        }
+        } else {
+            console.error('❌ AppLayout: window.adminlte not available!');
+        }
+    }, 50);
+    
     if (user.value?.role === 'marketing') {
         sendMarketingLocation();
         locationInterval = window.setInterval(() => sendMarketingLocation(), 3600000);

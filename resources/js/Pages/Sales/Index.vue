@@ -7,7 +7,7 @@
     <div v-if="$page.props.errors.bukti_pembelian" class="alert alert-danger">{{ $page.props.errors.bukti_pembelian }}</div>
 
     <div class="row">
-        <div class="col-lg-5">
+        <div class="col-md-12 col-lg-5">
             <div class="card card-outline card-primary">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h3 class="card-title">Input Penjualan Offline</h3>
@@ -125,7 +125,7 @@
             </div>
         </div>
 
-        <div class="col-lg-7">
+        <div class="col-md-12 col-lg-7">
             <div class="card card-outline card-success">
                 <div class="card-header"><h3 class="card-title">Daftar Penjualan Offline</h3></div>
                 <div class="card-body p-0 table-responsive">
@@ -274,4 +274,5 @@ const approve = (item) => router.post(`/offline-sales/${item.id_penjualan_offlin
 const reject = (item) => router.post(`/offline-sales/${item.id_penjualan_offline}/reject`, {}, { preserveScroll: true });
 const removeSale = (item) => { if (window.confirm(`Hapus transaksi ${item.transaction_code || item.id_penjualan_offline}?`)) router.delete(`/offline-sales/${item.id_penjualan_offline}`, { preserveScroll: true }); };
 </script>
+
 

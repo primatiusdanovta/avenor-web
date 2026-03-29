@@ -2,7 +2,7 @@
     <Head title="Promos" />
 
     <div class="row">
-        <div class="col-lg-5">
+        <div class="col-md-12 col-lg-5">
             <div class="card card-outline card-primary">
                 <div class="card-header"><h3 class="card-title">Tambah Promo</h3></div>
                 <div class="card-body">
@@ -32,7 +32,7 @@
             </div>
         </div>
 
-        <div class="col-lg-7">
+        <div class="col-md-12 col-lg-7">
             <div class="card card-outline card-success">
                 <div class="card-header"><h3 class="card-title">Daftar Promo</h3></div>
                 <div class="card-body p-0 table-responsive">
@@ -75,3 +75,4 @@ const pickEdit = (item) => Object.assign(editForm, item);
 const submitEdit = () => editForm.put(`/promos/${editForm.id}`, { preserveScroll: true });
 const removePromo = (item) => { if (window.confirm(`Hapus promo ${item.nama_promo}?`)) router.delete(`/promos/${item.id}`, { preserveScroll: true }); };
 </script>
+

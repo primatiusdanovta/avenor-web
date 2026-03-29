@@ -2,7 +2,7 @@
     <Head title="HPP" />
 
     <div class="row">
-        <div class="col-lg-5">
+        <div class="col-md-12 col-lg-5">
             <div class="card card-outline card-primary">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h3 class="card-title">Perhitungan HPP</h3>
@@ -43,7 +43,7 @@
             </div>
         </div>
 
-        <div class="col-lg-7">
+        <div class="col-md-12 col-lg-7">
             <div class="card card-outline card-success">
                 <div class="card-header"><h3 class="card-title">Daftar HPP Product</h3></div>
                 <div class="card-body p-0 table-responsive">

@@ -4,7 +4,7 @@
     <div v-if="$page.props.errors.checkout" class="alert alert-danger">{{ $page.props.errors.checkout }}</div>
 
     <div class="row">
-        <div v-for="item in kpis" :key="item.label" class="col-lg-3 col-6">
+        <div v-for="item in kpis" :key="item.label" class="col-md-6 col-lg-3 col-6">
             <div class="small-box bg-gradient-info">
                 <div class="inner"><h3>{{ item.value }}</h3><p>{{ item.label }}</p></div>
                 <div class="icon"><i class="fas fa-clipboard-check"></i></div>
@@ -13,7 +13,7 @@
     </div>
 
     <div class="row">
-        <div class="col-lg-5">
+        <div class="col-md-12 col-lg-5">
             <div class="card card-outline card-primary">
                 <div class="card-header"><h3 class="card-title">Absensi Hari Ini</h3></div>
                 <div class="card-body">
@@ -34,7 +34,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-lg-7">
+        <div class="col-md-12 col-lg-7">
             <div class="card card-outline card-info">
                 <div class="card-header"><h3 class="card-title">Status Hari Ini</h3></div>
                 <div class="card-body">

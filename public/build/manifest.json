@@ -1,18 +1,6 @@
 {
-  "__commonjsHelpers-DsqdWQfm.js": {
-    "file": "assets/_commonjsHelpers-DsqdWQfm.js",
-    "name": "_commonjsHelpers"
-  },
-  "_adminlte.min-Dcmjeu52.js": {
-    "file": "assets/adminlte.min-Dcmjeu52.js",
-    "name": "adminlte.min",
-    "isDynamicEntry": true,
-    "imports": [
-      "__commonjsHelpers-DsqdWQfm.js"
-    ]
-  },
   "resources/css/app.css": {
-    "file": "assets/app-DCf6_KgL.css",
+    "file": "assets/app-CfS0NJMr.css",
     "src": "resources/css/app.css",
     "isEntry": true,
     "name": "app",
@@ -21,18 +9,12 @@
     ]
   },
   "resources/js/app.js": {
-    "file": "assets/app-CAGBtnfi.js",
+    "file": "assets/app-zx4F4Ec6.js",
     "name": "app",
     "src": "resources/js/app.js",
     "isEntry": true,
-    "imports": [
-      "__commonjsHelpers-DsqdWQfm.js"
-    ],
-    "dynamicImports": [
-      "_adminlte.min-Dcmjeu52.js"
-    ],
     "css": [
-      "assets/app-CinYgEY9.css"
+      "assets/app-DwGMYACK.css"
     ]
   }
 }

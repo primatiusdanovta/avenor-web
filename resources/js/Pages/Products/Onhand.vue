@@ -6,7 +6,7 @@
     <div v-if="$page.props.errors.quantity" class="alert alert-danger">{{ $page.props.errors.quantity }}</div>
 
     <div class="row">
-        <div class="col-lg-5">
+        <div class="col-md-12 col-lg-5">
             <div class="card card-outline card-primary">
                 <div class="card-header"><h3 class="card-title">Request Ambil Barang</h3></div>
                 <div class="card-body">
@@ -37,7 +37,7 @@
             </div>
         </div>
 
-        <div class="col-lg-7">
+        <div class="col-md-12 col-lg-7">
             <div class="card card-outline card-success">
                 <div class="card-header"><h3 class="card-title">Barang Yang Dibawa</h3></div>
                 <div class="card-body p-0 table-responsive">
@@ -111,4 +111,5 @@ const takeForm = useForm({ id_product: '', quantity: 1 });
 const submitTake = () => takeForm.post('/products/take', { preserveScroll: true, onSuccess: () => takeForm.reset('id_product', 'quantity') });
 const submitReturn = (item) => router.put(`/products/onhand/${item.id_product_onhand}/return`, { quantity_dikembalikan: Number(returnInputs[item.id_product_onhand] ?? item.max_return ?? 0) }, { preserveScroll: true });
 </script>
+
 

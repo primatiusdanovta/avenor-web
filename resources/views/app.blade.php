@@ -17,7 +17,7 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @endif
 </head>
-<body class="hold-transition layout-fixed sidebar-expand-lg sidebar-mini bg-body-tertiary">
+<body class="hold-transition layout-fixed sidebar-expand-md sidebar-mini bg-body-tertiary">
     @inertia
 </body>
 </html>

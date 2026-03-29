@@ -2,7 +2,7 @@
     <Head title="Marketing" />
 
     <div class="row">
-        <div class="col-lg-4">
+        <div class="col-md-12 col-lg-4">
             <div class="card card-outline card-primary">
                 <div class="card-header"><h3 class="card-title">Tambah Marketing</h3></div>
                 <div class="card-body">
@@ -30,7 +30,7 @@
             </div>
         </div>
 
-        <div class="col-lg-8">
+        <div class="col-md-12 col-lg-8">
             <div class="card card-outline card-info">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h3 class="card-title">Daftar Marketing</h3>
@@ -137,3 +137,4 @@ const removeMarketing = (item) => { if (window.confirm(`Hapus akun marketing ${i
 const approveReturn = (item) => router.post(`/products/onhand/${item.id_product_onhand}/approve`, {}, { preserveScroll: true });
 const rejectReturn = (item) => router.post(`/products/onhand/${item.id_product_onhand}/reject`, {}, { preserveScroll: true });
 </script>
+

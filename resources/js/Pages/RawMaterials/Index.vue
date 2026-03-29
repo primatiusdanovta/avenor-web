@@ -2,7 +2,7 @@
     <Head title="Raw Material" />
 
     <div class="row">
-        <div class="col-lg-4">
+        <div class="col-md-12 col-lg-4">
             <div class="card card-outline card-primary">
                 <div class="card-header"><h3 class="card-title">Input Raw Material</h3></div>
                 <div class="card-body">
@@ -64,7 +64,7 @@
             </div>
         </div>
 
-        <div class="col-lg-8">
+        <div class="col-md-12 col-lg-8">
             <div class="card card-outline card-success">
                 <div class="card-header"><h3 class="card-title">Daftar Raw Material</h3></div>
                 <div class="card-body p-0 table-responsive">
@@ -150,3 +150,4 @@ const removeMaterial = (item) => {
     }
 };
 </script>
+
