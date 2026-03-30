@@ -80,19 +80,7 @@ body {
     margin-bottom: 0.4rem;
 }
 
-.table-responsive {
-    overflow-x: auto;
-}
 
-.table td,
-.table th {
-    white-space: nowrap;
-}
-
-.table td .text-sm,
-.table th .text-sm {
-    white-space: normal;
-}
 
 .select2-container {
     width: 100% !important;
