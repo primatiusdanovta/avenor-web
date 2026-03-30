@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductOnhand;
 use App\Models\Promo;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -83,6 +84,7 @@ class OfflineSaleController extends Controller
             'canApprove' => $isManager,
             'canManageAll' => $isManager,
             'currentRole' => $user->role,
+            'defaultCreatedAt' => now()->format('Y-m-d\TH:i'),
         ]);
     }
 
@@ -90,14 +92,14 @@ class OfflineSaleController extends Controller
     {
         $user = $request->user();
         $isManager = in_array($user->role, ['superadmin', 'admin'], true);
-        $validated = $this->validateTransactionPayload($request);
+        $validated = $this->validateTransactionPayload($request, true, $isManager);
 
         [$products, $promo, $lineSubtotals, $onhands, $totalQuantity, $subtotal] = $this->prepareTransactionContext($validated, $user->id_user, $isManager);
 
         $this->validatePromoEligibility($promo, $totalQuantity, $subtotal);
 
         $path = $request->file('bukti_pembelian')?->store('offline-sales', 'public');
-        $timestamp = now();
+        $timestamp = $this->resolveTransactionTimestamp($validated, $isManager);
         $transactionCode = $this->generateTransactionCode();
         $discounts = $this->allocateDiscounts($lineSubtotals, (float) ($promo?->potongan ?? 0));
 
@@ -138,7 +140,7 @@ class OfflineSaleController extends Controller
     {
         abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
 
-        $validated = $this->validateTransactionPayload($request, false);
+        $validated = $this->validateTransactionPayload($request, false, true);
         $transactionSales = $this->transactionSales($sale);
         $userId = (int) $sale->id_user;
 
@@ -151,7 +153,7 @@ class OfflineSaleController extends Controller
 
         $this->validatePromoEligibility($promo, $totalQuantity, $subtotal);
 
-        $timestamp = now();
+        $timestamp = $this->resolveTransactionTimestamp($validated, true, $sale->created_at);
         $discounts = $this->allocateDiscounts($lineSubtotals, (float) ($promo?->potongan ?? 0));
 
         DB::transaction(function () use ($validated, $sale, $transactionSales, $products, $promo, $timestamp, $discounts, $lineSubtotals): void {
@@ -174,6 +176,8 @@ class OfflineSaleController extends Controller
                         'harga' => max($lineSubtotal - $lineDiscount, 0),
                         'kode_promo' => $promo?->kode_promo,
                         'promo' => $promo?->nama_promo,
+                        'created_at' => $timestamp,
+                        'approved_at' => $existing->approval_status === 'disetujui' ? $timestamp : $existing->approved_at,
                     ]);
 
                     $keepIds[] = $existing->id_penjualan_offline;
@@ -196,8 +200,8 @@ class OfflineSaleController extends Controller
                     'bukti_pembelian' => $sale->bukti_pembelian,
                     'approval_status' => $sale->approval_status,
                     'approved_by' => $sale->approved_by,
-                    'approved_at' => $sale->approved_at,
-                    'created_at' => $sale->created_at,
+                    'approved_at' => $sale->approval_status === 'disetujui' ? $timestamp : $sale->approved_at,
+                    'created_at' => $timestamp,
                 ]);
 
                 $keepIds[] = $created->id_penjualan_offline;
@@ -265,12 +269,23 @@ class OfflineSaleController extends Controller
         return redirect()->route('offline-sales.index')->with('success', 'Penjualan offline ditolak.');
     }
 
+    public function showProof(Request $request, OfflineSale $sale)
+    {
+        $user = $request->user();
+        $isManager = in_array($user->role, ['superadmin', 'admin'], true);
+
+        abort_unless($isManager || (int) $sale->id_user === (int) $user->id_user, 403);
+        abort_if(! $sale->bukti_pembelian, 404);
+        abort_unless(Storage::disk('public')->exists($sale->bukti_pembelian), 404);
+
+        return Storage::disk('public')->response($sale->bukti_pembelian);
+    }
+
     private function transformTransactions(Collection $sales): Collection
     {
         return $sales
             ->groupBy(fn (OfflineSale $sale) => $sale->transaction_code ?: 'legacy-' . $sale->id_penjualan_offline)
             ->map(function (Collection $items) {
-                /** @var OfflineSale $first */
                 $first = $items->first();
 
                 return [
@@ -285,8 +300,9 @@ class OfflineSaleController extends Controller
                     'promo' => $first->promo,
                     'kode_promo' => $first->kode_promo,
                     'approval_status' => $first->approval_status,
-                    'bukti_pembelian' => $first->bukti_pembelian ? Storage::disk('public')->url($first->bukti_pembelian) : null,
+                    'bukti_pembelian' => $first->bukti_pembelian ? route('offline-sales.proof', $first) : null,
                     'created_at' => optional($first->created_at)->format('Y-m-d H:i:s'),
+                    'created_at_form' => optional($first->created_at)->format('Y-m-d\TH:i'),
                     'total_quantity' => (int) $items->sum('quantity'),
                     'total_harga' => (float) $items->sum('harga'),
                     'items' => $items->map(fn (OfflineSale $sale) => [
@@ -302,7 +318,7 @@ class OfflineSaleController extends Controller
             ->values();
     }
 
-    private function validateTransactionPayload(Request $request, bool $requireReceipt = true): array
+    private function validateTransactionPayload(Request $request, bool $requireReceipt = true, bool $allowManualTimestamp = false): array
     {
         $request->merge([
             'customer_no_telp' => $this->normalizePhone($request->input('customer_no_telp')),
@@ -317,10 +333,12 @@ class OfflineSaleController extends Controller
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'promo_id' => ['nullable', 'exists:promos,id'],
             'bukti_pembelian' => [$requireReceipt ? 'required' : 'nullable', 'image', 'max:4096'],
+            'created_at' => [$allowManualTimestamp ? 'required' : 'nullable', 'date'],
         ];
 
         return $request->validate($rules, [
             'items.*.id_product.distinct' => 'Product tidak boleh dipilih lebih dari sekali dalam satu transaksi.',
+            'created_at.required' => 'Tanggal transaksi wajib diisi untuk admin dan superadmin.',
         ]);
     }
 
@@ -461,6 +479,19 @@ class OfflineSaleController extends Controller
         return $normalized !== '' ? $normalized : null;
     }
 
+    private function resolveTransactionTimestamp(array $validated, bool $allowManualTimestamp, $fallback = null): Carbon
+    {
+        if ($allowManualTimestamp && ! empty($validated['created_at'])) {
+            return Carbon::parse($validated['created_at']);
+        }
+
+        if ($fallback) {
+            return Carbon::parse($fallback);
+        }
+
+        return now();
+    }
+
     private function generateTransactionCode(): string
     {
         return 'TRX-' . now()->format('YmdHis') . '-' . strtoupper(Str::random(8));
@@ -530,5 +561,3 @@ class OfflineSaleController extends Controller
         return max((int) $onhand->quantity - $soldQty - $returnedQty, 0);
     }
 }
-
-

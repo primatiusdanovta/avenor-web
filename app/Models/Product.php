@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
@@ -14,7 +15,7 @@ class Product extends Model
     protected $primaryKey = 'id_product';
     public $timestamps = false;
 
-    protected $fillable = ['nama_product', 'harga', 'harga_modal', 'stock', 'gambar'];
+    protected $fillable = ['nama_product', 'harga', 'harga_modal', 'stock', 'gambar', 'deskripsi'];
 
     protected function casts(): array
     {
@@ -33,5 +34,10 @@ class Product extends Model
     public function hppCalculation(): HasOne
     {
         return $this->hasOne(HppCalculation::class, 'id_product', 'id_product');
+    }
+
+    public function fragranceDetails(): BelongsToMany
+    {
+        return $this->belongsToMany(FragranceDetail::class, 'product_fragrance_details', 'id_product', 'id_fd', 'id_product', 'id_fd');
     }
 }

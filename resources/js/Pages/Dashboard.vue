@@ -15,8 +15,48 @@
             </div>
         </div>
 
+        <div v-if="dashboardFilters && isSuperadmin" class="row">
+            <div class="col-12">
+                <div class="card card-outline card-secondary">
+                    <div class="card-header"><h3 class="card-title">Filter Dashboard Bulanan</h3></div>
+                    <div class="card-body">
+                        <form class="row align-items-end" @submit.prevent="applyDashboardFilter">
+                            <div class="col-md-4">
+                                <label>Bulan</label>
+                                <select v-model="filterForm.month" class="form-control">
+                                    <option v-for="month in dashboardFilters.months" :key="month.value" :value="month.value">{{ month.label }}</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label>Tahun</label>
+                                <select v-model="filterForm.year" class="form-control">
+                                    <option v-for="year in dashboardFilters.years" :key="year.value" :value="year.value">{{ year.label }}</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="submit" class="btn btn-outline-primary">Tampilkan {{ selectedDashboardPeriodLabel }}</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <template v-if="dashboardData?.mode === 'manager' && isSuperadmin">
+            <div class="row">
+                <div class="col-md-6 col-xl-3 mb-2" v-for="card in managerCards" :key="card.label">
+                    <div class="card h-100" :class="card.outline">
+                        <div class="card-body">
+                            <div class="text-muted small text-uppercase mb-2">{{ card.label }}</div>
+                            <div class="h4 mb-0">{{ card.value }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+
         <div class="row">
-            <div class="col-md-12 col-lg-6">
+            <div v-if="inventorySummary" class="col-md-12 col-lg-6">
                 <div class="card card-outline card-warning h-100">
                     <div class="card-header"><h3 class="card-title">Ringkasan Inventory</h3></div>
                     <div class="card-body">
@@ -28,24 +68,28 @@
                     </div>
                 </div>
             </div>
-            <div class="col-lg-6" v-if="dashboardData?.mode === 'manager'">
+            <div :class="inventorySummary ? 'col-lg-6' : 'col-12'" v-if="dashboardData?.mode === 'manager'">
                 <div class="card card-outline card-dark h-100">
                     <div class="card-header"><h3 class="card-title">Tim Saat Ini</h3></div>
                     <div class="card-body">
+                        <p class="mb-1"><strong>Periode:</strong> {{ dashboardData.period_label }}</p>
                         <p class="mb-1"><strong>Total Marketing:</strong> {{ dashboardData.kpis.marketing_count }}</p>
                         <p class="mb-1"><strong>Total Seller:</strong> {{ dashboardData.kpis.seller_count }}</p>
                         <p class="mb-1"><strong>Marketing On Duty:</strong> {{ dashboardData.kpis.on_duty_marketing }}</p>
-                        <p class="mb-0"><strong>Net Profit Bulan Ini:</strong> {{ toCurrency(dashboardData.kpis.net_profit_total) }}</p>
+                        <p class="mb-1"><strong>Net Profit Offline Selling:</strong> {{ toCurrency(dashboardData.kpis.net_profit_offline_total) }}</p>
+                        <p class="mb-0"><strong>Net Profit Online Selling:</strong> {{ toCurrency(dashboardData.kpis.net_profit_online_total) }}</p>
                     </div>
                 </div>
             </div>
-            <div class="col-lg-6" v-else>
+            <div :class="inventorySummary ? 'col-lg-6' : 'col-12'" v-else>
                 <div class="card card-outline card-dark h-100">
                     <div class="card-header"><h3 class="card-title">Ringkasan Bulan Ini</h3></div>
                     <div class="card-body">
+                        <p class="mb-1"><strong>Periode:</strong> {{ dashboardData.period_label }}</p>
                         <p class="mb-1"><strong>Hari Hadir:</strong> {{ dashboardData.kpis.attendance_days }}</p>
                         <p class="mb-1"><strong>Total Revenue:</strong> {{ toCurrency(dashboardData.kpis.monthly_revenue) }}</p>
                         <p class="mb-1"><strong>Total Jam Kerja:</strong> {{ dashboardData.kpis.monthly_hours }} jam</p>
+                        <p v-if="isMarketing && dashboardData.kpis.total_kpi !== null" class="mb-1"><strong>Total KPI:</strong> {{ dashboardData.kpis.total_kpi.toFixed(2) }}</p>
                         <p class="mb-0"><strong>Total Transaksi:</strong> {{ dashboardData.kpis.monthly_transactions }}</p>
                     </div>
                 </div>
@@ -55,20 +99,41 @@
         <template v-if="dashboardData?.mode === 'manager'">
             <div class="row">
                 <div class="col-md-12 col-lg-6">
-                    <div class="card card-outline card-success">
-                        <div class="card-header"><h3 class="card-title">Gross Profit</h3></div>
+                    <div class="card card-outline card-success h-100">
+                        <div class="card-header"><h3 class="card-title">Gross Profit Offline Selling</h3></div>
                         <div class="card-body">
-                            <SimpleBarChart :labels="dashboardData.gross_profit_chart.labels" :values="dashboardData.gross_profit_chart.values" color="#198754" empty-message="Belum ada gross profit di bulan ini." />
-                            <div class="text-right font-weight-bold mt-3">{{ toCurrency(dashboardData.gross_profit_chart.total) }}</div>
+                            <SimpleBarChart :labels="dashboardData.gross_profit_offline_chart.labels" :values="dashboardData.gross_profit_offline_chart.values" color="#198754" empty-message="Belum ada gross profit offline di bulan ini." />
+                            <div class="text-right font-weight-bold mt-3">{{ toCurrency(dashboardData.gross_profit_offline_chart.total) }}</div>
                         </div>
                     </div>
                 </div>
                 <div class="col-md-12 col-lg-6">
-                    <div class="card card-outline card-info">
-                        <div class="card-header"><h3 class="card-title">Net Profit</h3></div>
+                    <div class="card card-outline card-info h-100">
+                        <div class="card-header"><h3 class="card-title">Net Profit Offline Selling</h3></div>
                         <div class="card-body">
-                            <SimpleBarChart :labels="dashboardData.net_profit_chart.labels" :values="dashboardData.net_profit_chart.values" color="#0d6efd" empty-message="Belum ada net profit di bulan ini." />
-                            <div class="text-right font-weight-bold mt-3">{{ toCurrency(dashboardData.net_profit_chart.total) }}</div>
+                            <SimpleBarChart :labels="dashboardData.net_profit_offline_chart.labels" :values="dashboardData.net_profit_offline_chart.values" color="#0d6efd" empty-message="Belum ada net profit offline di bulan ini." />
+                            <div class="text-right font-weight-bold mt-3">{{ toCurrency(dashboardData.net_profit_offline_chart.total) }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12 col-lg-6">
+                    <div class="card card-outline card-warning h-100">
+                        <div class="card-header"><h3 class="card-title">Gross Profit Online Selling</h3></div>
+                        <div class="card-body">
+                            <SimpleBarChart :labels="dashboardData.gross_profit_online_chart.labels" :values="dashboardData.gross_profit_online_chart.values" color="#fd7e14" empty-message="Belum ada gross profit online di bulan ini." />
+                            <div class="text-right font-weight-bold mt-3">{{ toCurrency(dashboardData.gross_profit_online_chart.total) }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-12 col-lg-6">
+                    <div class="card card-outline card-primary h-100">
+                        <div class="card-header"><h3 class="card-title">Net Profit Online Selling</h3></div>
+                        <div class="card-body">
+                            <SimpleBarChart :labels="dashboardData.net_profit_online_chart.labels" :values="dashboardData.net_profit_online_chart.values" color="#6610f2" empty-message="Belum ada net profit online di bulan ini." />
+                            <div class="text-right font-weight-bold mt-3">{{ toCurrency(dashboardData.net_profit_online_chart.total) }}</div>
                         </div>
                     </div>
                 </div>
@@ -77,21 +142,42 @@
             <div class="row">
                 <div class="col-md-12 col-lg-6">
                     <div class="card card-outline card-primary h-100">
-                        <div class="card-header"><h3 class="card-title">5 Produk Terlaris</h3></div>
-                        <div class="card-body">
-                            <SimplePieChart :labels="dashboardData.top_products_chart.labels" :values="dashboardData.top_products_chart.values" />
-                        </div>
+                        <div class="card-header"><h3 class="card-title">5 Product Terlaris Offline Sales</h3></div>
+                        <div class="card-body"><SimplePieChart :labels="dashboardData.top_products_offline_chart.labels" :values="dashboardData.top_products_offline_chart.values" /></div>
                     </div>
                 </div>
                 <div class="col-md-12 col-lg-6">
                     <div class="card card-outline card-secondary h-100">
-                        <div class="card-header"><h3 class="card-title">Top 5 Produk</h3></div>
+                        <div class="card-header"><h3 class="card-title">Top 5 Product Offline Sales</h3></div>
                         <div class="card-body p-0 table-responsive">
                             <table class="table table-hover mb-0">
                                 <thead><tr><th>Produk</th><th>Qty</th><th>Revenue</th></tr></thead>
                                 <tbody>
-                                    <tr v-for="item in dashboardData.top_products_table" :key="item.label"><td>{{ item.label }}</td><td>{{ item.quantity }}</td><td>{{ toCurrency(item.revenue) }}</td></tr>
-                                    <tr v-if="!dashboardData.top_products_table.length"><td colspan="3" class="text-center text-muted">Belum ada data produk terjual.</td></tr>
+                                    <tr v-for="item in dashboardData.top_products_offline_table" :key="item.label"><td>{{ item.label }}</td><td>{{ item.quantity }}</td><td>{{ toCurrency(item.revenue) }}</td></tr>
+                                    <tr v-if="!dashboardData.top_products_offline_table.length"><td colspan="3" class="text-center text-muted">Belum ada data produk offline terjual.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12 col-lg-6">
+                    <div class="card card-outline card-warning h-100">
+                        <div class="card-header"><h3 class="card-title">5 Product Terlaris Online Selling</h3></div>
+                        <div class="card-body"><SimplePieChart :labels="dashboardData.top_products_online_chart.labels" :values="dashboardData.top_products_online_chart.values" /></div>
+                    </div>
+                </div>
+                <div class="col-md-12 col-lg-6">
+                    <div class="card card-outline card-dark h-100">
+                        <div class="card-header"><h3 class="card-title">Top 5 Product Online Selling</h3></div>
+                        <div class="card-body p-0 table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead><tr><th>Produk</th><th>Qty</th><th>Revenue</th></tr></thead>
+                                <tbody>
+                                    <tr v-for="item in dashboardData.top_products_online_table" :key="item.label"><td>{{ item.label }}</td><td>{{ item.quantity }}</td><td>{{ toCurrency(item.revenue) }}</td></tr>
+                                    <tr v-if="!dashboardData.top_products_online_table.length"><td colspan="3" class="text-center text-muted">Belum ada data produk online terjual.</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -132,56 +218,68 @@
         </template>
 
         <template v-else>
-            <div class="row">
-                <div class="col-md-12 col-lg-4">
-                    <div class="card card-outline card-primary">
-                        <div class="card-header"><h3 class="card-title">Grafik Absensi</h3></div>
-                        <div class="card-body"><SimpleBarChart :labels="dashboardData.attendance_chart.labels" :values="dashboardData.attendance_chart.values" color="#fd7e14" empty-message="Belum ada data absensi." /></div>
-                    </div>
+            <div v-if="isMarketing && dashboardData.marketing_kpi" class="row">
+                <div class="col-md-4">
+                    <div class="card card-outline card-primary h-100"><div class="card-body"><div class="text-muted small">KPI Penjualan</div><div class="h4 mb-0">{{ dashboardData.marketing_kpi.sales_score.toFixed(2) }} / 70</div><div class="small text-muted mt-2">{{ dashboardData.marketing_kpi.quantity_sold }}/{{ dashboardData.marketing_kpi.sales_target }} pcs</div></div></div>
                 </div>
-                <div class="col-md-12 col-lg-4">
-                    <div class="card card-outline card-success">
-                        <div class="card-header"><h3 class="card-title">Grafik Penjualan</h3></div>
-                        <div class="card-body"><SimpleBarChart :labels="dashboardData.sales_chart.labels" :values="dashboardData.sales_chart.values" color="#198754" empty-message="Belum ada data penjualan." /></div>
-                    </div>
+                <div class="col-md-4">
+                    <div class="card card-outline card-warning h-100"><div class="card-body"><div class="text-muted small">KPI Kehadiran</div><div class="h4 mb-0">{{ dashboardData.marketing_kpi.attendance_score.toFixed(2) }} / 20</div><div class="small text-muted mt-2">{{ dashboardData.marketing_kpi.attendance_days }}/{{ dashboardData.marketing_kpi.attendance_target }} hari</div></div></div>
                 </div>
-                <div class="col-md-12 col-lg-4">
-                    <div class="card card-outline card-info">
-                        <div class="card-header"><h3 class="card-title">Jam Kerja per Hari</h3></div>
-                        <div class="card-body"><SimpleBarChart :labels="dashboardData.hours_chart.labels" :values="dashboardData.hours_chart.values" color="#0dcaf0" empty-message="Belum ada data jam kerja." /></div>
-                    </div>
+                <div class="col-md-4">
+                    <div class="card card-outline card-info h-100"><div class="card-body"><div class="text-muted small">KPI Jam Kerja</div><div class="h4 mb-0">{{ dashboardData.marketing_kpi.hours_score.toFixed(2) }} / 10</div><div class="small text-muted mt-2">{{ dashboardData.marketing_kpi.average_hours_per_day.toFixed(2) }}/{{ dashboardData.marketing_kpi.hours_target }} jam per hari</div></div></div>
                 </div>
             </div>
 
             <div class="row">
                 <div class="col-md-12 col-lg-6">
                     <div class="card card-outline card-primary h-100">
-                        <div class="card-header"><h3 class="card-title">5 Produk Terlaris</h3></div>
-                        <div class="card-body"><SimplePieChart :labels="dashboardData.top_products_chart.labels" :values="dashboardData.top_products_chart.values" /></div>
+                        <div class="card-header"><h3 class="card-title">Target Penjualan {{ dashboardData.target_summary.period_label }}</h3></div>
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Bulan Saat Ini:</strong> {{ dashboardData.target_summary.period_label }}</p>
+                            <p class="mb-1"><strong>Target Harian Terpenuhi:</strong> {{ dashboardData.target_summary.daily.achieved_count }} / {{ dashboardData.target_summary.daily.total_periods }} hari</p>
+                            <p class="mb-1 text-muted">Qty target harian {{ dashboardData.target_summary.daily.target_qty }} | Bonus tercapai {{ toCurrency(dashboardData.target_summary.daily.bonus) }}</p>
+                            <p class="mb-1"><strong>Target Mingguan Terpenuhi:</strong> {{ dashboardData.target_summary.weekly.achieved_count }} / {{ dashboardData.target_summary.weekly.total_periods }} minggu</p>
+                            <p class="mb-1 text-muted">Qty target mingguan {{ dashboardData.target_summary.weekly.target_qty }} | Bonus tercapai {{ toCurrency(dashboardData.target_summary.weekly.bonus) }}</p>
+                            <p class="mb-1"><strong>Target Bulanan:</strong> {{ dashboardData.target_summary.monthly.met ? 'Terpenuhi' : 'Belum Terpenuhi' }} ({{ dashboardData.target_summary.monthly.total_quantity }}/{{ dashboardData.target_summary.monthly.target_qty }})</p>
+                            <p class="mb-1 text-muted">Bonus bulanan tercapai {{ toCurrency(dashboardData.target_summary.monthly.bonus) }}</p>
+                            <p class="mb-0"><strong>Bonus anda saat ini:</strong> {{ toCurrency(dashboardData.target_summary.bonus_total) }}</p>
+                            <div v-if="dashboardData.target_summary.reminder" class="alert alert-warning mt-3 mb-0">{{ dashboardData.target_summary.reminder }}</div>
+                        </div>
                     </div>
                 </div>
                 <div class="col-md-12 col-lg-6">
                     <div class="card card-outline card-secondary h-100">
-                        <div class="card-header"><h3 class="card-title">Top 5 Produk Anda</h3></div>
-                        <div class="card-body p-0 table-responsive">
-                            <table class="table table-hover mb-0">
-                                <thead><tr><th>Produk</th><th>Qty</th><th>Revenue</th></tr></thead>
-                                <tbody>
-                                    <tr v-for="item in dashboardData.top_products_table" :key="item.label"><td>{{ item.label }}</td><td>{{ item.quantity }}</td><td>{{ toCurrency(item.revenue) }}</td></tr>
-                                    <tr v-if="!dashboardData.top_products_table.length"><td colspan="3" class="text-center text-muted">Belum ada data produk terjual.</td></tr>
-                                </tbody>
-                            </table>
+                        <div class="card-header"><h3 class="card-title">History Penjualan {{ dashboardData.previous_target_summary.period_label }}</h3></div>
+                        <div class="card-body">
+                            <p class="mb-1"><strong>Target Harian Terpenuhi:</strong> {{ dashboardData.previous_target_summary.daily.achieved_count }} / {{ dashboardData.previous_target_summary.daily.total_periods }} hari</p>
+                            <p class="mb-1 text-muted">Qty target harian {{ dashboardData.previous_target_summary.daily.target_qty }} | Bonus tercapai {{ toCurrency(dashboardData.previous_target_summary.daily.bonus) }}</p>
+                            <p class="mb-1"><strong>Target Mingguan Terpenuhi:</strong> {{ dashboardData.previous_target_summary.weekly.achieved_count }} / {{ dashboardData.previous_target_summary.weekly.total_periods }} minggu</p>
+                            <p class="mb-1 text-muted">Qty target mingguan {{ dashboardData.previous_target_summary.weekly.target_qty }} | Bonus tercapai {{ toCurrency(dashboardData.previous_target_summary.weekly.bonus) }}</p>
+                            <p class="mb-1"><strong>Target Bulanan:</strong> {{ dashboardData.previous_target_summary.monthly.met ? 'Terpenuhi' : 'Belum Terpenuhi' }} ({{ dashboardData.previous_target_summary.monthly.total_quantity }}/{{ dashboardData.previous_target_summary.monthly.target_qty }})</p>
+                            <p class="mb-1 text-muted">Bonus bulanan tercapai {{ toCurrency(dashboardData.previous_target_summary.monthly.bonus) }}</p>
+                            <p class="mb-0"><strong>Bonus bulan lalu:</strong> {{ toCurrency(dashboardData.previous_target_summary.bonus_total) }}</p>
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div class="row">
+                <div v-if="dashboardData.attendance_chart.values.length" class="col-md-12 col-lg-6 col-xl-4 mb-3"><div class="card card-outline card-primary h-100"><div class="card-header"><h3 class="card-title">Grafik Absensi</h3></div><div class="card-body"><SimpleBarChart :labels="dashboardData.attendance_chart.labels" :values="dashboardData.attendance_chart.values" color="#fd7e14" empty-message="Belum ada data absensi." /></div></div></div>
+                <div v-if="dashboardData.sales_chart.values.length" class="col-md-12 col-lg-6 col-xl-4 mb-3"><div class="card card-outline card-success h-100"><div class="card-header"><h3 class="card-title">Grafik Penjualan</h3></div><div class="card-body"><SimpleBarChart :labels="dashboardData.sales_chart.labels" :values="dashboardData.sales_chart.values" color="#198754" empty-message="Belum ada data penjualan." /></div></div></div>
+                <div v-if="dashboardData.hours_chart.values.length" class="col-md-12 col-lg-6 col-xl-4 mb-3"><div class="card card-outline card-info h-100"><div class="card-header"><h3 class="card-title">Jam Kerja per Hari</h3></div><div class="card-body"><SimpleBarChart :labels="dashboardData.hours_chart.labels" :values="dashboardData.hours_chart.values" color="#0dcaf0" empty-message="Belum ada data jam kerja." /></div></div></div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12 col-lg-6"><div class="card card-outline card-primary h-100"><div class="card-header"><h3 class="card-title">5 Produk Terlaris</h3></div><div class="card-body"><SimplePieChart :labels="dashboardData.top_products_chart.labels" :values="dashboardData.top_products_chart.values" /></div></div></div>
+                <div class="col-md-12 col-lg-6"><div class="card card-outline card-secondary h-100"><div class="card-header"><h3 class="card-title">Top 5 Produk Anda</h3></div><div class="card-body p-0 table-responsive"><table class="table table-hover mb-0"><thead><tr><th>Produk</th><th>Qty</th><th>Revenue</th></tr></thead><tbody><tr v-for="item in dashboardData.top_products_table" :key="item.label"><td>{{ item.label }}</td><td>{{ item.quantity }}</td><td>{{ toCurrency(item.revenue) }}</td></tr><tr v-if="!dashboardData.top_products_table.length"><td colspan="3" class="text-center text-muted">Belum ada data produk terjual.</td></tr></tbody></table></div></div></div>
             </div>
         </template>
     </div>
 </template>
 
 <script setup>
-import { defineComponent, h, ref, watch } from 'vue';
-import { Head, usePage } from '@inertiajs/vue3';
+import { computed, defineComponent, h, ref, watch } from 'vue';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '../Layouts/AppLayout.vue';
 
 defineOptions({ layout: AppLayout });
@@ -204,14 +302,18 @@ const SimpleBarChart = defineComponent({
             }
 
             const max = Math.max(...props.values.map((value) => Math.abs(Number(value) || 0)), 1);
-            return h('div', { class: 'simple-bar-chart' }, [
-                h('div', { class: 'd-flex align-items-end', style: 'height:220px; gap:6px;' },
-                    props.values.map((value, index) => h('div', { class: 'flex-fill text-center' }, [
-                        h('div', { class: 'small text-muted mb-1' }, formatCompact(value)),
-                        h('div', { class: 'mx-auto rounded-top', style: `width:100%; max-width:28px; min-height:8px; height:${Math.max((Math.abs(Number(value) || 0) / max) * 150, 8)}px; background:${props.color || '#0d6efd'};` }),
-                        h('div', { class: 'small text-muted mt-2' }, props.labels?.[index] || ''),
-                    ]))
-                ),
+            const barWidth = 46;
+            const gap = 12;
+            const minChartWidth = Math.max(((props.values.length || 0) * (barWidth + gap)) + gap, 280);
+
+            return h('div', { class: 'simple-bar-chart overflow-auto pb-2' }, [
+                h('div', { class: 'd-flex align-items-end', style: `height:240px; gap:${gap}px; min-width:${minChartWidth}px;` }, props.values.map((value, index) => h('div', { class: 'text-center d-flex flex-column justify-content-end align-items-center', style: `width:${barWidth}px; flex:0 0 ${barWidth}px;` }, [
+                    h('div', { class: 'small text-muted mb-2', style: 'line-height:1.1; white-space:normal; word-break:break-word;' }, formatCompact(value)),
+                    h('div', { class: 'w-100 d-flex align-items-end', style: 'height:150px;' }, [
+                        h('div', { class: 'w-100 rounded-top', style: `min-height:8px; height:${Math.max((Math.abs(Number(value) || 0) / max) * 150, 8)}px; background:${props.color || '#0d6efd'};` }),
+                    ]),
+                    h('div', { class: 'small text-muted mt-2', style: 'line-height:1.1;' }, props.labels?.[index] || ''),
+                ]))),
             ]);
         };
     },
@@ -238,26 +340,52 @@ const SimplePieChart = defineComponent({
 
             return h('div', { class: 'd-flex flex-column align-items-center' }, [
                 h('div', { style: `width:220px; height:220px; border-radius:50%; background:conic-gradient(${gradient});` }),
-                h('div', { class: 'w-100 mt-3' },
-                    (props.labels || []).map((label, index) => h('div', { class: 'd-flex align-items-center mb-2' }, [
-                        h('span', { style: `display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:8px; background:${palette[index % palette.length]};` }),
-                        h('span', { class: 'mr-2' }, label),
-                        h('span', { class: 'text-muted small ml-auto' }, `${props.values?.[index] || 0}`),
-                    ]))
-                ),
+                h('div', { class: 'w-100 mt-3' }, (props.labels || []).map((label, index) => h('div', { class: 'd-flex align-items-center mb-2' }, [
+                    h('span', { style: `display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:8px; background:${palette[index % palette.length]};` }),
+                    h('span', { class: 'mr-2' }, label),
+                    h('span', { class: 'text-muted small ml-auto' }, `${props.values?.[index] || 0}`),
+                ]))),
             ]);
         };
     },
 });
 
-defineProps({
-    inventorySummary: Object,
-    dashboardData: Object,
-});
-
+const props = defineProps({ summary: Object, inventorySummary: Object, dashboardData: Object, dashboardFilters: Object });
 const toCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0);
 const formatCompact = (value) => new Intl.NumberFormat('id-ID', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(value || 0));
 const formatStock = (value) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(Number(value || 0));
+const toPercent = (value) => `${Number(value || 0).toFixed(2)}%`;
+const isSuperadmin = computed(() => props.summary?.currentRole === 'superadmin');
+const isMarketing = computed(() => props.summary?.currentRole === 'marketing');
+const filterForm = useForm({ month: props.dashboardFilters?.month ?? new Date().getMonth() + 1, year: props.dashboardFilters?.year ?? new Date().getFullYear() });
+const selectedDashboardPeriodLabel = computed(() => {
+    const selectedMonth = props.dashboardFilters?.months?.find((month) => Number(month.value) === Number(filterForm.month));
+    const monthLabel = selectedMonth?.label ?? 'Bulan';
+    return `${monthLabel} ${filterForm.year}`.trim();
+});
+
+const applyDashboardFilter = () => {
+    router.get('/dashboard', filterForm.data(), { preserveScroll: true, preserveState: true, replace: true });
+};
+
+const managerCards = computed(() => {
+    if (props.dashboardData?.mode !== 'manager') {
+        return [];
+    }
+
+    return [
+        { label: 'Product Terjual Bulan Ini', value: formatCompact(props.dashboardData.kpis.product_sold_total), outline: 'card-outline card-primary' },
+        { label: 'Product Terjual Offline', value: formatCompact(props.dashboardData.kpis.product_sold_offline), outline: 'card-outline card-info' },
+        { label: 'Product Terjual Online', value: formatCompact(props.dashboardData.kpis.product_sold_online), outline: 'card-outline card-warning' },
+        { label: 'Gross Profit Online Selling', value: toCurrency(props.dashboardData.kpis.gross_profit_online_total), outline: 'card-outline card-success' },
+        { label: 'Gross Profit Offline Selling', value: toCurrency(props.dashboardData.kpis.gross_profit_offline_total), outline: 'card-outline card-success' },
+        { label: 'Net Profit Online Selling', value: toCurrency(props.dashboardData.kpis.net_profit_online_total), outline: 'card-outline card-dark' },
+        { label: 'Net Profit Offline Selling', value: toCurrency(props.dashboardData.kpis.net_profit_offline_total), outline: 'card-outline card-dark' },
+        { label: 'Revenue', value: toCurrency(props.dashboardData.kpis.revenue_total), outline: 'card-outline card-secondary' },
+        { label: 'Net Profit', value: toCurrency(props.dashboardData.kpis.net_profit_total), outline: 'card-outline card-secondary' },
+        { label: 'NPM', value: toPercent(props.dashboardData.kpis.npm_percent), outline: 'card-outline card-danger' },
+    ];
+});
 </script>
 
 <style scoped>
@@ -265,4 +393,9 @@ const formatStock = (value) => new Intl.NumberFormat('id-ID', { maximumFractionD
     margin-bottom: 10px;
 }
 </style>
+
+
+
+
+
 

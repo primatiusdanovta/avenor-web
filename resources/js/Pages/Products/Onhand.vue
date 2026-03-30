@@ -10,7 +10,7 @@
             <div class="card card-outline card-primary">
                 <div class="card-header"><h3 class="card-title">Request Ambil Barang</h3></div>
                 <div class="card-body">
-                    <div v-if="!attendanceReady" class="alert alert-warning">Marketing wajib check in terlebih dahulu sebelum mengambil barang.</div>
+                    <div v-if="attendanceBlockedReason" class="alert alert-warning">{{ attendanceBlockedReason }}</div>
                     <div class="form-group">
                         <label>Product</label>
                         <Select2Input v-model="takeForm.id_product" :options="products" value-key="id_product" label-key="option_label" placeholder="Cari lalu pilih product" :disabled="!attendanceReady" />
@@ -19,7 +19,7 @@
                         <label>Quantity</label>
                         <input v-model="takeForm.quantity" type="number" min="1" class="form-control" :disabled="!attendanceReady">
                     </div>
-                    <button class="btn btn-primary" :disabled="takeForm.processing || !attendanceReady || !takeForm.id_product" @click="submitTake">Kirim Request</button>
+                    <button class="btn btn-primary" :disabled="takeForm.processing || !attendanceReady" @click="submitTake">Kirim Request</button>
                     <p class="text-muted text-sm mt-3 mb-0">Barang baru bisa dipakai setelah disetujui admin atau superadmin.</p>
                 </div>
             </div>
@@ -62,12 +62,13 @@
             </div>
 
             <div class="card card-outline card-warning">
-                <div class="card-header"><h3 class="card-title">Pengembalian Barang Yang Dibawa Hari Ini</h3></div>
+                <div class="card-header"><h3 class="card-title">Pengembalian Barang</h3></div>
                 <div class="card-body p-0 table-responsive">
                     <table class="table table-hover mb-0">
-                        <thead><tr><th>Product</th><th>Status Ambil</th><th>Dibawa</th><th>Terjual</th><th>Max Return</th><th>Request Return</th><th>Status</th><th>Aksi</th></tr></thead>
+                        <thead><tr><th>Tanggal</th><th>Product</th><th>Status Ambil</th><th>Dibawa</th><th>Terjual</th><th>Max Return</th><th>Request Return</th><th>Status</th><th>Aksi</th></tr></thead>
                         <tbody>
                             <tr v-for="item in todayReturnItems" :key="`return-${item.id_product_onhand}`">
+                                <td>{{ item.assignment_date }}</td>
                                 <td>{{ item.nama_product }}</td>
                                 <td>{{ item.take_status_label }}</td>
                                 <td>{{ item.quantity }}</td>
@@ -87,29 +88,88 @@
                                     </div>
                                 </td>
                             </tr>
-                            <tr v-if="!todayReturnItems.length"><td colspan="8" class="text-center text-muted">Belum ada barang yang perlu diproses hari ini.</td></tr>
+                            <tr v-if="!todayReturnItems.length"><td colspan="9" class="text-center text-muted">Belum ada barang yang perlu diproses.</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
     </div>
+
+    <BootstrapModal :show="showWarningModal" title="Peringatan" size="mobile-full" @close="showWarningModal = false">
+        {{ modalMessage }}
+        <template #footer>
+            <button type="button" class="btn btn-secondary" @click="showWarningModal = false">Tutup</button>
+        </template>
+    </BootstrapModal>
 </template>
 
 <script setup>
-import { reactive } from 'vue';
-import { Head, router, useForm } from '@inertiajs/vue3';
+import { reactive, ref, watch } from 'vue';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import Select2Input from '../../Components/Select2Input.vue';
+import BootstrapModal from '../../Components/BootstrapModal.vue';
 
 defineOptions({ layout: AppLayout });
 
-defineProps({ products: Array, attendanceReady: Boolean, todayAttendance: { type: Object, default: null }, onhands: Array, todayReturnItems: Array });
+const props = defineProps({
+    products: Array,
+    attendanceReady: Boolean,
+    attendanceBlockedReason: { type: String, default: null },
+    todayAttendance: { type: Object, default: null },
+    onhands: Array,
+    todayReturnItems: Array,
+});
+
+const page = usePage();
 const returnInputs = reactive({});
 const takeForm = useForm({ id_product: '', quantity: 1 });
+const modalMessage = ref('');
+const showWarningModal = ref(false);
 
-const submitTake = () => takeForm.post('/products/take', { preserveScroll: true, onSuccess: () => takeForm.reset('id_product', 'quantity') });
-const submitReturn = (item) => router.put(`/products/onhand/${item.id_product_onhand}/return`, { quantity_dikembalikan: Number(returnInputs[item.id_product_onhand] ?? item.max_return ?? 0) }, { preserveScroll: true });
+const openWarningModal = (message) => {
+    modalMessage.value = message;
+    showWarningModal.value = true;
+};
+
+const submitTake = () => {
+    if (!props.attendanceReady) {
+        openWarningModal(props.attendanceBlockedReason || 'Request barang belum bisa dilakukan.');
+        return;
+    }
+
+    if (!props.products.length) {
+        openWarningModal('Stock Kosong, Silahkan Hubungi Admin!');
+        return;
+    }
+
+    const selectedProduct = props.products.find((item) => String(item.id_product) === String(takeForm.id_product));
+    if (!selectedProduct) {
+        openWarningModal('Pilih product terlebih dahulu.');
+        return;
+    }
+
+    if (Number(selectedProduct.stock || 0) <= 0) {
+        openWarningModal('Stock Kosong, Silahkan Hubungi Admin!');
+        return;
+    }
+
+    takeForm.post('/products/take', {
+        preserveScroll: true,
+        onSuccess: () => takeForm.reset('id_product', 'quantity'),
+    });
+};
+
+const submitReturn = (item) => router.put(`/products/onhand/${item.id_product_onhand}/return`, {
+    quantity_dikembalikan: Number(returnInputs[item.id_product_onhand] ?? item.max_return ?? 0),
+}, { preserveScroll: true });
+
+watch(() => page.props.errors?.stock_empty, (value) => {
+    if (value) openWarningModal(value);
+}, { immediate: true });
+
+watch(() => page.props.errors?.request_product, (value) => {
+    if (value) openWarningModal(value);
+}, { immediate: true });
 </script>
-
-

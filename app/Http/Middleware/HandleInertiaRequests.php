@@ -28,30 +28,38 @@ class HandleInertiaRequests extends Middleware
             $navigation[] = ['label' => 'Raw Material', 'href' => '/raw-materials', 'icon' => 'fas fa-industry'];
             $navigation[] = ['label' => 'HPP', 'href' => '/hpp', 'icon' => 'fas fa-calculator'];
             $navigation[] = ['label' => 'Products', 'href' => '/products', 'icon' => 'fas fa-boxes'];
+            $navigation[] = ['label' => 'Product Knowledge', 'href' => '/product-knowledge', 'icon' => 'fas fa-book-open'];
             $navigation[] = ['label' => 'Promos', 'href' => '/promos', 'icon' => 'fas fa-tags'];
             $navigation[] = ['label' => 'Pelanggan', 'href' => '/customers', 'icon' => 'fas fa-address-book'];
             $navigation[] = ['label' => 'Content Creator', 'href' => '/content-creators', 'icon' => 'fas fa-photo-video'];
             $navigation[] = ['label' => 'Penjualan Offline', 'href' => '/offline-sales', 'icon' => 'fas fa-cash-register'];
+            $navigation[] = ['label' => 'Penjualan Online', 'href' => '/online-sales', 'icon' => 'fas fa-file-import'];
+            $navigation[] = ['label' => 'Target Penjualan', 'href' => '/sales-targets', 'icon' => 'fas fa-bullseye'];
+            $navigation[] = ['label' => 'Report', 'href' => '/reports', 'icon' => 'fas fa-chart-line'];
         }
 
         if ($user?->role === 'admin') {
             $navigation[] = ['label' => 'Marketing', 'href' => '/marketing', 'icon' => 'fas fa-map-marker-alt'];
             $navigation[] = ['label' => 'Approvals', 'href' => '/approvals', 'icon' => 'fas fa-clipboard-check'];
             $navigation[] = ['label' => 'Products', 'href' => '/products', 'icon' => 'fas fa-boxes'];
+            $navigation[] = ['label' => 'Product Knowledge', 'href' => '/product-knowledge', 'icon' => 'fas fa-book-open'];
             $navigation[] = ['label' => 'Promos', 'href' => '/promos', 'icon' => 'fas fa-tags'];
             $navigation[] = ['label' => 'Pelanggan', 'href' => '/customers', 'icon' => 'fas fa-address-book'];
             $navigation[] = ['label' => 'Content Creator', 'href' => '/content-creators', 'icon' => 'fas fa-photo-video'];
             $navigation[] = ['label' => 'Penjualan Offline', 'href' => '/offline-sales', 'icon' => 'fas fa-cash-register'];
+            $navigation[] = ['label' => 'Report', 'href' => '/reports', 'icon' => 'fas fa-chart-line'];
         }
 
         if ($user?->role === 'marketing') {
             $navigation[] = ['label' => 'Absensi', 'href' => '/marketing/attendance', 'icon' => 'fas fa-user-check'];
             $navigation[] = ['label' => 'Products', 'href' => '/products', 'icon' => 'fas fa-box-open'];
+            $navigation[] = ['label' => 'Product Knowledge', 'href' => '/product-knowledge', 'icon' => 'fas fa-book-open'];
             $navigation[] = ['label' => 'Penjualan Offline', 'href' => '/offline-sales', 'icon' => 'fas fa-shopping-bag'];
         }
 
         if ($user?->role === 'reseller') {
             $navigation[] = ['label' => 'Products', 'href' => '/products', 'icon' => 'fas fa-box-open'];
+            $navigation[] = ['label' => 'Product Knowledge', 'href' => '/product-knowledge', 'icon' => 'fas fa-book-open'];
             $navigation[] = ['label' => 'Penjualan Offline', 'href' => '/offline-sales', 'icon' => 'fas fa-shopping-bag'];
         }
 
@@ -95,7 +103,10 @@ class HandleInertiaRequests extends Middleware
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
+                'warning' => fn () => $request->session()->get('warning'),
+                'error' => fn () => $request->session()->get('error'),
             ],
         ];
     }
 }
+

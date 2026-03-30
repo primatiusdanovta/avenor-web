@@ -6,7 +6,9 @@ use App\Models\Attendance;
 use App\Models\MarketingLocation;
 use App\Models\OfflineSale;
 use App\Models\ProductOnhand;
+use App\Models\SalesTarget;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -21,13 +23,14 @@ class MarketingManagementController extends Controller
 
         $search = trim((string) $request->string('search'));
         $selectedId = (int) $request->integer('selected');
+        [$periodStart, $periodEnd, $periodFilters] = $this->resolvePeriod($request);
 
         $marketers = User::query()
             ->where('role', 'marketing')
             ->when($search !== '', fn ($query) => $query->where('nama', 'like', "%{$search}%"))
             ->orderBy('nama')
             ->get(['id_user', 'nama', 'status', 'created_at'])
-            ->map(function (User $marketing) {
+            ->map(function (User $marketing) use ($periodStart, $periodEnd) {
                 $todayAttendance = Attendance::query()
                     ->where('user_id', $marketing->id_user)
                     ->whereDate('attendance_date', now()->toDateString())
@@ -44,17 +47,9 @@ class MarketingManagementController extends Controller
                     'status' => $marketing->status,
                     'created_at' => optional($marketing->created_at)->format('Y-m-d H:i:s'),
                     'today_status' => $todayAttendance?->status ?? 'belum absen',
+                    'kpi' => $this->buildMarketingKpi($marketing->id_user, $periodStart, $periodEnd),
                     'carried_items' => $todayOnhands->map(function (ProductOnhand $onhand) {
-                        $remaining = $this->remainingForOnhand($onhand);
-
-                        return [
-                            'nama_product' => $onhand->nama_product,
-                            'quantity' => (int) $onhand->quantity,
-                            'quantity_dikembalikan' => (int) $onhand->quantity_dikembalikan,
-                            'remaining_quantity' => $remaining,
-                            'take_status' => $onhand->take_status,
-                            'return_status' => $onhand->return_status,
-                        ];
+                        return $this->transformOnhand($onhand);
                     })->values(),
                 ];
             })
@@ -90,6 +85,8 @@ class MarketingManagementController extends Controller
                         'check_out' => $todayAttendance->check_out,
                         'notes' => $todayAttendance->notes,
                     ] : null,
+                    'current_kpi' => $this->buildMarketingKpi($marketing->id_user, $periodStart, $periodEnd),
+                    'kpi_history' => $this->buildKpiHistory($marketing->id_user, $periodStart),
                     'latest_location' => $latestLocation ? [
                         'latitude' => $latestLocation->latitude,
                         'longitude' => $latestLocation->longitude,
@@ -98,26 +95,23 @@ class MarketingManagementController extends Controller
                         'map_url' => $this->mapUrl((float) $latestLocation->latitude, (float) $latestLocation->longitude),
                     ] : null,
                     'carried_items' => $todayOnhands->map(function (ProductOnhand $onhand) {
-                        return [
-                            'id_product_onhand' => $onhand->id_product_onhand,
-                            'nama_product' => $onhand->nama_product,
-                            'quantity' => (int) $onhand->quantity,
-                            'quantity_dikembalikan' => (int) $onhand->quantity_dikembalikan,
-                            'remaining_quantity' => $this->remainingForOnhand($onhand),
-                            'take_status' => $onhand->take_status,
-                            'return_status' => $onhand->return_status,
-                            'assignment_date' => optional($onhand->assignment_date)->format('Y-m-d'),
-                        ];
+                        return $this->transformOnhand($onhand);
                     })->values(),
                 ];
             }
         }
 
         return Inertia::render('Marketing/Index', [
-            'filters' => ['search' => $search, 'selected' => $selectedId ?: null],
+            'filters' => [
+                'search' => $search,
+                'selected' => $selectedId ?: null,
+                'month' => $periodFilters['month'],
+                'year' => $periodFilters['year'],
+            ],
             'marketers' => $marketers,
             'selectedMarketing' => $selectedMarketing,
             'statuses' => ['aktif', 'nonaktif'],
+            'periodFilters' => $periodFilters,
         ]);
     }
 
@@ -172,10 +166,31 @@ class MarketingManagementController extends Controller
         return redirect()->route('marketing.index')->with('success', 'Akun marketing berhasil dihapus.');
     }
 
-    private function remainingForOnhand(ProductOnhand $onhand): int
+    private function transformOnhand(ProductOnhand $onhand): array
+    {
+        $state = $this->stateForOnhand($onhand);
+
+        return [
+            'id_product_onhand' => $onhand->id_product_onhand,
+            'nama_product' => $onhand->nama_product,
+            'quantity' => (int) $onhand->quantity,
+            'quantity_dikembalikan' => (int) $onhand->quantity_dikembalikan,
+            'remaining_quantity' => $state['remaining_quantity'],
+            'take_status' => $onhand->take_status,
+            'take_status_label' => $this->takeStatusLabel($onhand->take_status),
+            'return_status' => $onhand->return_status,
+            'status_label' => $state['status_label'],
+            'assignment_date' => optional($onhand->assignment_date)->format('Y-m-d'),
+        ];
+    }
+
+    private function stateForOnhand(ProductOnhand $onhand): array
     {
         if ($onhand->take_status !== 'disetujui') {
-            return 0;
+            return [
+                'remaining_quantity' => 0,
+                'status_label' => $this->takeStatusLabel($onhand->take_status),
+            ];
         }
 
         $sold = (int) OfflineSale::query()
@@ -187,7 +202,40 @@ class MarketingManagementController extends Controller
             ? (int) $onhand->quantity_dikembalikan
             : 0;
 
-        return max((int) $onhand->quantity - $sold - $returned, 0);
+        $remaining = max((int) $onhand->quantity - $sold - $returned, 0);
+        $soldOut = $sold >= (int) $onhand->quantity;
+        $statusLabel = $this->returnStatusLabel($onhand->return_status);
+
+        if ($soldOut) {
+            $statusLabel = 'Habis Terjual';
+        } elseif ($returned > 0 && $onhand->return_status === 'disetujui') {
+            $statusLabel = 'Dikembalikan';
+        }
+
+        return [
+            'remaining_quantity' => $remaining,
+            'status_label' => $statusLabel,
+        ];
+    }
+
+    private function takeStatusLabel(string $status): string
+    {
+        return match ($status) {
+            'pending' => 'Menunggu Persetujuan',
+            'ditolak' => 'Request Ditolak',
+            default => 'Disetujui',
+        };
+    }
+
+    private function returnStatusLabel(string $status): string
+    {
+        return match ($status) {
+            'belum' => 'Belum Dikembalikan',
+            'pending' => 'Pending',
+            'tidak_disetujui' => 'Tidak Disetujui',
+            'disetujui' => 'Dikembalikan',
+            default => $status,
+        };
     }
 
     private function mapUrl(float $latitude, float $longitude): string
@@ -201,4 +249,105 @@ class MarketingManagementController extends Controller
 
         return "https://www.openstreetmap.org/export/embed.html?bbox={$bbox}&layer=mapnik&marker={$latitude},{$longitude}";
     }
+
+    private function buildMarketingKpi(int $userId, Carbon $periodStart, Carbon $periodEnd): array
+    {
+        $salesQuantity = (int) OfflineSale::query()
+            ->where('id_user', $userId)
+            ->where('approval_status', '!=', 'ditolak')
+            ->whereBetween('created_at', [$periodStart->copy()->startOfDay(), $periodEnd->copy()->endOfDay()])
+            ->sum('quantity');
+
+        $attendances = Attendance::query()
+            ->where('user_id', $userId)
+            ->whereBetween('attendance_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
+            ->whereNotNull('check_in')
+            ->get();
+
+        $attendanceDays = $attendances->count();
+        $totalHours = round($attendances->sum(function (Attendance $attendance) {
+            if (! $attendance->check_in || ! $attendance->check_out) {
+                return 0;
+            }
+
+            $checkIn = strtotime((string) $attendance->check_in);
+            $checkOut = strtotime((string) $attendance->check_out);
+
+            if ($checkIn === false || $checkOut === false) {
+                return 0;
+            }
+
+            return max(($checkOut - $checkIn) / 3600, 0);
+        }), 2);
+
+        $salesTarget = (int) (SalesTarget::query()->firstWhere('role', 'marketing')?->monthly_target_qty ?? 100);
+        $attendanceTarget = 24;
+        $hoursTarget = 8;
+        $averageHoursPerDay = $attendanceDays > 0 ? round($totalHours / $attendanceDays, 2) : 0.0;
+        $salesScore = $salesTarget > 0 ? round(min(($salesQuantity / $salesTarget) * 100, 100) * 0.7, 2) : 0.0;
+        $attendanceScore = round(min(($attendanceDays / $attendanceTarget) * 100, 100) * 0.2, 2);
+        $hoursScore = round(min(($averageHoursPerDay / $hoursTarget) * 100, 100) * 0.1, 2);
+
+        return [
+            'quantity_sold' => $salesQuantity,
+            'sales_target' => $salesTarget,
+            'attendance_days' => $attendanceDays,
+            'attendance_target' => $attendanceTarget,
+            'total_hours' => $totalHours,
+            'average_hours_per_day' => $averageHoursPerDay,
+            'hours_target' => $hoursTarget,
+            'sales_score' => $salesScore,
+            'attendance_score' => $attendanceScore,
+            'hours_score' => $hoursScore,
+            'total_score' => round($salesScore + $attendanceScore + $hoursScore, 2),
+        ];
+    }
+
+    private function buildKpiHistory(int $userId, Carbon $referenceMonth): array
+    {
+        return collect(range(0, 5))
+            ->map(function (int $offset) use ($userId, $referenceMonth) {
+                $monthStart = $referenceMonth->copy()->subMonths($offset)->startOfMonth();
+                $monthEnd = $monthStart->copy()->endOfMonth();
+                $kpi = $this->buildMarketingKpi($userId, $monthStart, $monthEnd);
+
+                return [
+                    'period_label' => $monthStart->copy()->locale('id')->translatedFormat('F Y'),
+                    'quantity_sold' => $kpi['quantity_sold'],
+                    'attendance_days' => $kpi['attendance_days'],
+                    'total_hours' => $kpi['total_hours'],
+                    'total_score' => $kpi['total_score'],
+                ];
+            })
+            ->values()
+            ->all();
+    }
+
+    private function resolvePeriod(Request $request): array
+    {
+        $validated = $request->validate([
+            'month' => ['nullable', 'integer', 'between:1,12'],
+            'year' => ['nullable', 'integer', 'between:2020,2100'],
+        ]);
+
+        $selectedMonth = (int) ($validated['month'] ?? now()->month);
+        $selectedYear = (int) ($validated['year'] ?? now()->year);
+        $periodStart = Carbon::create($selectedYear, $selectedMonth, 1)->startOfMonth();
+        $currentYear = now()->year;
+
+        return [
+            $periodStart,
+            $periodStart->copy()->endOfMonth(),
+            [
+                'month' => $selectedMonth,
+                'year' => $selectedYear,
+                'period_label' => $periodStart->copy()->locale('id')->translatedFormat('F Y'),
+                'months' => collect(range(1, 12))->map(fn (int $month) => ['value' => $month, 'label' => Carbon::create($selectedYear, $month, 1)->locale('id')->translatedFormat('F')])->all(),
+                'years' => collect(range($currentYear - 5, $currentYear + 1))->map(fn (int $year) => ['value' => $year, 'label' => (string) $year])->all(),
+            ],
+        ];
+    }
 }
+
+
+

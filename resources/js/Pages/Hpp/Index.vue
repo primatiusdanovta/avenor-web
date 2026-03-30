@@ -74,13 +74,22 @@
             </div>
         </div>
     </div>
+
+    <BootstrapModal :show="showDeleteModal" title="Konfirmasi Hapus" size="mobile-full" @close="closeDeleteModal">
+        Hapus HPP untuk {{ deleteTarget?.nama_product }}?
+        <template #footer>
+            <button type="button" class="btn btn-secondary" @click="closeDeleteModal">Batal</button>
+            <button type="button" class="btn btn-danger" @click="confirmDelete">Hapus</button>
+        </template>
+    </BootstrapModal>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import Select2Input from '../../Components/Select2Input.vue';
+import BootstrapModal from '../../Components/BootstrapModal.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -88,6 +97,8 @@ const props = defineProps({ products: Array, rawMaterials: Array, calculations: 
 
 const emptyItem = () => ({ key: `${Date.now()}-${Math.random()}`, id_rm: '', presentase: '' });
 const form = useForm({ id_product: '', items: [emptyItem()] });
+const showDeleteModal = ref(false);
+const deleteTarget = ref(null);
 const rawMaterialMap = computed(() => Object.fromEntries(props.rawMaterials.map((item) => [String(item.id_rm), item])));
 
 const itemState = (item) => {
@@ -120,8 +131,21 @@ const pickEdit = (item) => {
     form.items = item.items.map((detail) => ({ key: `${detail.id_rm}-${Math.random()}`, id_rm: String(detail.id_rm), presentase: detail.presentase }));
 };
 const removeCalculation = (item) => {
-    if (window.confirm(`Hapus HPP untuk ${item.nama_product}?`)) {
-        router.delete(`/hpp/${item.id_hpp}`, { preserveScroll: true });
-    }
+    deleteTarget.value = item;
+    showDeleteModal.value = true;
+};
+const closeDeleteModal = () => {
+    showDeleteModal.value = false;
+    deleteTarget.value = null;
+};
+const confirmDelete = () => {
+    if (!deleteTarget.value) return;
+    const id = deleteTarget.value.id_hpp;
+    closeDeleteModal();
+    router.delete(`/hpp/${id}`, { preserveScroll: true });
 };
 </script>
+
+
+
+

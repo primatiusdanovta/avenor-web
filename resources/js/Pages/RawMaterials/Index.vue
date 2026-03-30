@@ -93,13 +93,22 @@
             </div>
         </div>
     </div>
+
+    <BootstrapModal :show="showDeleteModal" title="Konfirmasi Hapus" size="mobile-full" @close="closeDeleteModal">
+        Hapus raw material {{ deleteTarget?.nama_rm }}?
+        <template #footer>
+            <button type="button" class="btn btn-secondary" @click="closeDeleteModal">Batal</button>
+            <button type="button" class="btn btn-danger" @click="confirmDelete">Hapus</button>
+        </template>
+    </BootstrapModal>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import Select2Input from '../../Components/Select2Input.vue';
+import BootstrapModal from '../../Components/BootstrapModal.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -108,6 +117,8 @@ const satuanOptions = ['pcs', 'ML'];
 const createForm = useForm({ nama_rm: '', harga: '', quantity: 1, satuan: '', stock: 0 });
 const editForm = useForm({ id_rm: null, nama_rm: '', harga: '', quantity: 1, satuan: '', stock: 0 });
 const restockForm = useForm({ id_rm: '', stock: 0 });
+const showDeleteModal = ref(false);
+const deleteTarget = ref(null);
 
 const previewFor = (form) => computed(() => {
     const harga = Number(form.harga || 0);
@@ -145,9 +156,22 @@ const pickEdit = (item) => Object.assign(editForm, {
 const submitEdit = () => editForm.put(`/raw-materials/${editForm.id_rm}`, { preserveScroll: true, onSuccess: () => editForm.reset() });
 const resetEdit = () => editForm.reset();
 const removeMaterial = (item) => {
-    if (window.confirm(`Hapus raw material ${item.nama_rm}?`)) {
-        router.delete(`/raw-materials/${item.id_rm}`, { preserveScroll: true });
-    }
+    deleteTarget.value = item;
+    showDeleteModal.value = true;
+};
+const closeDeleteModal = () => {
+    showDeleteModal.value = false;
+    deleteTarget.value = null;
+};
+const confirmDelete = () => {
+    if (!deleteTarget.value) return;
+    const id = deleteTarget.value.id_rm;
+    closeDeleteModal();
+    router.delete(`/raw-materials/${id}`, { preserveScroll: true });
 };
 </script>
+
+
+
+
 

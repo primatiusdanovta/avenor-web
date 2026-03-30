@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
+use App\Models\FragranceDetail;
 use App\Models\HppCalculationItem;
 use App\Models\OfflineSale;
 use App\Models\Product;
@@ -27,7 +28,9 @@ class ProductController extends Controller
 
         if (in_array($user->role, ['superadmin', 'admin'], true)) {
             $products = Product::query()
+                ->with('fragranceDetails')
                 ->orderByDesc('created_at')
+                ->orderByDesc('id_product')
                 ->get()
                 ->map(fn (Product $product) => [
                     'id_product' => $product->id_product,
@@ -36,21 +39,58 @@ class ProductController extends Controller
                     'harga_modal' => (float) $product->harga_modal,
                     'stock' => (int) $product->stock,
                     'gambar' => $product->gambar ? Storage::disk('public')->url($product->gambar) : null,
+                    'deskripsi' => $product->deskripsi,
+                    'fragrance_details' => $product->fragranceDetails
+                        ->sortBy(['jenis', 'detail'])
+                        ->map(fn (FragranceDetail $detail) => [
+                            'id_fd' => $detail->id_fd,
+                            'jenis' => $detail->jenis,
+                            'detail' => $detail->detail,
+                            'deskripsi' => $detail->deskripsi,
+                        ])
+                        ->values(),
                     'created_at' => optional($product->created_at)->format('Y-m-d H:i:s'),
                 ])
                 ->values();
 
-            return Inertia::render('Products/Manage', ['products' => $products]);
+            $fragranceDetails = FragranceDetail::query()
+                ->orderBy('jenis')
+                ->orderBy('detail')
+                ->get()
+                ->map(fn (FragranceDetail $detail) => [
+                    'id_fd' => $detail->id_fd,
+                    'jenis' => $detail->jenis,
+                    'detail' => $detail->detail,
+                    'deskripsi' => $detail->deskripsi,
+                    'option_label' => ucfirst($detail->jenis) . ' - ' . $detail->detail,
+                ])
+                ->values();
+
+            return Inertia::render('Products/Manage', [
+                'products' => $products,
+                'fragranceDetails' => $fragranceDetails,
+            ]);
         }
 
         abort_unless(in_array($user->role, ['marketing', 'reseller'], true), 403);
 
         $todayAttendance = null;
+        $attendanceReady = true;
+        $attendanceBlockedReason = null;
+
         if ($user->role === 'marketing') {
             $todayAttendance = Attendance::query()
                 ->where('user_id', $user->id_user)
                 ->whereDate('attendance_date', now()->toDateString())
                 ->first();
+
+            $attendanceReady = (bool) $todayAttendance?->check_in && ! $todayAttendance?->check_out;
+
+            if (! $todayAttendance?->check_in) {
+                $attendanceBlockedReason = 'Marketing wajib check in terlebih dahulu sebelum mengambil barang.';
+            } elseif ($todayAttendance?->check_out) {
+                $attendanceBlockedReason = 'Marketing yang sudah check out tidak bisa request barang lagi hari ini.';
+            }
         }
 
         $products = Product::query()
@@ -76,15 +116,21 @@ class ProductController extends Controller
 
         $todayReturnItems = ProductOnhand::query()
             ->where('user_id', $user->id_user)
-            ->whereDate('assignment_date', now()->toDateString())
+            ->orderByDesc('assignment_date')
             ->orderByDesc('id_product_onhand')
             ->get()
             ->map(fn (ProductOnhand $onhand) => $this->transformOnhand($onhand))
+            ->filter(fn (array $onhand) => $onhand['take_status'] !== 'ditolak' && (
+                $onhand['take_status'] !== 'disetujui'
+                || ! $onhand['sold_out']
+                || $onhand['quantity_dikembalikan'] > 0
+            ))
             ->values();
 
         return Inertia::render('Products/Onhand', [
             'products' => $products,
-            'attendanceReady' => $user->role !== 'marketing' || (bool) $todayAttendance?->check_in,
+            'attendanceReady' => $attendanceReady,
+            'attendanceBlockedReason' => $attendanceBlockedReason,
             'todayAttendance' => $todayAttendance ? [
                 'status' => $todayAttendance->status,
                 'check_in' => $todayAttendance->check_in,
@@ -104,6 +150,9 @@ class ProductController extends Controller
             'harga' => ['required', 'numeric', 'min:0'],
             'stock' => ['required', 'integer', 'min:0'],
             'gambar' => ['nullable', 'image', 'max:3072'],
+            'deskripsi' => ['nullable', 'string'],
+            'fragrance_details' => ['nullable', 'array'],
+            'fragrance_details.*' => ['integer', 'exists:fragrance_details,id_fd'],
         ]);
 
         if ((int) $validated['stock'] > 0) {
@@ -116,14 +165,17 @@ class ProductController extends Controller
 
         try {
             DB::transaction(function () use ($validated, $path): void {
-                Product::query()->create([
+                $product = Product::query()->create([
                     'nama_product' => $validated['nama_product'],
                     'harga' => $validated['harga'],
                     'harga_modal' => 0,
                     'stock' => $validated['stock'],
                     'gambar' => $path,
+                    'deskripsi' => $validated['deskripsi'] ?? null,
                     'created_at' => now(),
                 ]);
+
+                $product->fragranceDetails()->sync($validated['fragrance_details'] ?? []);
             });
         } catch (Throwable $exception) {
             if ($path) {
@@ -145,12 +197,16 @@ class ProductController extends Controller
             'harga' => ['required', 'numeric', 'min:0'],
             'stock' => ['required', 'integer', 'min:0'],
             'gambar' => ['nullable', 'image', 'max:3072'],
+            'deskripsi' => ['nullable', 'string'],
+            'fragrance_details' => ['nullable', 'array'],
+            'fragrance_details.*' => ['integer', 'exists:fragrance_details,id_fd'],
         ]);
 
         $payload = [
             'nama_product' => $validated['nama_product'],
             'harga' => $validated['harga'],
             'stock' => $validated['stock'],
+            'deskripsi' => $validated['deskripsi'] ?? null,
         ];
 
         $newImagePath = null;
@@ -165,6 +221,7 @@ class ProductController extends Controller
             DB::transaction(function () use ($product, $payload, $validated): void {
                 $previousStock = (int) $product->stock;
                 $product->update($payload);
+                $product->fragranceDetails()->sync($validated['fragrance_details'] ?? []);
 
                 $stockIncrease = max((int) $validated['stock'] - $previousStock, 0);
                 if ($stockIncrease > 0) {
@@ -209,7 +266,13 @@ class ProductController extends Controller
                 ->whereDate('attendance_date', now()->toDateString())
                 ->first();
 
-            abort_unless($attendance?->check_in, 403, 'Marketing wajib check in sebelum mengambil barang.');
+            if (! $attendance?->check_in) {
+                return back()->withErrors(['request_product' => 'Marketing wajib check in terlebih dahulu sebelum mengambil barang.']);
+            }
+
+            if ($attendance?->check_out) {
+                return back()->withErrors(['request_product' => 'Marketing yang sudah check out tidak bisa request barang lagi hari ini.']);
+            }
         }
 
         $validated = $request->validate([
@@ -229,6 +292,10 @@ class ProductController extends Controller
         }
 
         $product = Product::query()->findOrFail($validated['id_product']);
+
+        if ($product->stock <= 0) {
+            return back()->withErrors(['stock_empty' => 'Stock Kosong, Silahkan Hubungi Admin!']);
+        }
 
         if ($product->stock < $validated['quantity']) {
             return back()->withErrors(['quantity' => 'Stock product tidak mencukupi.']);
@@ -414,11 +481,11 @@ class ProductController extends Controller
         $maxReturn = max((int) $onhand->quantity - $soldQuantity, 0);
         $canCheckout = $soldOut || ($countedReturn > 0 && ($soldQuantity + $countedReturn) >= (int) $onhand->quantity);
 
-        $statusLabel = $onhand->return_status;
+        $statusLabel = $this->returnStatusLabel($onhand->return_status);
         if ($soldOut) {
-            $statusLabel = 'selesai_terjual';
+            $statusLabel = 'Habis Terjual';
         } elseif ($countedReturn > 0 && $onhand->return_status === 'disetujui') {
-            $statusLabel = 'dikembalikan';
+            $statusLabel = 'Dikembalikan';
         }
 
         return [
@@ -430,6 +497,17 @@ class ProductController extends Controller
             'sold_out' => $soldOut,
             'status_label' => $statusLabel,
         ];
+    }
+
+    private function returnStatusLabel(string $status): string
+    {
+        return match ($status) {
+            'belum' => 'Belum Dikembalikan',
+            'pending' => 'Pending',
+            'tidak_disetujui' => 'Tidak Disetujui',
+            'disetujui' => 'Dikembalikan',
+            default => $status,
+        };
     }
 
     private function consumeRawMaterialsForProduct(Product $product, int $stockIncrease): void
@@ -496,9 +574,9 @@ class ProductController extends Controller
     private function takeStatusLabel(string $status): string
     {
         return match ($status) {
-            'pending' => 'menunggu_persetujuan',
-            'ditolak' => 'request_ditolak',
-            default => 'disetujui',
+            'pending' => 'Menunggu Persetujuan',
+            'ditolak' => 'Request Ditolak',
+            default => 'Disetujui',
         };
     }
 
@@ -509,3 +587,4 @@ class ProductController extends Controller
             ->with('success', $message);
     }
 }
+

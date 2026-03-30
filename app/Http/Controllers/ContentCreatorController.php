@@ -27,6 +27,7 @@ class ContentCreatorController extends Controller
         $this->authorizeManagement($request);
 
         $contentCreators = ContentCreator::query()
+            ->orderByDesc('created_at')
             ->orderByDesc('id_contentcreator')
             ->get()
             ->map(fn (ContentCreator $creator) => [
@@ -122,3 +123,4 @@ class ContentCreatorController extends Controller
         return $normalized !== '' ? $normalized : null;
     }
 }
+

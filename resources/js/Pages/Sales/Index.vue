@@ -5,6 +5,7 @@
     <div v-if="$page.props.errors.items" class="alert alert-danger">{{ $page.props.errors.items }}</div>
     <div v-if="$page.props.errors.customer_no_telp" class="alert alert-danger">{{ $page.props.errors.customer_no_telp }}</div>
     <div v-if="$page.props.errors.bukti_pembelian" class="alert alert-danger">{{ $page.props.errors.bukti_pembelian }}</div>
+    <div v-if="$page.props.errors.created_at" class="alert alert-danger">{{ $page.props.errors.created_at }}</div>
 
     <div class="row">
         <div class="col-md-12 col-lg-5">
@@ -14,6 +15,12 @@
                     <button class="btn btn-sm btn-outline-secondary" @click="addItem(saleForm)">Tambah Product</button>
                 </div>
                 <div class="card-body">
+                    <div v-if="canManageAll" class="form-group">
+                        <label>Tanggal Transaksi</label>
+                        <input v-model="saleForm.created_at" type="datetime-local" class="form-control">
+                        <small class="text-muted">Admin dan superadmin bisa menentukan tanggal transaksi secara manual.</small>
+                    </div>
+
                     <div class="border rounded p-3 mb-3 bg-light position-relative">
                         <div class="font-weight-bold mb-2">Data Pelanggan</div>
                         <div class="form-group"><label>Nama Pembeli</label><input v-model="saleForm.customer_nama" type="text" class="form-control"></div>
@@ -72,6 +79,11 @@
                     <button class="btn btn-sm btn-outline-secondary" @click="addItem(editForm)">Tambah Product</button>
                 </div>
                 <div class="card-body">
+                    <div class="form-group">
+                        <label>Tanggal Transaksi</label>
+                        <input v-model="editForm.created_at" type="datetime-local" class="form-control">
+                    </div>
+
                     <div class="border rounded p-3 mb-3 bg-light position-relative">
                         <div class="font-weight-bold mb-2">Data Pelanggan</div>
                         <div class="form-group"><label>Nama Pembeli</label><input v-model="editForm.customer_nama" type="text" class="form-control"></div>
@@ -152,7 +164,10 @@
                                 <td>{{ toCurrency(item.total_harga) }}</td>
                                 <td>{{ item.promo || '-' }}</td>
                                 <td>{{ item.approval_status }}</td>
-                                <td><a v-if="item.bukti_pembelian" :href="item.bukti_pembelian" target="_blank" rel="noreferrer">Lihat</a></td>
+                                <td>
+                                    <button v-if="item.bukti_pembelian" type="button" class="btn btn-link btn-sm p-0" @click="openProof(item.bukti_pembelian)">Lihat</button>
+                                    <span v-else>-</span>
+                                </td>
                                 <td>
                                     <template v-if="canApprove && item.approval_status === 'pending'">
                                         <button class="btn btn-xs btn-success mr-1" @click="approve(item)">Setujui</button>
@@ -169,19 +184,39 @@
             </div>
         </div>
     </div>
+
+    <BootstrapModal :show="showProofModal" title="Bukti Pembelian" size="lg" @close="showProofModal = false">
+        <div class="text-center">
+            <img v-if="proofUrl" :src="proofUrl" alt="Bukti Pembelian" class="img-fluid rounded border">
+        </div>
+        <template #footer>
+            <a v-if="proofUrl" :href="proofUrl" target="_blank" rel="noreferrer" class="btn btn-outline-primary">Buka Tab Baru</a>
+            <button type="button" class="btn btn-secondary" @click="showProofModal = false">Tutup</button>
+        </template>
+    </BootstrapModal>
+
+    <BootstrapModal :show="showDeleteModal" title="Konfirmasi Hapus" size="mobile-full" @close="closeDeleteModal">
+        {{ deleteMessage }}
+        <template #footer>
+            <button type="button" class="btn btn-secondary" @click="closeDeleteModal">Batal</button>
+            <button type="button" class="btn btn-danger" @click="confirmDeleteSale">Hapus</button>
+        </template>
+    </BootstrapModal>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import Select2Input from '../../Components/Select2Input.vue';
+import BootstrapModal from '../../Components/BootstrapModal.vue';
 
 defineOptions({ layout: AppLayout });
 
-const props = defineProps({ sales: Array, products: Array, promos: Array, customers: Array, canApprove: Boolean, canManageAll: Boolean, currentRole: String });
+const props = defineProps({ sales: Array, products: Array, promos: Array, customers: Array, canApprove: Boolean, canManageAll: Boolean, currentRole: String, defaultCreatedAt: String });
 
 const emptySaleItem = () => ({ key: `${Date.now()}-${Math.random()}`, id_product: '', quantity: 1 });
+const defaultCreatedAt = props.defaultCreatedAt || new Date().toISOString().slice(0, 16);
 const makeTransactionForm = (defaults = {}) => useForm({
     id_penjualan_offline: defaults.id_penjualan_offline ?? null,
     customer_nama: defaults.customer_nama ?? '',
@@ -189,11 +224,17 @@ const makeTransactionForm = (defaults = {}) => useForm({
     customer_tiktok_instagram: defaults.customer_tiktok_instagram ?? '',
     items: defaults.items ?? [emptySaleItem()],
     promo_id: defaults.promo_id ?? '',
+    created_at: defaults.created_at ?? defaultCreatedAt,
     bukti_pembelian: defaults.bukti_pembelian ?? null,
 });
 
 const saleForm = makeTransactionForm();
 const editForm = makeTransactionForm();
+const proofUrl = ref('');
+const showProofModal = ref(false);
+const showDeleteModal = ref(false);
+const deleteTarget = ref(null);
+const deleteMessage = ref('');
 const productMap = computed(() => Object.fromEntries(props.products.map((item) => [String(item.id_product), item])));
 const promoById = (promoId) => props.promos.find((item) => Number(item.id) === Number(promoId)) || null;
 const itemState = (item) => {
@@ -254,6 +295,7 @@ const pickCustomerSuggestion = (form, customer) => {
 };
 const resetSaleForm = () => {
     saleForm.reset('id_penjualan_offline', 'customer_nama', 'customer_no_telp', 'customer_tiktok_instagram', 'promo_id', 'bukti_pembelian');
+    saleForm.created_at = defaultCreatedAt;
     saleForm.items = [emptySaleItem()];
 };
 const submitSale = () => saleForm.post('/offline-sales', { forceFormData: true, preserveScroll: true, onSuccess: resetSaleForm });
@@ -263,16 +305,34 @@ const pickEdit = (item) => {
     editForm.customer_no_telp = item.no_telp || '';
     editForm.customer_tiktok_instagram = item.tiktok_instagram || '';
     editForm.promo_id = item.promo_id ? String(item.promo_id) : '';
+    editForm.created_at = item.created_at_form || defaultCreatedAt;
     editForm.items = item.items.map((detail) => ({ key: `${detail.id_product}-${Math.random()}`, id_product: String(detail.id_product), quantity: detail.quantity }));
 };
 const submitEdit = () => editForm.put(`/offline-sales/${editForm.id_penjualan_offline}`, { preserveScroll: true, onSuccess: () => resetEdit() });
 const resetEdit = () => {
     editForm.reset('id_penjualan_offline', 'customer_nama', 'customer_no_telp', 'customer_tiktok_instagram', 'promo_id', 'bukti_pembelian');
+    editForm.created_at = defaultCreatedAt;
     editForm.items = [emptySaleItem()];
 };
 const approve = (item) => router.post(`/offline-sales/${item.id_penjualan_offline}/approve`, {}, { preserveScroll: true });
 const reject = (item) => router.post(`/offline-sales/${item.id_penjualan_offline}/reject`, {}, { preserveScroll: true });
-const removeSale = (item) => { if (window.confirm(`Hapus transaksi ${item.transaction_code || item.id_penjualan_offline}?`)) router.delete(`/offline-sales/${item.id_penjualan_offline}`, { preserveScroll: true }); };
+const removeSale = (item) => {
+    deleteTarget.value = item;
+    deleteMessage.value = `Hapus transaksi ${item.transaction_code || item.id_penjualan_offline}?`;
+    showDeleteModal.value = true;
+};
+const closeDeleteModal = () => {
+    showDeleteModal.value = false;
+    deleteTarget.value = null;
+};
+const confirmDeleteSale = () => {
+    if (!deleteTarget.value) return;
+    const id = deleteTarget.value.id_penjualan_offline;
+    closeDeleteModal();
+    router.delete(`/offline-sales/${id}`, { preserveScroll: true });
+};
+const openProof = (url) => {
+    proofUrl.value = url;
+    showProofModal.value = true;
+};
 </script>
-
-

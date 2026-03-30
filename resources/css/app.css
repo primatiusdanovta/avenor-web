@@ -9,27 +9,15 @@ body {
 }
 
 .login-brand-logo {
-    width: 60%;
-    height: 20%;
+    width: 96px;
+    height: 96px;
     object-fit: contain;
-    margin-left: 20%;
 }
 
 .app-header {
     position: sticky;
     top: 0;
     z-index: 1050;
-}
-
-/* Ensure sidebar does not cover header on mobile */
-.app-sidebar {
-    z-index: 1040;
-}
-@media (max-width: 991.98px) {
-    .app-sidebar {
-        margin-top: 3.5rem; /* Sesuaikan dengan tinggi navbar Anda */
-        height: calc(100vh - 3.5rem);
-    }
 }
 
 .brand-link {
@@ -103,12 +91,79 @@ body {
 
 .table td,
 .table th {
-    white-space: nowrap;
+    white-space: normal;
+    word-break: break-word;
 }
 
 .table td .text-sm,
 .table th .text-sm {
     white-space: normal;
+}
+
+/* Responsive Table Optimization */
+@media (max-width: 991.98px) {
+    .table {
+        font-size: 0.875rem;
+    }
+    
+    .table td, .table th {
+        padding: 0.5rem 0.25rem !important;
+    }
+    
+    .table .table-responsive {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .table {
+        font-size: 0.8125rem;
+    }
+    
+    .table td, .table th {
+        padding: 0.4rem 0.2rem !important;
+    }
+    
+    .table tbody tr {
+        display: block;
+        margin-bottom: 1rem;
+        border: 1px solid #dee2e6;
+        border-radius: 0.25rem;
+    }
+    
+    .table tbody td {
+        display: block;
+        text-align: right;
+        padding-left: 50% !important;
+        position: relative;
+        border: none;
+    }
+    
+    .table tbody td::before {
+        content: attr(data-label);
+        position: absolute;
+        left: 0;
+        width: 50%;
+        padding-right: 0.5rem;
+        text-align: left;
+        font-weight: 600;
+        color: #6c757d;
+    }
+    
+    .table tbody th {
+        display: none;
+    }
+    
+    .table thead {
+        display: none;
+    }
+    
+    /* Action buttons in tables */
+    .table tbody td .btn {
+        margin-right: 0.25rem;
+        margin-bottom: 0.25rem;
+    }
 }
 
 .select2-container {
@@ -131,5 +186,138 @@ body {
     .app-content-header .text-end {
         text-align: left !important;
         margin-top: 0.75rem;
+    }
+}
+
+/* Mobile Responsive Adjustments */
+@media (max-width: 767.98px) {
+    /* Full-width columns on mobile */
+    .col-md-12 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+    
+    /* Form adjustments */
+    .form-group {
+        margin-bottom: 1rem;
+    }
+    
+    .form-row {
+        display: block;
+    }
+    
+    .form-row > .form-group {
+        margin-bottom: 1rem;
+    }
+    
+    /* Card adjustments */
+    .card {
+        margin-bottom: 1rem;
+    }
+    
+    .card-body {
+        padding: 0.75rem;
+    }
+    
+    .card-header {
+        padding: 0.75rem 0.75rem;
+    }
+    
+    /* Search and filter bar */
+    .d-flex.align-items-center {
+        flex-direction: column;
+        align-items: stretch !important;
+    }
+    
+    .d-flex.align-items-center > .form-control {
+        margin-bottom: 0.5rem;
+        margin-right: 0 !important;
+    }
+    
+    .d-flex.align-items-center > .btn {
+        width: 100%;
+    }
+    
+    /* Inline flex items should stack on mobile */
+    .mx-auto.d-flex {
+        flex-direction: column;
+    }
+    
+    .mx-auto.d-flex > * {
+        margin-right: 0 !important;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Button sizing for touch targets */
+    .btn {
+        min-height: 44px;
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .btn-sm {
+        min-height: 36px;
+    }
+    
+    .btn-xs {
+        min-height: 32px;
+    }
+    
+    /* Alert adjustments */
+    .alert {
+        padding: 1rem;
+        font-size: 0.9375rem;
+        margin-bottom: 1rem;
+    }
+    
+    /* Responsive header adjustments */
+    .navbar-expand {
+        flex-direction: column;
+    }
+    
+    .navbar-nav {
+        flex-direction: row !important;
+    }
+    
+    /* Gap adjustments */
+    .gap-2 {
+        gap: 0.5rem !important;
+    }
+    
+    /* Hide certain elements on very small screens if needed */
+    .d-none.d-md-block {
+        display: none !important;
+    }
+}
+
+@media (max-width: 575.98px) {
+    /* Extra small devices */
+    .container-fluid {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+    
+    .card-body {
+        padding: 0.5rem;
+    }
+    
+    .card-header {
+        padding: 0.5rem;
+    }
+    
+    .btn {
+        font-size: 0.875rem;
+    }
+    
+    .form-control {
+        font-size: 16px; /* Prevent zoom on iOS */
+    }
+    
+    input[type="text"],
+    input[type="number"],
+    input[type="email"],
+    input[type="password"],
+    textarea,
+    select {
+        font-size: 16px; /* Prevent iOS zoom on input focus */
     }
 }

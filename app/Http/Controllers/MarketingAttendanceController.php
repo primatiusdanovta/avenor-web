@@ -150,6 +150,20 @@ class MarketingAttendanceController extends Controller
             $attendance->created_at = $now;
         }
 
+        if ($event === 'check_in') {
+            if ($attendance->check_out) {
+                return back()->withErrors(['checkin' => 'Anda sudah check in dan check out hari ini. Tidak bisa check in lagi.']);
+            }
+
+            if ($attendance->check_in) {
+                return back()->withErrors(['checkin' => 'Anda sudah check in hari ini.']);
+            }
+        }
+
+        if ($event === 'check_out' && ! $attendance->check_in) {
+            return back()->withErrors(['checkout' => 'Harus check in terlebih dahulu sebelum check out.']);
+        }
+
         $attendance->status = $validated['status'];
         $attendance->notes = $validated['notes'] ?? null;
 
@@ -160,12 +174,6 @@ class MarketingAttendanceController extends Controller
         }
 
         if ($event === 'check_out') {
-            if (! $attendance->check_in) {
-                $attendance->check_in = $now->format('H:i:s');
-                $attendance->check_in_latitude = $validated['latitude'];
-                $attendance->check_in_longitude = $validated['longitude'];
-            }
-
             $attendance->check_out = $now->format('H:i:s');
             $attendance->check_out_latitude = $validated['latitude'];
             $attendance->check_out_longitude = $validated['longitude'];
@@ -211,7 +219,7 @@ class MarketingAttendanceController extends Controller
         $soldOut = $soldQuantity >= (int) $onhand->quantity;
         $remainingQuantity = max((int) $onhand->quantity - $soldQuantity - $countedReturn, 0);
         $canCheckout = $soldOut || ($countedReturn > 0 && ($soldQuantity + $countedReturn) >= (int) $onhand->quantity);
-        $statusLabel = $soldOut ? 'selesai_terjual' : ($onhand->return_status === 'disetujui' ? 'dikembalikan' : $onhand->return_status);
+        $statusLabel = $soldOut ? 'Habis Terjual' : ($onhand->return_status === 'disetujui' ? 'Dikembalikan' : $this->returnStatusLabel($onhand->return_status));
 
         return [
             'sold_quantity' => $soldQuantity,
@@ -219,6 +227,17 @@ class MarketingAttendanceController extends Controller
             'can_checkout' => $canCheckout,
             'status_label' => $statusLabel,
         ];
+    }
+
+    private function returnStatusLabel(string $status): string
+    {
+        return match ($status) {
+            'belum' => 'Belum Dikembalikan',
+            'pending' => 'Pending',
+            'tidak_disetujui' => 'Tidak Disetujui',
+            'disetujui' => 'Dikembalikan',
+            default => $status,
+        };
     }
 
     private function mapUrl(float $latitude, float $longitude): string

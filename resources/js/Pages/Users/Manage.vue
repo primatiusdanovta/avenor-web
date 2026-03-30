@@ -110,13 +110,22 @@
             </div>
         </div>
     </div>
+
+    <BootstrapModal :show="showDeleteModal" title="Konfirmasi Hapus" size="mobile-full" @close="closeDeleteModal">
+        Hapus user {{ deleteTarget?.nama }}?
+        <template #footer>
+            <button type="button" class="btn btn-secondary" @click="closeDeleteModal">Batal</button>
+            <button type="button" class="btn btn-danger" @click="confirmDelete">Hapus</button>
+        </template>
+    </BootstrapModal>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import Select2Input from '../../Components/Select2Input.vue';
+import BootstrapModal from '../../Components/BootstrapModal.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -125,6 +134,8 @@ const searchForm = useForm({ search: props.filters.search ?? '' });
 const createForm = useForm({ nama: '', role: 'admin', status: 'aktif', password: '', password_confirmation: '' });
 const editForm = useForm({ id_user: null, nama: '', role: 'admin', status: 'aktif', password: '', password_confirmation: '' });
 const selectedUser = computed(() => props.users.find((item) => item.id_user === editForm.id_user) ?? null);
+const showDeleteModal = ref(false);
+const deleteTarget = ref(null);
 
 const submitSearch = () => searchForm.get('/users', { preserveState: true, preserveScroll: true, replace: true });
 const submitCreate = () => createForm.post('/users', { preserveScroll: true, onSuccess: () => createForm.reset() });
@@ -142,8 +153,21 @@ const clearSelection = () => {
 };
 const submitEdit = () => editForm.put(`/users/${editForm.id_user}`, { preserveScroll: true, onSuccess: () => clearSelection() });
 const removeUser = (user) => {
-    if (!window.confirm(`Hapus user ${user.nama}?`)) return;
-    router.delete(`/users/${user.id_user}`, { preserveScroll: true });
+    deleteTarget.value = user;
+    showDeleteModal.value = true;
+};
+const closeDeleteModal = () => {
+    showDeleteModal.value = false;
+    deleteTarget.value = null;
+};
+const confirmDelete = () => {
+    if (!deleteTarget.value) return;
+    const id = deleteTarget.value.id_user;
+    closeDeleteModal();
+    router.delete(`/users/${id}`, { preserveScroll: true });
 };
 </script>
+
+
+
 

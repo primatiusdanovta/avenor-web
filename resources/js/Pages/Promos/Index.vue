@@ -58,21 +58,50 @@
             </div>
         </div>
     </div>
+
+    <BootstrapModal :show="showDeleteModal" title="Konfirmasi Hapus" size="mobile-full" @close="closeDeleteModal">
+        Hapus promo {{ deleteTarget?.nama_promo }}?
+        <template #footer>
+            <button type="button" class="btn btn-secondary" @click="closeDeleteModal">Batal</button>
+            <button type="button" class="btn btn-danger" @click="confirmDelete">Hapus</button>
+        </template>
+    </BootstrapModal>
 </template>
 
 <script setup>
+import { ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import BootstrapModal from '../../Components/BootstrapModal.vue';
 
 defineOptions({ layout: AppLayout });
 
 defineProps({ promos: Array });
 const createForm = useForm({ nama_promo: '', potongan: '', masa_aktif: '', minimal_quantity: 1, minimal_belanja: 0 });
 const editForm = useForm({ id: null, nama_promo: '', potongan: '', masa_aktif: '', minimal_quantity: 1, minimal_belanja: 0 });
+const showDeleteModal = ref(false);
+const deleteTarget = ref(null);
 const toCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0);
 const submitCreate = () => createForm.post('/promos', { preserveScroll: true, onSuccess: () => createForm.reset() });
 const pickEdit = (item) => Object.assign(editForm, item);
 const submitEdit = () => editForm.put(`/promos/${editForm.id}`, { preserveScroll: true });
-const removePromo = (item) => { if (window.confirm(`Hapus promo ${item.nama_promo}?`)) router.delete(`/promos/${item.id}`, { preserveScroll: true }); };
+const removePromo = (item) => {
+    deleteTarget.value = item;
+    showDeleteModal.value = true;
+};
+const closeDeleteModal = () => {
+    showDeleteModal.value = false;
+    deleteTarget.value = null;
+};
+const confirmDelete = () => {
+    if (!deleteTarget.value) return;
+    const id = deleteTarget.value.id;
+    closeDeleteModal();
+    router.delete(`/promos/${id}`, { preserveScroll: true });
+};
 </script>
+
+
+
+
 

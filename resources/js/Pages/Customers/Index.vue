@@ -57,11 +57,21 @@
             </div>
         </div>
     </div>
+
+    <BootstrapModal :show="showDeleteModal" title="Konfirmasi Hapus" size="mobile-full" @close="closeDeleteModal">
+        Hapus pelanggan {{ deleteTarget?.nama || deleteTarget?.no_telp || deleteTarget?.id_pelanggan }}?
+        <template #footer>
+            <button type="button" class="btn btn-secondary" @click="closeDeleteModal">Batal</button>
+            <button type="button" class="btn btn-danger" @click="confirmDelete">Hapus</button>
+        </template>
+    </BootstrapModal>
 </template>
 
 <script setup>
+import { ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import BootstrapModal from '../../Components/BootstrapModal.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -69,6 +79,8 @@ defineProps({ customers: Array });
 
 const createForm = useForm({ nama: '', no_telp: '', tiktok_instagram: '', pembelian_terakhir: '' });
 const editForm = useForm({ id_pelanggan: null, nama: '', no_telp: '', tiktok_instagram: '', pembelian_terakhir: '' });
+const showDeleteModal = ref(false);
+const deleteTarget = ref(null);
 
 const toDateTimeLocal = (value) => value ? value.replace(' ', 'T').slice(0, 16) : '';
 const submitCreate = () => createForm.post('/customers', { preserveScroll: true, onSuccess: () => createForm.reset() });
@@ -82,9 +94,22 @@ const pickEdit = (item) => Object.assign(editForm, {
 const submitEdit = () => editForm.put(`/customers/${editForm.id_pelanggan}`, { preserveScroll: true, onSuccess: () => editForm.reset() });
 const resetEdit = () => editForm.reset();
 const removeCustomer = (item) => {
-    if (window.confirm(`Hapus pelanggan ${item.nama || item.no_telp || item.id_pelanggan}?`)) {
-        router.delete(`/customers/${item.id_pelanggan}`, { preserveScroll: true });
-    }
+    deleteTarget.value = item;
+    showDeleteModal.value = true;
+};
+const closeDeleteModal = () => {
+    showDeleteModal.value = false;
+    deleteTarget.value = null;
+};
+const confirmDelete = () => {
+    if (!deleteTarget.value) return;
+    const id = deleteTarget.value.id_pelanggan;
+    closeDeleteModal();
+    router.delete(`/customers/${id}`, { preserveScroll: true });
 };
 </script>
+
+
+
+
 

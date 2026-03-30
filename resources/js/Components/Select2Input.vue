@@ -1,20 +1,18 @@
 <template>
-    <select ref="selectRef" class="form-control" :disabled="disabled" @change="handleNativeChange">
-        <option v-if="placeholder" value="">{{ placeholder }}</option>
-        <option v-for="item in normalizedOptions" :key="String(item.value)" :value="String(item.value)">{{ item.label }}</option>
-    </select>
+    <select ref="selectRef" class="form-control" :disabled="disabled" :multiple="multiple" @change="handleNativeChange"></select>
 </template>
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 const props = defineProps({
-    modelValue: { type: [String, Number, null], default: '' },
+    modelValue: { type: [String, Number, Array, null], default: '' },
     options: { type: Array, default: () => [] },
     valueKey: { type: String, default: 'value' },
     labelKey: { type: String, default: 'label' },
     placeholder: { type: String, default: 'Pilih data' },
     disabled: { type: Boolean, default: false },
+    multiple: { type: Boolean, default: false },
 });
 
 const emit = defineEmits(['update:modelValue', 'change']);
@@ -34,11 +32,33 @@ const normalizedOptions = computed(() => props.options.map((item) => {
 }));
 
 const optionsSignature = computed(() => JSON.stringify(normalizedOptions.value.map((item) => ({ value: String(item.value), label: item.label }))));
+const normalizedValue = computed(() => {
+    if (props.multiple) {
+        return Array.isArray(props.modelValue)
+            ? props.modelValue.map((value) => String(value))
+            : [];
+    }
+
+    return props.modelValue == null ? '' : String(props.modelValue);
+});
 
 const syncValue = () => {
     if (!selectRef.value) return;
 
-    const value = props.modelValue == null ? '' : String(props.modelValue);
+    if (props.multiple) {
+        const values = normalizedValue.value;
+        Array.from(selectRef.value.options).forEach((option) => {
+            option.selected = values.includes(option.value);
+        });
+
+        if (window.jQuery?.fn?.select2) {
+            window.jQuery(selectRef.value).val(values).trigger('change.select2');
+        }
+
+        return;
+    }
+
+    const value = normalizedValue.value;
     selectRef.value.value = value;
 
     if (window.jQuery?.fn?.select2) {
@@ -49,11 +69,12 @@ const syncValue = () => {
 const rebuildOptions = () => {
     if (!selectRef.value) return;
 
-    const currentValue = props.modelValue == null ? '' : String(props.modelValue);
+    const currentValue = normalizedValue.value;
+    const selectedValues = props.multiple ? currentValue : [currentValue];
     const element = selectRef.value;
     element.innerHTML = '';
 
-    if (props.placeholder) {
+    if (props.placeholder && !props.multiple) {
         const placeholderOption = document.createElement('option');
         placeholderOption.value = '';
         placeholderOption.textContent = props.placeholder;
@@ -64,11 +85,24 @@ const rebuildOptions = () => {
         const option = document.createElement('option');
         option.value = String(item.value);
         option.textContent = item.label;
-        if (String(item.value) === currentValue) {
-            option.selected = true;
-        }
+        option.selected = selectedValues.includes(String(item.value));
         element.appendChild(option);
     });
+};
+
+const emitSelection = (rawValue) => {
+    if (props.multiple) {
+        const values = Array.isArray(rawValue) ? rawValue.map((value) => String(value)) : [];
+        emit('update:modelValue', values);
+        const selected = normalizedOptions.value.filter((item) => values.includes(String(item.value))).map((item) => item.raw);
+        emit('change', selected);
+        return;
+    }
+
+    const value = rawValue === '' ? '' : String(rawValue ?? '');
+    emit('update:modelValue', value === '' ? '' : value);
+    const selected = normalizedOptions.value.find((item) => String(item.value) === value);
+    emit('change', selected?.raw ?? null);
 };
 
 const initSelect2 = () => {
@@ -89,15 +123,13 @@ const initSelect2 = () => {
         theme: 'bootstrap4',
         width: '100%',
         placeholder: props.placeholder,
-        allowClear: Boolean(props.placeholder),
+        allowClear: Boolean(props.placeholder) && !props.multiple,
+        multiple: props.multiple,
     });
 
     syncValue();
     $select.on('change.select2input', () => {
-        const value = $select.val();
-        emit('update:modelValue', value === '' ? '' : value);
-        const selected = normalizedOptions.value.find((item) => String(item.value) === String(value));
-        emit('change', selected?.raw ?? null);
+        emitSelection($select.val());
     });
 
     return true;
@@ -128,10 +160,12 @@ const handleNativeChange = (event) => {
         return;
     }
 
-    const value = event.target.value;
-    emit('update:modelValue', value === '' ? '' : value);
-    const selected = normalizedOptions.value.find((item) => String(item.value) === String(value));
-    emit('change', selected?.raw ?? null);
+    if (props.multiple) {
+        emitSelection(Array.from(event.target.selectedOptions).map((option) => option.value));
+        return;
+    }
+
+    emitSelection(event.target.value);
 };
 
 onMounted(() => {
@@ -141,9 +175,14 @@ onMounted(() => {
 watch(() => props.modelValue, async () => {
     await nextTick();
     syncValue();
-});
+}, { deep: true });
 
 watch(() => props.disabled, async () => {
+    await nextTick();
+    queueInit();
+});
+
+watch(() => props.multiple, async () => {
     await nextTick();
     queueInit();
 });

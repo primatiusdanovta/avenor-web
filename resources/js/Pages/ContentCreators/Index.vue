@@ -65,12 +65,36 @@
 
         <div class="col-lg-7">
             <div class="card card-outline card-success">
-                <div class="card-header"><h3 class="card-title">Daftar Content Creator</h3></div>
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h3 class="card-title mb-0">Daftar Content Creator</h3>
+                    <div class="d-flex align-items-center flex-wrap gap-2">
+                        <input v-model="searchQuery" type="text" class="form-control form-control-sm mr-2 creator-search" placeholder="Cari creator, wilayah, atau akun">
+                        <select v-model.number="pageSize" class="form-control form-control-sm creator-page-size">
+                            <option :value="5">5</option>
+                            <option :value="10">10</option>
+                            <option :value="25">25</option>
+                        </select>
+                    </div>
+                </div>
                 <div class="card-body p-0 table-responsive">
                     <table class="table table-hover mb-0">
-                        <thead><tr><th>Nama</th><th>Bidang</th><th>Instagram</th><th>TikTok</th><th>Followers</th><th>Fee</th><th>No Telp</th><th>Wilayah</th><th>Aksi</th></tr></thead>
+                        <thead>
+                            <tr>
+                                <th role="button" @click="setSort('created_at')">Tanggal</th>
+                                <th role="button" @click="setSort('nama')">Nama</th>
+                                <th>Bidang</th>
+                                <th>Instagram</th>
+                                <th>TikTok</th>
+                                <th role="button" @click="setSort('followers_total')">Followers</th>
+                                <th>Fee</th>
+                                <th>No Telp</th>
+                                <th>Wilayah</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
                         <tbody>
-                            <tr v-for="item in contentCreators" :key="item.id_contentcreator">
+                            <tr v-for="item in paginatedCreators" :key="item.id_contentcreator">
+                                <td>{{ item.created_at || '-' }}</td>
                                 <td>{{ item.nama }}</td>
                                 <td>{{ (item.bidang || []).join(', ') || '-' }}</td>
                                 <td>{{ item.username_instagram || '-' }}</td>
@@ -90,19 +114,36 @@
                                     <button class="btn btn-xs btn-outline-danger" @click="removeCreator(item)">Hapus</button>
                                 </td>
                             </tr>
-                            <tr v-if="!contentCreators.length"><td colspan="9" class="text-center text-muted">Belum ada data content creator.</td></tr>
+                            <tr v-if="!paginatedCreators.length"><td colspan="10" class="text-center text-muted">Belum ada data content creator.</td></tr>
                         </tbody>
                     </table>
+                </div>
+                <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <div class="text-muted small">Menampilkan {{ paginationLabel }}</div>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary" :disabled="currentPage === 1" @click="currentPage -= 1">Prev</button>
+                        <button class="btn btn-outline-secondary disabled">Hal {{ currentPage }} / {{ totalPages }}</button>
+                        <button class="btn btn-outline-secondary" :disabled="currentPage === totalPages" @click="currentPage += 1">Next</button>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <BootstrapModal :show="showDeleteModal" title="Konfirmasi Hapus" size="mobile-full" @close="closeDeleteModal">
+        Hapus content creator {{ deleteTarget?.nama }}?
+        <template #footer>
+            <button type="button" class="btn btn-secondary" @click="closeDeleteModal">Batal</button>
+            <button type="button" class="btn btn-danger" @click="confirmDelete">Hapus</button>
+        </template>
+    </BootstrapModal>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import BootstrapModal from '../../Components/BootstrapModal.vue';
 
 defineOptions({ layout: AppLayout });
 
@@ -130,6 +171,100 @@ const editDefaults = {
 const createForm = useForm({ ...createDefaults });
 const editForm = useForm({ ...editDefaults });
 const hasErrors = computed(() => Object.keys(page.props.errors || {}).length > 0);
+const searchQuery = ref('');
+const sortBy = ref('created_at');
+const sortDirection = ref('desc');
+const currentPage = ref(1);
+const pageSize = ref(10);
+const showDeleteModal = ref(false);
+const deleteTarget = ref(null);
+
+const normalize = (value) => String(value || '').toLowerCase();
+const creatorRows = computed(() => props.contentCreators.map((item) => ({
+    ...item,
+    followers_total: Number(item.followers_instagram || 0) + Number(item.followers_tiktok || 0),
+}))); 
+
+const filteredCreators = computed(() => {
+    const keyword = normalize(searchQuery.value);
+    if (!keyword) {
+        return creatorRows.value;
+    }
+
+    return creatorRows.value.filter((item) => [
+        item.nama,
+        item.username_instagram,
+        item.username_tiktok,
+        item.wilayah,
+        (item.bidang || []).join(' '),
+    ].some((field) => normalize(field).includes(keyword)));
+});
+
+const sortedCreators = computed(() => {
+    const rows = [...filteredCreators.value];
+
+    rows.sort((left, right) => {
+        let leftValue = left[sortBy.value];
+        let rightValue = right[sortBy.value];
+
+        if (sortBy.value === 'created_at') {
+            leftValue = new Date(left.created_at || 0).getTime();
+            rightValue = new Date(right.created_at || 0).getTime();
+        }
+
+        if (typeof leftValue === 'string') {
+            leftValue = leftValue.toLowerCase();
+        }
+
+        if (typeof rightValue === 'string') {
+            rightValue = rightValue.toLowerCase();
+        }
+
+        if (leftValue === rightValue) {
+            return 0;
+        }
+
+        const result = leftValue > rightValue ? 1 : -1;
+        return sortDirection.value === 'asc' ? result : -result;
+    });
+
+    return rows;
+});
+
+const totalPages = computed(() => Math.max(Math.ceil(sortedCreators.value.length / pageSize.value), 1));
+const paginatedCreators = computed(() => {
+    const start = (currentPage.value - 1) * pageSize.value;
+    return sortedCreators.value.slice(start, start + pageSize.value);
+});
+const paginationLabel = computed(() => {
+    if (!sortedCreators.value.length) {
+        return '0 data';
+    }
+
+    const start = (currentPage.value - 1) * pageSize.value + 1;
+    const end = Math.min(start + pageSize.value - 1, sortedCreators.value.length);
+    return `${start}-${end} dari ${sortedCreators.value.length} data`;
+});
+
+watch([searchQuery, pageSize], () => {
+    currentPage.value = 1;
+});
+
+watch(totalPages, (value) => {
+    if (currentPage.value > value) {
+        currentPage.value = value;
+    }
+});
+
+const setSort = (field) => {
+    if (sortBy.value === field) {
+        sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc';
+        return;
+    }
+
+    sortBy.value = field;
+    sortDirection.value = field === 'created_at' ? 'desc' : 'asc';
+};
 
 const toggleBidang = (form, option) => {
     if (form.bidang.includes(option)) {
@@ -159,9 +294,18 @@ const resetEdit = () => Object.assign(editForm, { ...editDefaults });
 const submitCreate = () => createForm.post('/content-creators', { preserveScroll: true, onSuccess: resetCreate });
 const submitEdit = () => editForm.put(`/content-creators/${editForm.id_contentcreator}`, { preserveScroll: true, onSuccess: resetEdit });
 const removeCreator = (item) => {
-    if (window.confirm(`Hapus content creator ${item.nama}?`)) {
-        router.delete(`/content-creators/${item.id_contentcreator}`, { preserveScroll: true });
-    }
+    deleteTarget.value = item;
+    showDeleteModal.value = true;
+};
+const closeDeleteModal = () => {
+    showDeleteModal.value = false;
+    deleteTarget.value = null;
+};
+const confirmDelete = () => {
+    if (!deleteTarget.value) return;
+    const id = deleteTarget.value.id_contentcreator;
+    closeDeleteModal();
+    router.delete(`/content-creators/${id}`, { preserveScroll: true });
 };
 
 const formatNumber = (value) => new Intl.NumberFormat('id-ID').format(Number(value || 0));
@@ -173,5 +317,15 @@ const slugify = (value) => String(value).toLowerCase().replace(/\s+/g, '-');
     max-height: 220px;
     overflow-y: auto;
 }
+
+.creator-search {
+    width: 240px;
+}
+
+.creator-page-size {
+    width: 80px;
+}
 </style>
+
+
 

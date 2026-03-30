@@ -16,14 +16,18 @@ class LoginRequest extends FormRequest
         return true;
     }
 
-    /**
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
         return [
             'nama' => ['required', 'string'],
             'password' => ['required', 'string'],
+            'captcha_answer' => ['required', 'string', function ($attribute, $value, $fail) {
+                $expected = (string) $this->session()->get('login_captcha_answer', '');
+
+                if ($expected === '' || trim((string) $value) !== $expected) {
+                    $fail('Captcha tidak sesuai. Silakan coba lagi.');
+                }
+            }],
             'remember' => ['nullable', 'boolean'],
         ];
     }

@@ -1,8 +1,6 @@
 <template>
     <Head title="Absensi" />
 
-    <div v-if="$page.props.errors.checkout" class="alert alert-danger">{{ $page.props.errors.checkout }}</div>
-
     <div class="row">
         <div v-for="item in kpis" :key="item.label" class="col-md-6 col-lg-3 col-6">
             <div class="small-box bg-gradient-info">
@@ -27,8 +25,8 @@
                     </div>
                     <div v-if="locationError" class="alert alert-danger py-2">{{ locationError }}</div>
                     <div class="d-flex flex-wrap">
-                        <button type="button" class="btn btn-success mr-2 mb-2" :disabled="attendanceForm.processing" @click="submitAction('check-in')">Check In Sekarang</button>
-                        <button type="button" class="btn btn-danger mb-2" :disabled="attendanceForm.processing" @click="submitAction('check-out')">Check Out Sekarang</button>
+                        <button type="button" class="btn btn-success mr-2 mb-2" :disabled="attendanceForm.processing" @click="confirmAction('check-in')">Check In Sekarang</button>
+                        <button type="button" class="btn btn-danger mb-2" :disabled="attendanceForm.processing" @click="confirmAction('check-out')">Check Out Sekarang</button>
                     </div>
                     <p class="text-muted text-sm mt-3 mb-0">Tanggal, jam, dan koordinat diambil otomatis saat tombol dijalankan.</p>
                 </div>
@@ -75,7 +73,7 @@
                         <td>{{ item.sold_quantity }}</td>
                         <td>{{ item.quantity_dikembalikan }}</td>
                         <td>{{ item.remaining_quantity }}</td>
-                        <td>{{ item.return_status }}</td>
+                        <td>{{ item.status_label }}</td>
                     </tr>
                     <tr v-if="!carriedProducts.length"><td colspan="7" class="text-center text-muted">Belum ada barang yang dibawa hari ini.</td></tr>
                 </tbody>
@@ -102,17 +100,33 @@
             </table>
         </div>
     </div>
+
+    <BootstrapModal :show="showConfirmModal" title="Konfirmasi" size="mobile-full" @close="showConfirmModal = false">
+        {{ confirmMessage }}
+        <template #footer>
+            <button type="button" class="btn btn-secondary" @click="showConfirmModal = false">Tidak</button>
+            <button type="button" class="btn btn-primary" @click="runConfirmedAction">Ya</button>
+        </template>
+    </BootstrapModal>
+
+    <BootstrapModal :show="showErrorModal" title="Peringatan" size="mobile-full" @close="showErrorModal = false">
+        {{ errorMessage }}
+        <template #footer>
+            <button type="button" class="btn btn-secondary" @click="showErrorModal = false">Tutup</button>
+        </template>
+    </BootstrapModal>
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import { Deferred, Head, useForm } from '@inertiajs/vue3';
+import { ref, watch } from 'vue';
+import { Deferred, Head, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import Select2Input from '../../Components/Select2Input.vue';
+import BootstrapModal from '../../Components/BootstrapModal.vue';
 
 defineOptions({ layout: AppLayout });
 
-defineProps({
+const props = defineProps({
     kpis: Array,
     todayAttendance: { type: Object, default: null },
     recentAttendances: Array,
@@ -120,9 +134,20 @@ defineProps({
     latestLocation: { type: Object, default: undefined },
 });
 
+const page = usePage();
 const statuses = ['hadir', 'terlambat', 'izin', 'sakit'];
 const attendanceForm = useForm({ status: 'hadir', notes: '', latitude: null, longitude: null });
 const locationError = ref('');
+const confirmMessage = ref('');
+const errorMessage = ref('');
+const pendingAction = ref(null);
+const showConfirmModal = ref(false);
+const showErrorModal = ref(false);
+
+const openErrorModal = (message) => {
+    errorMessage.value = message;
+    showErrorModal.value = true;
+};
 
 const resolveLocation = () => new Promise((resolve, reject) => {
     if (!navigator.geolocation) {
@@ -135,7 +160,19 @@ const resolveLocation = () => new Promise((resolve, reject) => {
     }, () => reject(new Error('Lokasi wajib dinyalakan sebelum absensi.')), { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
 });
 
-const submitAction = async (action) => {
+const confirmAction = (action) => {
+    pendingAction.value = action;
+    confirmMessage.value = action === 'check-in'
+        ? 'Apakah anda ingin memulai pekerjaan'
+        : 'Apakah anda ingin mengakhiri pekerjaan';
+    showConfirmModal.value = true;
+};
+
+const runConfirmedAction = async () => {
+    showConfirmModal.value = false;
+    const action = pendingAction.value;
+    if (!action) return;
+
     try {
         const coords = await resolveLocation();
         locationError.value = '';
@@ -144,6 +181,19 @@ const submitAction = async (action) => {
         attendanceForm.post(`/marketing/attendance/${action}`, { preserveScroll: true });
     } catch (error) {
         locationError.value = error.message;
+        openErrorModal(error.message);
+    } finally {
+        pendingAction.value = null;
     }
 };
+
+watch(() => page.props.errors?.checkout, (value) => {
+    if (value) openErrorModal(value);
+}, { immediate: true });
+
+watch(() => page.props.errors?.checkin, (value) => {
+    if (value) openErrorModal(value);
+}, { immediate: true });
 </script>
+
+
