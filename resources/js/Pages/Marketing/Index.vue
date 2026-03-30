@@ -197,7 +197,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { Link, Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import Select2Input from '../../Components/Select2Input.vue';
@@ -224,10 +224,33 @@ const editForm = useForm({ id_user: props.selectedMarketing?.id_user ?? null, na
 const showDeleteModal = ref(false);
 const deleteTarget = ref(null);
 
-const submitSearch = () => searchForm.get('/marketing', { preserveScroll: true, preserveState: true, replace: true });
+watch(() => props.filters, (filters) => {
+    searchForm.search = filters.search ?? '';
+    searchForm.selected = filters.selected ?? undefined;
+    searchForm.month = filters.month ?? props.periodFilters.month;
+    searchForm.year = filters.year ?? props.periodFilters.year;
+}, { deep: true });
+
+watch(() => props.selectedMarketing, (marketing) => {
+    editForm.id_user = marketing?.id_user ?? null;
+    editForm.nama = marketing?.nama ?? '';
+    editForm.status = marketing?.status ?? 'aktif';
+    editForm.password = '';
+    editForm.password_confirmation = '';
+}, { immediate: true });
+
+const buildFilterParams = (overrides = {}) => ({
+    search: searchForm.search || undefined,
+    selected: searchForm.selected || undefined,
+    month: searchForm.month,
+    year: searchForm.year,
+    ...overrides,
+});
+
+const submitSearch = () => router.get('/marketing', buildFilterParams({ selected: undefined }), { preserveScroll: true, preserveState: true, replace: true });
 const submitCreate = () => createForm.post('/marketing', { preserveScroll: true, onSuccess: () => createForm.reset() });
 const submitEdit = () => editForm.put(`/marketing/${editForm.id_user}`, { preserveScroll: true });
-const clearSelection = () => router.get('/marketing', { search: searchForm.search || undefined, month: searchForm.month, year: searchForm.year }, { preserveScroll: true, preserveState: true, replace: true });
+const clearSelection = () => router.get('/marketing', buildFilterParams({ selected: undefined }), { preserveScroll: true, preserveState: true, replace: true });
 const removeMarketing = (item) => {
     deleteTarget.value = item;
     showDeleteModal.value = true;

@@ -49,6 +49,15 @@ body {
     padding-bottom: 0.5rem;
 }
 
+.app-header {
+    position: relative;
+    z-index: 1040;
+}
+
+.app-sidebar {
+    z-index: 1030;
+}
+
 .card .table td,
 .card .table th {
     vertical-align: middle;

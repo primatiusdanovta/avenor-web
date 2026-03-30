@@ -316,6 +316,7 @@ class MarketingManagementController extends Controller
                     'quantity_sold' => $kpi['quantity_sold'],
                     'attendance_days' => $kpi['attendance_days'],
                     'total_hours' => $kpi['total_hours'],
+                    'average_hours_per_day' => $kpi['average_hours_per_day'],
                     'total_score' => $kpi['total_score'],
                 ];
             })
@@ -348,6 +349,3 @@ class MarketingManagementController extends Controller
         ];
     }
 }
-
-
-

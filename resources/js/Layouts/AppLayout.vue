@@ -4,7 +4,13 @@
             <div class="container-fluid">
                 <ul class="navbar-nav">
                     <li class="nav-item">
-                        <a href="#" class="nav-link" data-widget="pushmenu" @click.prevent>
+                        <a
+                            ref="sidebarToggleElement"
+                            href="#"
+                            class="nav-link"
+                            data-lte-toggle="sidebar"
+                            role="button"
+                        >
                             <i class="fas fa-bars"></i>
                         </a>
                     </li>
@@ -21,7 +27,7 @@
             </div>
         </nav>
 
-        <aside class="app-sidebar bg-body-secondary shadow" data-bs-theme="dark">
+        <aside ref="sidebarElement" class="app-sidebar bg-body-secondary shadow" data-bs-theme="dark">
             <div class="sidebar-brand">
                 <Link href="/dashboard" class="brand-link text-decoration-none">
                     <img :src="logoUrl" alt="Primatama" class="brand-image opacity-75 shadow-sm bg-white p-1 rounded-circle">
@@ -32,8 +38,9 @@
             <div class="sidebar-wrapper">
                 <nav class="mt-2">
                     <ul
+                        ref="treeviewElement"
                         class="nav sidebar-menu flex-column"
-                        data-widget="treeview"
+                        data-lte-toggle="treeview"
                         role="navigation"
                         aria-label="Main navigation"
                         data-accordion="false"
@@ -78,7 +85,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { Link, usePage } from '@inertiajs/vue3';
 
 defineProps({
@@ -93,13 +100,83 @@ const currentUrl = computed(() => page.url ?? '');
 const flashSuccess = computed(() => page.props.flash?.success ?? null);
 
 const showFlashSuccess = ref(true);
+const sidebarElement = ref(null);
+const sidebarToggleElement = ref(null);
+const treeviewElement = ref(null);
 let locationInterval = null;
+let pushMenuInstance = null;
+let toggleHandler = null;
+let treeviewHandler = null;
 
 watch(() => page.url, () => {
     showFlashSuccess.value = true;
+
+    nextTick(() => {
+        initAdminLteWidgets();
+    });
 });
 
 const isActive = (path) => currentUrl.value.startsWith(path);
+
+const destroyAdminLteWidgets = () => {
+    if (sidebarToggleElement.value && toggleHandler) {
+        sidebarToggleElement.value.removeEventListener('click', toggleHandler);
+    }
+
+    if (treeviewElement.value && treeviewHandler) {
+        treeviewElement.value.removeEventListener('click', treeviewHandler);
+    }
+
+    toggleHandler = null;
+    treeviewHandler = null;
+    pushMenuInstance = null;
+};
+
+const initAdminLteWidgets = () => {
+    destroyAdminLteWidgets();
+
+    if (!window.adminlte || !sidebarElement.value) {
+        return;
+    }
+
+    if (window.adminlte.PushMenu) {
+        pushMenuInstance = new window.adminlte.PushMenu(sidebarElement.value);
+        if (typeof pushMenuInstance.init === 'function') {
+            pushMenuInstance.init();
+        }
+    }
+
+    if (sidebarToggleElement.value && pushMenuInstance && typeof pushMenuInstance.toggle === 'function') {
+        toggleHandler = (event) => {
+            event.preventDefault();
+            pushMenuInstance.toggle();
+        };
+
+        sidebarToggleElement.value.addEventListener('click', toggleHandler);
+    }
+
+    if (treeviewElement.value && window.adminlte.Treeview) {
+        treeviewHandler = (event) => {
+            const toggleTarget = event.target.closest('.nav-link');
+            const targetItem = toggleTarget?.closest('.nav-item');
+            const targetTreeviewMenu = targetItem?.querySelector('.nav-treeview');
+
+            if (!targetItem || !targetTreeviewMenu) {
+                return;
+            }
+
+            if (toggleTarget.getAttribute('href') === '#') {
+                event.preventDefault();
+            }
+
+            new window.adminlte.Treeview(targetItem, {
+                accordion: treeviewElement.value?.dataset.accordion !== 'false',
+            }).toggle();
+        };
+
+        treeviewElement.value.addEventListener('click', treeviewHandler);
+    }
+};
 
 const sendMarketingLocation = (source = 'heartbeat') => {
     if (user.value?.role !== 'marketing' || !navigator.geolocation) return;
@@ -114,45 +191,10 @@ const sendMarketingLocation = (source = 'heartbeat') => {
 };
 
 onMounted(() => {
-    // Ensure AdminLTE is properly initialized for this layout
-    // This will be called AFTER Vue renders the sidebar
-    setTimeout(() => {
-        if (window.adminlte) {
-            
-            // Get sidebar and toggle button
-            const sidebar = document.querySelector('.app-sidebar');
-            const toggleButton = document.querySelector('[data-widget="pushmenu"]');
-            
-            if (sidebar && window.adminlte.PushMenu) {
-                // Create PushMenu instance
-                const pushMenu = new window.adminlte.PushMenu(sidebar);
-                
-                // If button exists and PushMenu has a toggle method, ensure event listeners work
-                if (toggleButton && typeof pushMenu.toggle === 'function') {
-                    // Add explicit click handler as fallback for Vue-rendered elements
-                    toggleButton.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        pushMenu.toggle();
-                               });
-                        }
-            }
-            
-            // Initialize treeviews
-            const treeviews = document.querySelectorAll('[data-widget="treeview"]');
-            if (window.adminlte.Treeview && treeviews.length > 0) {
-                treeviews.forEach(el => {
-                    try {
-                        new window.adminlte.Treeview(el);
-                    } catch (e) {
-                        console.warn('?? Treeview error:', e.message);
-                    }
-                });
-                        }
-        } else {
-            console.error('? AppLayout: window.adminlte not available!');
-        }
-    }, 50);
-    
+    nextTick(() => {
+        initAdminLteWidgets();
+    });
+
     if (user.value?.role === 'marketing') {
         sendMarketingLocation();
         locationInterval = window.setInterval(() => sendMarketingLocation(), 3600000);
@@ -161,5 +203,6 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
     if (locationInterval) window.clearInterval(locationInterval);
+    destroyAdminLteWidgets();
 });
 </script>

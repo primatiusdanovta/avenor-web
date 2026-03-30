@@ -8,9 +8,21 @@
                 <div class="row">
                     <div class="col-md-12">
                         <label>Filter Detail</label>
-                        <select v-model="selectedDetail" multiple class="form-control filter-select" size="6">
-                            <option v-for="detail in detailOptions" :key="`${detail.jenis}-${detail.detail}`" :value="detail.detail">{{ detail.detail }}</option>
-                        </select>
+                        <div class="border rounded p-2 bg-light filter-checkbox-box">
+                            <div v-for="detail in detailOptions" :key="`${detail.jenis}-${detail.detail}`" class="custom-control custom-checkbox">
+                                <input
+                                    :id="`detail-${slugify(detail.jenis)}-${slugify(detail.detail)}`"
+                                    :checked="selectedDetail.includes(detail.detail)"
+                                    type="checkbox"
+                                    class="custom-control-input"
+                                    @change="toggleDetail(detail.detail)"
+                                >
+                                <label class="custom-control-label" :for="`detail-${slugify(detail.jenis)}-${slugify(detail.detail)}`">
+                                    {{ detail.detail }}
+                                    <span class="text-muted">({{ detail.jenis }})</span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="mt-3 d-flex flex-wrap align-items-center gap-2">
@@ -79,9 +91,20 @@ const resetFilters = () => {
     selectedDetail.value = [];
 };
 
+const toggleDetail = (detail) => {
+    if (selectedDetail.value.includes(detail)) {
+        selectedDetail.value = selectedDetail.value.filter((item) => item !== detail);
+        return;
+    }
+
+    selectedDetail.value = [...selectedDetail.value, detail];
+};
+
 const openPreview = (product) => {
     activeProduct.value = product;
 };
+
+const slugify = (value) => String(value).toLowerCase().replace(/\s+/g, '-');
 </script>
 
 <style scoped>
@@ -89,8 +112,9 @@ const openPreview = (product) => {
     min-height: 100%;
 }
 
-.filter-select {
-    min-height: 180px;
+.filter-checkbox-box {
+    max-height: 220px;
+    overflow-y: auto;
 }
 
 .knowledge-card {
