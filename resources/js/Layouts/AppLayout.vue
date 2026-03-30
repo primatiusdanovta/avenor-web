@@ -107,9 +107,17 @@ let locationInterval = null;
 let pushMenuInstance = null;
 let toggleHandler = null;
 let treeviewHandler = null;
+let navLinkHandler = null;
+
+const closeMobileSidebar = () => {
+    if (window.innerWidth < 992) {
+        document.body.classList.remove('sidebar-open');
+    }
+};
 
 watch(() => page.url, () => {
     showFlashSuccess.value = true;
+    closeMobileSidebar();
 
     nextTick(() => {
         initAdminLteWidgets();
@@ -127,8 +135,13 @@ const destroyAdminLteWidgets = () => {
         treeviewElement.value.removeEventListener('click', treeviewHandler);
     }
 
+    if (sidebarElement.value && navLinkHandler) {
+        sidebarElement.value.removeEventListener('click', navLinkHandler);
+    }
+
     toggleHandler = null;
     treeviewHandler = null;
+    navLinkHandler = null;
     pushMenuInstance = null;
 };
 
@@ -176,6 +189,22 @@ const initAdminLteWidgets = () => {
 
         treeviewElement.value.addEventListener('click', treeviewHandler);
     }
+
+    if (sidebarElement.value) {
+        navLinkHandler = (event) => {
+            const link = event.target.closest('.nav-link');
+            const targetItem = link?.closest('.nav-item');
+            const hasTreeviewMenu = targetItem?.querySelector('.nav-treeview');
+
+            if (!link || hasTreeviewMenu) {
+                return;
+            }
+
+            closeMobileSidebar();
+        };
+
+        sidebarElement.value.addEventListener('click', navLinkHandler);
+    }
 };
 
 const sendMarketingLocation = (source = 'heartbeat') => {
@@ -191,6 +220,8 @@ const sendMarketingLocation = (source = 'heartbeat') => {
 };
 
 onMounted(() => {
+    closeMobileSidebar();
+
     nextTick(() => {
         initAdminLteWidgets();
     });

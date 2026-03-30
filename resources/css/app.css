@@ -51,11 +51,38 @@ body {
 
 .app-header {
     position: relative;
-    z-index: 1040;
+    z-index: 1039;
 }
 
-.app-sidebar {
-    z-index: 1030;
+@media (max-width: 991.98px) {
+    .app-header {
+        position: sticky !important;
+        top: 0;
+        z-index: 1041 !important;
+        isolation: isolate;
+    }
+
+    .app-header .nav-link,
+    .app-header .btn {
+        position: relative;
+        z-index: 1042;
+    }
+
+    .sidebar-expand-lg .app-sidebar {
+        top: calc(3.5rem + 1px) !important;
+        bottom: 0;
+        max-height: calc(100dvh - (3.5rem + 1px)) !important;
+    }
+
+    .sidebar-expand-lg .app-sidebar .sidebar-wrapper {
+        height: calc(100dvh - (3.5rem + 1px)) !important;
+    }
+
+    .sidebar-expand-lg.sidebar-open .sidebar-overlay {
+        top: calc(3.5rem + 1px) !important;
+        height: calc(100dvh - (3.5rem + 1px)) !important;
+        z-index: 1037 !important;
+    }
 }
 
 .card .table td,

@@ -119,25 +119,27 @@ class DashboardController extends Controller
     private function buildManagerDashboardData(Collection $offlineSales, Collection $onlineSaleItems, Carbon $monthStart, Carbon $monthEnd): array
     {
         $offlineGross = round((float) $offlineSales->sum('harga'), 2);
-        $offlineNetTotal = round((float) $offlineSales->sum(fn ($sale) => $this->netProfitForSale($sale)), 2);
         $onlineGross = round((float) $onlineSaleItems->sum('harga'), 2);
-        $onlineNetTotal = round((float) $onlineSaleItems->sum(fn ($item) => $this->netProfitForOnlineItem($item)), 2);
+        $offlineHppTotal = round((float) $offlineSales->sum(fn ($sale) => $this->hppForSale($sale)), 2);
+        $onlineHppTotal = round((float) $onlineSaleItems->sum(fn ($item) => $this->hppForOnlineItem($item)), 2);
+        $offlineNetTotal = round($offlineGross - $offlineHppTotal, 2);
+        $onlineNetTotal = round($onlineGross - $onlineHppTotal, 2);
         $revenueTotal = round($offlineGross + $onlineGross, 2);
         $netProfitTotal = round($offlineNetTotal + $onlineNetTotal, 2);
-        $npmBase = round($revenueTotal - $netProfitTotal, 2);
-        $npmPercent = $revenueTotal > 0 ? round(($npmBase / $revenueTotal) * 100, 2) : 0;
+        $npmBase = $netProfitTotal;
+        $npmPercent = $revenueTotal > 0 ? round(($netProfitTotal / $revenueTotal) * 100, 2) : 0;
 
         $offlineRevenue = $this->filterEmptySeries(
             $this->buildDailySeries($offlineSales, $monthStart, $monthEnd, fn ($sale) => (float) $sale->harga)
         );
         $offlineNet = $this->filterEmptySeries(
-            $this->buildDailySeries($offlineSales, $monthStart, $monthEnd, fn ($sale) => $this->netProfitForSale($sale))
+            $this->buildDailySeries($offlineSales, $monthStart, $monthEnd, fn ($sale) => (float) $sale->harga - $this->hppForSale($sale))
         );
         $onlineRevenue = $this->filterEmptySeries(
             $this->buildDailySeries($onlineSaleItems, $monthStart, $monthEnd, fn ($item) => (float) $item->harga)
         );
         $onlineNet = $this->filterEmptySeries(
-            $this->buildDailySeries($onlineSaleItems, $monthStart, $monthEnd, fn ($item) => $this->netProfitForOnlineItem($item))
+            $this->buildDailySeries($onlineSaleItems, $monthStart, $monthEnd, fn ($item) => (float) $item->harga - $this->hppForOnlineItem($item))
         );
         $offlineTopProducts = $this->buildTopProducts($offlineSales);
         $onlineTopProducts = $this->buildTopProducts($onlineSaleItems, 'nama_product', 'quantity', 'harga');
@@ -360,16 +362,16 @@ class DashboardController extends Controller
         ];
     }
 
-    private function netProfitForSale(OfflineSale $sale): float
+    private function hppForSale(OfflineSale $sale): float
     {
         $hpp = (float) ($sale->product?->hppCalculation?->total_hpp ?? $sale->product?->harga_modal ?? 0);
-        return (float) $sale->harga - ($hpp * (int) $sale->quantity);
+        return $hpp * (int) $sale->quantity;
     }
 
-    private function netProfitForOnlineItem(OnlineSaleItem $item): float
+    private function hppForOnlineItem(OnlineSaleItem $item): float
     {
         $hpp = (float) ($item->product?->hppCalculation?->total_hpp ?? $item->product?->harga_modal ?? 0);
-        return (float) $item->harga - ($hpp * (int) $item->quantity);
+        return $hpp * (int) $item->quantity;
     }
 
     private function buildTargetSummary(User $user, Carbon $periodStart, Carbon $periodEnd, ?SalesTarget $target): array
