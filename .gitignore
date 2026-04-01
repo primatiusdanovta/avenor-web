@@ -17,15 +17,15 @@
 # /public/build
 /public/hot
 # /public/storage
-
+/deploy 
 Homestead.json
 Homestead.yaml
 Thumbs.db
 
 # Dependency folders (sangat berat, tidak perlu masuk Git)
-# node_modules/
+node_modules/
 # dist/
-# plugins/
+plugins/
 
 # Laravel spesifik (jika pakai Laravel)
 # app
@@ -35,7 +35,7 @@ Thumbs.db
 # resources
 # routes
 # storage
-# vendor
+vendor
 # composer.json
 # artisan
 # .env
