@@ -14,7 +14,7 @@ return [
     |
     */
 
-    'title' => 'Avenor Web',
+    'title' => 'Avenor',
     'title_prefix' => '',
     'title_postfix' => '',
 
