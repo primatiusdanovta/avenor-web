@@ -69,6 +69,7 @@
     <div id="landing-app"></div>
     <script>
         window.AVENOR_PAGE_TYPE = @json($pageType ?? data_get($initialContent, 'page_type', ''));
+        window.AVENOR_LANDING_FALLBACK_STATE = @json($fallbackContent ?? $initialContent);
         window.AVENOR_LANDING_INITIAL_STATE = @json($initialContent);
         window.AVENOR_PRODUCT_SLUG = @json(data_get($initialContent, 'product.slug'));
     </script>
