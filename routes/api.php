@@ -29,7 +29,9 @@ Route::prefix('mobile')->name('api.mobile.')->group(function () {
         Route::post('/products/onhand/{onhand}/return', [MobileProductController::class, 'requestReturn'])->name('products.onhand.return');
         Route::get('/product-knowledge', MobileProductKnowledgeController::class)->name('product-knowledge.index');
         Route::get('/offline-sales', [MobileOfflineSaleController::class, 'index'])->name('offline-sales.index');
+        Route::get('/offline-sales/customer', [MobileOfflineSaleController::class, 'findCustomer'])->name('offline-sales.customer');
         Route::post('/offline-sales', [MobileOfflineSaleController::class, 'store'])->name('offline-sales.store');
         Route::get('/offline-sales/{sale}/proof', [MobileOfflineSaleController::class, 'showProof'])->name('offline-sales.proof');
     });
 });
+

@@ -50,7 +50,7 @@ class OfflineSaleController extends Controller
                     'nama_product' => $product->nama_product,
                     'harga' => (float) $product->harga,
                     'remaining' => $remaining,
-                    'option_label' => $product->nama_product . ' | sisa ' . $remaining,
+                    'option_label' => $product->nama_product . ' | Sisa ' . $remaining,
                 ];
             })
             ->filter(fn (array $product) => $product['remaining'] > 0)
@@ -76,6 +76,32 @@ class OfflineSaleController extends Controller
             'sales' => $transactions,
             'products' => $products,
             'promos' => $promos,
+        ]);
+    }
+
+    public function findCustomer(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user?->role === 'marketing', 403);
+
+        $phone = MarketingMobileSupport::normalizePhone($request->query('phone'));
+
+        if (! $phone) {
+            return response()->json(['customer' => null]);
+        }
+
+        $customer = Customer::query()
+            ->where('no_telp', $phone)
+            ->first();
+
+        return response()->json([
+            'customer' => $customer ? [
+                'id_pelanggan' => $customer->id_pelanggan,
+                'nama' => $customer->nama,
+                'no_telp' => $customer->no_telp,
+                'tiktok_instagram' => $customer->tiktok_instagram,
+                'pembelian_terakhir' => optional($customer->pembelian_terakhir)->format('Y-m-d H:i:s'),
+            ] : null,
         ]);
     }
 
@@ -325,3 +351,5 @@ class OfflineSaleController extends Controller
         return 'TRX-' . now()->format('YmdHis') . '-' . strtoupper(Str::random(8));
     }
 }
+
+

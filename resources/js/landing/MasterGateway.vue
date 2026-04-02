@@ -424,7 +424,7 @@ onBeforeUnmount(() => {
 .discovery-slider {
     display: grid;
     grid-auto-flow: column;
-    grid-auto-columns: minmax(0, 84%);
+    grid-auto-columns: minmax(0, 100%);
     gap: 1rem;
     overflow-x: auto;
     padding: 0.25rem 0 0.75rem;
@@ -482,6 +482,12 @@ onBeforeUnmount(() => {
 
 .discovery-slider__dot.is-active {
     background: var(--landing-accent, #d4af37);
+}
+
+@media (min-width: 768px) {
+    .discovery-slider {
+        grid-auto-columns: minmax(0, 84%);
+    }
 }
 
 @media (min-width: 992px) {
