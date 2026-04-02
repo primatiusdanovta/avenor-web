@@ -1,0 +1,14 @@
+appId: com.avenor.marketing
+---
+- launchApp
+- tapOn: "Mode demo / mock data"
+- tapOn: "Masuk ke demo"
+- tapOn: "Sales"
+- tapOn: "Nama customer"
+- inputText: "Nadia Booth"
+- tapOn: "Nomor telepon"
+- inputText: "08123456789"
+- tapOn: "TikTok / Instagram"
+- inputText: "@nadiabooth"
+- tapOn: "Simpan penjualan"
+- assertVisible: "Penjualan offline berhasil disimpan."

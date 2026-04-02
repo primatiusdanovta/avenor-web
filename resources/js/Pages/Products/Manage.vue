@@ -52,6 +52,13 @@
                             </div>
                         </div>
                     </div>
+                    <div v-if="editForm.gambar_lama" class="form-group">
+                        <label>Gambar Saat Ini</label>
+                        <div>
+                            <img :src="editForm.gambar_lama" alt="current product" class="product-preview-image">
+                        </div>
+                        <small class="text-muted">Upload gambar baru hanya jika ingin mengganti gambar product.</small>
+                    </div>
                     <div class="form-group"><label>Gambar Baru</label><input type="file" class="form-control" accept="image/*" @change="setImageFile(editForm, $event)"></div>
                     <div class="d-flex flex-wrap">
                         <button class="btn btn-warning mr-2 mb-2" @click="submitEdit" :disabled="editForm.processing">Update</button>
@@ -80,7 +87,7 @@
                                 </td>
                                 <td>
                                     <div v-if="item.fragrance_details.length" class="small">
-                                        <span v-for="detail in item.fragrance_details" :key="`${item.id_product}-${detail.id_fd}`" class="badge badge-light border mr-1 mb-1">{{ detail.detail }}</span>
+                                        <span v-for="detail in item.fragrance_details" :key="`${item.id_product}-${detail.id_fd}`" class="fragrance-badge mr-1 mb-1">{{ detail.detail }}</span>
                                     </div>
                                     <span v-else class="text-muted">-</span>
                                 </td>
@@ -120,7 +127,7 @@ defineOptions({ layout: AppLayout });
 const props = defineProps({ products: Array, fragranceDetails: Array });
 const keyword = ref('');
 const createForm = useForm({ nama_product: '', harga: '', stock: 0, deskripsi: '', fragrance_details: [], gambar: null });
-const editForm = useForm({ id_product: null, nama_product: '', harga: '', harga_modal: 0, stock: 0, deskripsi: '', fragrance_details: [], gambar: null });
+const editForm = useForm({ id_product: null, nama_product: '', harga: '', harga_modal: 0, stock: 0, deskripsi: '', fragrance_details: [], gambar: null, gambar_lama: null });
 const showDeleteModal = ref(false);
 const deleteTarget = ref(null);
 const filteredProducts = computed(() => props.products.filter((item) => item.nama_product.toLowerCase().includes(keyword.value.toLowerCase())));
@@ -145,6 +152,7 @@ const pickEdit = (item) => Object.assign(editForm, {
     deskripsi: item.deskripsi || '',
     fragrance_details: item.fragrance_details.map((detail) => String(detail.id_fd)),
     gambar: null,
+    gambar_lama: item.gambar || null,
 });
 const submitEdit = () => {
     editForm.transform((data) => ({ id_product: data.id_product, nama_product: data.nama_product, harga: data.harga, stock: data.stock, deskripsi: data.deskripsi, fragrance_details: data.fragrance_details, gambar: data.gambar, _method: 'put' })).post(`/products/${editForm.id_product}`, {
@@ -174,6 +182,24 @@ const confirmDelete = () => {
 .fragrance-box {
     max-height: 220px;
     overflow-y: auto;
+}
+
+.product-preview-image {
+    width: 96px;
+    height: 96px;
+    object-fit: cover;
+    border-radius: 0.5rem;
+    border: 1px solid #dee2e6;
+}
+
+.fragrance-badge {
+    display: inline-block;
+    padding: 0.35rem 0.55rem;
+    border-radius: 999px;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    color: #3730a3;
+    font-weight: 600;
 }
 </style>
 

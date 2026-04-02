@@ -1,0 +1,14 @@
+appId: com.avenor.marketing
+---
+- launchApp
+- tapOn: "Mode demo / mock data"
+- tapOn: "Masuk ke demo"
+- assertVisible: "Dashboard Marketing"
+- tapOn: "Absensi"
+- assertVisible: "Form Absensi Native"
+- tapOn: "Inventory"
+- assertVisible: "Ambil Barang"
+- tapOn: "Sales"
+- assertVisible: "Form Penjualan Offline"
+- tapOn: "Knowledge"
+- assertVisible: "Cari product knowledge"

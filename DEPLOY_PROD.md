@@ -4,7 +4,7 @@
 - PHP 8.2+
 - Composer 2+
 - Node.js 20+
-- PostgreSQL 14+
+- MariaDB 10.6+ atau MySQL-compatible server
 - Nginx or Apache
 - SSH access
 
@@ -13,25 +13,33 @@
 2. Fill these values before deploy:
    - `APP_KEY`
    - `APP_URL`
+   - `DB_CONNECTION`
    - `DB_HOST`
    - `DB_PORT`
    - `DB_DATABASE`
    - `DB_USERNAME`
    - `DB_PASSWORD`
+   - `MOBILE_TOKEN_EXPIRES_DAYS`
    - mail settings
 3. Generate key if needed:
    - `php artisan key:generate --force`
 
 ## 3. Database
+Gunakan MariaDB dengan konfigurasi `.env.prod` berikut:
+
+- `APP_URL=https://avenorperfume.site`
+- `DB_CONNECTION=mariadb`
+- `DB_PORT=3306`
+
 Choose one approach:
 
 ### Option A - Laravel migration
 - `php artisan migrate --force`
 
-### Option B - PostgreSQL SQL import
+### Option B - SQL import
 - import file: `import.sql`
 - command example:
-  - `psql -U avenor_user -d avenor_web -f import.sql`
+  - `mysql -u avenor_user -p avenor_web < import.sql`
 
 ## 4. Install & Build
 - `composer install --no-dev --optimize-autoloader`
@@ -64,6 +72,7 @@ Prepared files are in `deploy/production`:
 - global settings save works
 - landing page builder save works
 - offline sale create works
+- proof URL mobile mengarah ke `https://avenorperfume.site/...`
 
 ## 9. Flutter Wrapper
 Mobile wrapper source exists in `mobile/flutter_webview`.
@@ -72,3 +81,25 @@ Build APK on a machine with Flutter SDK:
 - `flutter create . --platforms=android`
 - `flutter pub get`
 - `flutter build apk --release --dart-define=AVENOR_WEB_URL=https://avenorperfume.site/administrator`
+
+## 10. Flutter Marketing App Endpoint
+Untuk app native `mobile/flutter_marketing_app`, endpoint tidak disimpan satu per satu di env. App hanya butuh satu base URL:
+
+- `AVENOR_API_BASE_URL=https://avenorperfume.site/api/mobile`
+
+Semua request mobile diturunkan dari base URL ini:
+
+- `/auth/login`
+- `/auth/me`
+- `/auth/logout`
+- `/dashboard`
+- `/attendance`
+- `/attendance/check-in`
+- `/attendance/check-out`
+- `/attendance/location`
+- `/products`
+- `/products/take`
+- `/products/onhand/{onhand}/return`
+- `/product-knowledge`
+- `/offline-sales`
+- `/offline-sales/{sale}/proof`

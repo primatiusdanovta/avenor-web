@@ -62,7 +62,25 @@
                         <p class="section-description mb-0">{{ masterPage.collection_section.description }}</p>
                     </div>
                 </div>
-                <div class="master-collection-grid" :class="collectionGridClass">
+                <div v-if="hasCuratedCollectionColumns" class="master-collection-columns" :class="collectionColumnsClass">
+                    <div v-for="(column, columnIndex) in collectionColumns" :key="'collection-column-' + columnIndex" class="master-collection-column">
+                        <a v-for="product in column" :key="product.id_product" class="collection-card" :class="{ 'collection-card--disabled': !product.url }" :href="product.url || null">
+                            <div class="collection-card__media">
+                                <img v-if="product.image_url" :src="product.image_url" :alt="product.name" loading="lazy">
+                                <div v-else class="collection-card__placeholder">{{ product.name }}</div>
+                            </div>
+                            <div class="collection-card__body">
+                                <div class="collection-card__eyebrow">{{ product.is_active ? masterPage.collection_section.card_active_status : masterPage.collection_section.card_inactive_status }}</div>
+                                <h3>{{ product.name }}</h3>
+                                <div class="collection-card__meta">
+                                    <span v-for="tag in product.scent_tags || []" :key="product.id_product + '-' + tag" class="collection-card__tag">{{ tag }}</span>
+                                </div>
+                                <span class="collection-card__cta">{{ product.url ? masterPage.collection_section.card_active_cta : masterPage.collection_section.card_inactive_cta }}</span>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                <div v-else class="master-collection-grid" :class="collectionGridClass">
                     <a v-for="product in content.products" :key="product.id_product" class="collection-card" :class="{ 'collection-card--disabled': !product.url }" :href="product.url || null">
                         <div class="collection-card__media">
                             <img v-if="product.image_url" :src="product.image_url" :alt="product.name" loading="lazy">
@@ -182,6 +200,7 @@ const error = ref('');
 const titleRef = ref(null);
 const discoveryScroller = ref(null);
 const discoveryIndex = ref(0);
+const viewportWidth = ref(typeof window === 'undefined' ? 1440 : window.innerWidth);
 
 const socialCards = computed(() => ({
     tiktok: { ...defaultSocialCards.tiktok, ...(content.value?.social_hub?.cards?.tiktok || {}) },
@@ -245,9 +264,46 @@ const discoveryCards = computed(() => {
 });
 
 const isDiscoverySlider = computed(() => discoveryCards.value.length > 2);
+const products = computed(() => content.value?.products || []);
+const hasCuratedCollectionColumns = computed(() => products.value.length === 11);
+
+const splitProducts = (items, sizes) => {
+    let cursor = 0;
+
+    return sizes
+        .map((size) => {
+            const group = items.slice(cursor, cursor + size);
+            cursor += size;
+
+            return group;
+        })
+        .filter((group) => group.length);
+};
+
+const collectionColumns = computed(() => {
+    if (!hasCuratedCollectionColumns.value) {
+        return [];
+    }
+
+    if (viewportWidth.value < 768) {
+        return [products.value];
+    }
+
+    if (viewportWidth.value < 992) {
+        return splitProducts(products.value, [6, 5]);
+    }
+
+    return splitProducts(products.value, [4, 3, 4]);
+});
+
+const collectionColumnsClass = computed(() => ({
+    'master-collection-columns--single': collectionColumns.value.length === 1,
+    'master-collection-columns--double': collectionColumns.value.length === 2,
+    'master-collection-columns--triple': collectionColumns.value.length === 3,
+}));
 
 const collectionGridClass = computed(() => ({
-    'master-collection-grid--eleven': (content.value?.products || []).length >= 11,
+    'master-collection-grid--eleven': products.value.length >= 11,
 }));
 
 const getDiscoverySlides = () => Array.from(discoveryScroller.value?.querySelectorAll('.discovery-slide') || []);
@@ -293,6 +349,8 @@ const scrollDiscovery = (direction) => {
 };
 
 const handleDiscoveryResize = () => {
+    viewportWidth.value = window.innerWidth;
+
     if (!isDiscoverySlider.value) return;
     scrollDiscoveryTo(discoveryIndex.value);
 };

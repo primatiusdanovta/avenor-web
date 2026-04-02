@@ -57,4 +57,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(OfflineSale::class, 'id_user', 'id_user');
     }
+
+    public function mobileAccessTokens(): HasMany
+    {
+        return $this->hasMany(MobileAccessToken::class, 'user_id', 'id_user');
+    }
 }

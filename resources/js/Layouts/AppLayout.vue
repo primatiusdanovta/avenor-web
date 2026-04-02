@@ -110,7 +110,34 @@ const openMenus = ref({});
 let locationInterval = null;
 
 const isDesktop = () => window.innerWidth >= 992;
-const isActive = (path) => path ? currentUrl.value.startsWith(path) : false;
+const normalizePath = (value) => {
+    if (!value) return '';
+
+    try {
+        if (typeof window !== 'undefined') {
+            const url = new URL(value, window.location.origin);
+            return url.pathname.replace(/\/+$/, '') || '/';
+        }
+    } catch (_) {
+        // Ignore URL parsing errors and fall back to string cleanup.
+    }
+
+    const normalized = String(value).split('?')[0].split('#')[0].trim();
+    if (!normalized) return '';
+
+    return normalized.replace(/\/+$/, '') || '/';
+};
+
+const isActive = (path) => {
+    const currentPath = normalizePath(currentUrl.value);
+    const targetPath = normalizePath(path);
+
+    if (!currentPath || !targetPath) return false;
+    if (currentPath === targetPath) return true;
+    if (targetPath === '/') return currentPath === '/';
+
+    return currentPath.startsWith(`${targetPath}/`);
+};
 const hasActiveChild = (item) => Array.isArray(item?.children) && item.children.some((child) => isActive(child.href));
 const isMenuOpen = (label) => Boolean(openMenus.value[label]);
 
@@ -199,4 +226,6 @@ onBeforeUnmount(() => {
     closeMobileSidebar();
 });
 </script>
+
+
 
