@@ -169,12 +169,18 @@ import axios from 'axios';
 import MainFooter from './MainFooter.vue';
 import Navbar from './Navbar.vue';
 
-const fallbackContent = {
-    page_type: 'master',
-    hero: { title: 'Discover Your Signature', description: '' },
-    products: [],
-    social_hub: {},
-};
+const fallbackContent = typeof window !== 'undefined' && window.AVENOR_LANDING_FALLBACK_STATE
+    ? window.AVENOR_LANDING_FALLBACK_STATE
+    : {
+        page_type: 'master',
+        hero: {
+            eyebrow: '',
+            title: '',
+            description: '',
+        },
+        products: [],
+        social_hub: {},
+    };
 
 const defaultSocialCards = {
     tiktok: {

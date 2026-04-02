@@ -74,11 +74,7 @@ class GlobalSetting extends Model
     {
         return [
             'master_page' => [
-                'hero' => [
-                    'eyebrow' => 'Avenor Perfume',
-                    'title' => 'Discover Your Signature',
-                    'description' => 'A curated fragrance gateway where each bottle opens into a distinct sensory world.',
-                ],
+                'hero' => static::defaultMasterHero(),
                 'social_hub_section' => [
                     'eyebrow' => 'Social Hub',
                     'title' => 'Follow the brand atmosphere across channels',
@@ -334,6 +330,15 @@ class GlobalSetting extends Model
                     'description' => 'Start a direct conversation and get guided toward the right scent.',
                 ],
             ],
+        ];
+    }
+
+    public static function defaultMasterHero(): array
+    {
+        return [
+            'eyebrow' => 'Avenor Perfume',
+            'title' => 'The Scent of Discovery',
+            'description' => 'awakens curiosity, guiding you to explore deeper and leave a refined, memorable impression.',
         ];
     }
 }

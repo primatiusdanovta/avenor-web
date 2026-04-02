@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -20,9 +21,32 @@ const String kAvenorBlackLogoAsset = 'assets/images/avenor_hitam.png';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    developer.log(
+      details.exceptionAsString(),
+      name: 'AvenorMarketingApp',
+      error: details.exception,
+      stackTrace: details.stack,
+    );
+  };
+
   await initializeDateFormatting('id_ID');
-  await NotificationScheduler.instance.initialize();
   runApp(const AvenorMarketingApp());
+  unawaited(_initializeStartupServices());
+}
+
+Future<void> _initializeStartupServices() async {
+  try {
+    await NotificationScheduler.instance.initialize();
+  } catch (error, stackTrace) {
+    developer.log(
+      'Notification initialization failed',
+      name: 'AvenorMarketingApp',
+      error: error,
+      stackTrace: stackTrace,
+    );
+  }
 }
 
 class AvenorMarketingApp extends StatelessWidget {

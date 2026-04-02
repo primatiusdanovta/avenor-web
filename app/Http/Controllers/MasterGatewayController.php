@@ -31,15 +31,32 @@ class MasterGatewayController extends Controller
 
         $socialHub = GlobalSetting::masterSocialHub();
         $masterPage = data_get($socialHub, 'master_page', []);
+        $defaultHero = GlobalSetting::defaultMasterHero();
+        $heroEyebrow = (string) data_get($masterPage, 'hero.eyebrow', data_get($defaultHero, 'eyebrow', ''));
+        $heroTitle = (string) data_get($masterPage, 'hero.title', data_get($defaultHero, 'title', ''));
+        $heroDescription = (string) data_get($masterPage, 'hero.description', data_get($defaultHero, 'description', ''));
+        $seoTitle = trim($heroEyebrow . ' | ' . $heroTitle, ' |');
+
+        $fallbackContent = [
+            'page_type' => 'master',
+            'hero' => [
+                'eyebrow' => $heroEyebrow,
+                'title' => $heroTitle,
+                'description' => $heroDescription,
+                'video_url' => data_get($socialHub, 'hero_video_url'),
+            ],
+            'products' => [],
+            'social_hub' => $socialHub,
+        ];
 
         return view('landing', [
             'pageType' => 'master',
             'initialContent' => [
                 'page_type' => 'master',
                 'hero' => [
-                    'title' => data_get($masterPage, 'hero.title'),
-                    'eyebrow' => data_get($masterPage, 'hero.eyebrow'),
-                    'description' => data_get($masterPage, 'hero.description'),
+                    'title' => $heroTitle,
+                    'eyebrow' => $heroEyebrow,
+                    'description' => $heroDescription,
                     'video_url' => data_get($socialHub, 'hero_video_url'),
                 ],
                 'products' => $products,
@@ -49,21 +66,22 @@ class MasterGatewayController extends Controller
                     'facebook_pixel_id' => config('services.meta.pixel_id'),
                 ],
             ],
+            'fallbackContent' => $fallbackContent,
             'seo' => [
-                'title' => 'Avenor Perfume | Discover Your Signature',
-                'description' => 'Explore the full Avenor perfume collection and discover your signature scent.',
+                'title' => $seoTitle,
+                'description' => $heroDescription,
                 'canonical_url' => url('/'),
                 'robots' => 'index,follow',
-                'og_title' => 'Avenor Perfume | Discover Your Signature',
-                'og_description' => 'Explore the full Avenor perfume collection and discover your signature scent.',
+                'og_title' => $seoTitle,
+                'og_description' => $heroDescription,
                 'og_image' => asset('img/logo.png'),
             ],
             'schemas' => [[
                 '@context' => 'https://schema.org',
                 '@type' => 'WebPage',
-                'name' => 'Avenor Perfume',
+                'name' => $seoTitle,
                 'url' => url('/'),
-                'description' => 'Explore the full Avenor perfume collection and discover your signature scent.',
+                'description' => $heroDescription,
             ]],
             'tracking' => [
                 'ga4_measurement_id' => config('services.analytics.ga4_measurement_id'),
@@ -72,4 +90,3 @@ class MasterGatewayController extends Controller
         ]);
     }
 }
-
