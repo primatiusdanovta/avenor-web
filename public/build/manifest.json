@@ -452,7 +452,7 @@
     ]
   },
   "resources/js/landing.js": {
-    "file": "assets/landing-CZgEvyCq.js",
+    "file": "assets/landing-ruA1fLkX.js",
     "name": "landing",
     "src": "resources/js/landing.js",
     "isEntry": true,
@@ -462,7 +462,7 @@
       "__plugin-vue_export-helper-DlAUqK2U.js"
     ],
     "css": [
-      "assets/landing-CxSw6Uqj.css"
+      "assets/landing-ft-DWRJN.css"
     ],
     "assets": [
       "assets/avenor_putih-CTRPbXsg.png"

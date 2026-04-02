@@ -424,11 +424,12 @@ onBeforeUnmount(() => {
 .discovery-slider {
     display: grid;
     grid-auto-flow: column;
-    grid-auto-columns: minmax(0, 100%);
+    grid-auto-columns: 100%;
     gap: 1rem;
     overflow-x: auto;
     padding: 0.25rem 0 0.75rem;
     scroll-snap-type: x mandatory;
+    scroll-padding-inline: 0;
     scrollbar-width: none;
     cursor: grab;
 }
@@ -438,6 +439,9 @@ onBeforeUnmount(() => {
 }
 
 .discovery-slide {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     scroll-snap-align: start;
     transition: transform 220ms ease, opacity 220ms ease;
     opacity: 0.72;
@@ -482,6 +486,19 @@ onBeforeUnmount(() => {
 
 .discovery-slider__dot.is-active {
     background: var(--landing-accent, #d4af37);
+}
+
+@media (max-width: 767.98px) {
+    .discovery-slider-toolbar {
+        grid-template-columns: auto 1fr auto;
+        display: grid;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .discovery-slider {
+        gap: 0.75rem;
+    }
 }
 
 @media (min-width: 768px) {
