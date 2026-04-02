@@ -403,6 +403,18 @@ class ChipsInputState<T> extends State<ChipsInput<T>>
   }
 
   @override
+  void didChangeInputControl(
+    TextInputControl? oldControl,
+    TextInputControl? newControl,
+  ) {}
+
+  @override
+  void insertContent(KeyboardInsertedContent content) {}
+
+  @override
+  void performSelector(String selectorName) {}
+
+  @override
   TextEditingValue get currentTextEditingValue => _value;
 
   @override
@@ -492,4 +504,5 @@ class ChipsInputState<T> extends State<ChipsInput<T>>
   @override
   void removeTextPlaceholder() {}
 }
+
 
