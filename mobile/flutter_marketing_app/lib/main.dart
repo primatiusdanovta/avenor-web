@@ -12,7 +12,7 @@ import 'notification_scheduler.dart';
 
 const String kApiBaseUrl = String.fromEnvironment(
   'AVENOR_API_BASE_URL',
-  defaultValue: 'http://10.0.2.2:8000/api/mobile',
+  defaultValue: 'https://avenorperfume.site/api/mobile',
 );
 const bool kUseMock =
     bool.fromEnvironment('AVENOR_USE_MOCK', defaultValue: false);
