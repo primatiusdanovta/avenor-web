@@ -6,11 +6,13 @@ use App\Models\GlobalSetting;
 use App\Support\HeroVideoOptimizer;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
+use Throwable;
 
 class GlobalSettingController extends Controller
 {
@@ -270,6 +272,15 @@ class GlobalSettingController extends Controller
         } catch (RuntimeException $exception) {
             return back()->withErrors([
                 'hero_video_file' => $exception->getMessage(),
+            ]);
+        } catch (Throwable $exception) {
+            Log::error('Master hero upload failed.', [
+                'message' => $exception->getMessage(),
+                'trace' => $exception->getTraceAsString(),
+            ]);
+
+            return back()->withErrors([
+                'hero_video_file' => 'Upload hero video gagal di server production. File asli tidak dapat diproses.',
             ]);
         }
 
