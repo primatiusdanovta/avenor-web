@@ -220,13 +220,14 @@ class ProductController extends Controller
         try {
             DB::transaction(function () use ($product, $payload, $validated): void {
                 $previousStock = (int) $product->stock;
+                $stockIncrease = max((int) $validated['stock'] - $previousStock, 0);
+
+                if ($stockIncrease > 0) {
+                    $this->consumeRawMaterialsForProduct($product, $stockIncrease);
+                }
+
                 $product->update($payload);
                 $product->fragranceDetails()->sync($validated['fragrance_details'] ?? []);
-
-                $stockIncrease = max((int) $validated['stock'] - $previousStock, 0);
-                if ($stockIncrease > 0) {
-                    $this->consumeRawMaterialsForProduct($product->fresh(), $stockIncrease);
-                }
             });
         } catch (Throwable $exception) {
             if ($newImagePath) {
@@ -617,4 +618,3 @@ class ProductController extends Controller
         ]);
     }
 }
-

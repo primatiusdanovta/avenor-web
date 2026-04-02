@@ -6,16 +6,35 @@
             <div class="card card-outline card-primary">
                 <div class="card-header"><h3 class="card-title">Tambah Product</h3></div>
                 <div class="card-body">
+                    <div v-if="createErrorMessages.length" class="alert alert-danger">
+                        <div v-for="message in createErrorMessages" :key="`create-error-${message}`">{{ message }}</div>
+                    </div>
                     <form @submit.prevent="submitCreate">
-                        <div class="form-group"><label>Nama Product</label><input v-model="createForm.nama_product" type="text" class="form-control"></div>
+                        <div class="form-group">
+                            <label>Nama Product</label>
+                            <input v-model="createForm.nama_product" type="text" class="form-control" :class="{ 'is-invalid': createForm.errors.nama_product }">
+                            <div v-if="createForm.errors.nama_product" class="invalid-feedback d-block">{{ createForm.errors.nama_product }}</div>
+                        </div>
                         <div class="form-row">
-                            <div class="form-group col-md-6"><label>Harga</label><input v-model="createForm.harga" type="number" min="0" class="form-control"></div>
+                            <div class="form-group col-md-6">
+                                <label>Harga</label>
+                                <input v-model="createForm.harga" type="number" min="0" class="form-control" :class="{ 'is-invalid': createForm.errors.harga }">
+                                <div v-if="createForm.errors.harga" class="invalid-feedback d-block">{{ createForm.errors.harga }}</div>
+                            </div>
                             <div class="form-group col-md-6"><label>Harga Modal</label><input :value="0" type="number" min="0" class="form-control" disabled></div>
                         </div>
                         <small class="text-muted d-block mb-3">Harga modal diisi otomatis dari halaman HPP.</small>
-                        <div class="form-group"><label>Stock Awal</label><input v-model="createForm.stock" type="number" min="0" class="form-control"></div>
+                        <div class="form-group">
+                            <label>Stock Awal</label>
+                            <input v-model="createForm.stock" type="number" min="0" class="form-control" :class="{ 'is-invalid': createForm.errors.stock }">
+                            <div v-if="createForm.errors.stock" class="invalid-feedback d-block">{{ createForm.errors.stock }}</div>
+                        </div>
                         <small class="text-muted d-block mb-3">Buat product baru dengan stock 0 terlebih dahulu. Setelah HPP dibuat, stock ditambah lewat form edit agar raw material ikut terpotong otomatis.</small>
-                        <div class="form-group"><label>Deskripsi</label><textarea v-model="createForm.deskripsi" rows="3" class="form-control"></textarea></div>
+                        <div class="form-group">
+                            <label>Deskripsi</label>
+                            <textarea v-model="createForm.deskripsi" rows="3" class="form-control" :class="{ 'is-invalid': createForm.errors.deskripsi }"></textarea>
+                            <div v-if="createForm.errors.deskripsi" class="invalid-feedback d-block">{{ createForm.errors.deskripsi }}</div>
+                        </div>
                         <div class="form-group">
                             <label>Fragrance Detail</label>
                             <div class="border rounded p-2 bg-light fragrance-box">
@@ -25,8 +44,13 @@
                                 </div>
                             </div>
                             <small class="text-muted">Bisa memilih banyak detail fragrance sekaligus.</small>
+                            <div v-if="createForm.errors.fragrance_details" class="text-danger small mt-1">{{ createForm.errors.fragrance_details }}</div>
                         </div>
-                        <div class="form-group"><label>Gambar</label><input type="file" class="form-control" accept="image/*" @change="setImageFile(createForm, $event)"></div>
+                        <div class="form-group">
+                            <label>Gambar</label>
+                            <input type="file" class="form-control" accept="image/*" :class="{ 'is-invalid': createForm.errors.gambar }" @change="setImageFile(createForm, $event)">
+                            <div v-if="createForm.errors.gambar" class="invalid-feedback d-block">{{ createForm.errors.gambar }}</div>
+                        </div>
                         <button type="submit" class="btn btn-primary" style="margin-top: 10px;" :disabled="createForm.processing">Simpan Product</button>
                     </form>
                 </div>
@@ -35,14 +59,33 @@
             <div class="card card-outline card-warning">
                 <div class="card-header"><h3 class="card-title">Edit Product</h3></div>
                 <div v-if="editForm.id_product" class="card-body">
-                    <div class="form-group"><label>Nama Product</label><input v-model="editForm.nama_product" type="text" class="form-control"></div>
+                    <div v-if="editErrorMessages.length" class="alert alert-danger">
+                        <div v-for="message in editErrorMessages" :key="`edit-error-${message}`">{{ message }}</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Nama Product</label>
+                        <input v-model="editForm.nama_product" type="text" class="form-control" :class="{ 'is-invalid': editForm.errors.nama_product }">
+                        <div v-if="editForm.errors.nama_product" class="invalid-feedback d-block">{{ editForm.errors.nama_product }}</div>
+                    </div>
                     <div class="form-row">
-                        <div class="form-group col-md-6"><label>Harga</label><input v-model="editForm.harga" type="number" min="0" class="form-control"></div>
+                        <div class="form-group col-md-6">
+                            <label>Harga</label>
+                            <input v-model="editForm.harga" type="number" min="0" class="form-control" :class="{ 'is-invalid': editForm.errors.harga }">
+                            <div v-if="editForm.errors.harga" class="invalid-feedback d-block">{{ editForm.errors.harga }}</div>
+                        </div>
                         <div class="form-group col-md-6"><label>Harga Modal</label><input :value="editForm.harga_modal" type="number" min="0" class="form-control" disabled></div>
                     </div>
                     <small class="text-muted d-block mb-3">Ubah harga modal melalui halaman HPP jika komposisi raw material berubah.</small>
-                    <div class="form-group"><label>Stock</label><input v-model="editForm.stock" type="number" min="0" class="form-control"></div>
-                    <div class="form-group"><label>Deskripsi</label><textarea v-model="editForm.deskripsi" rows="3" class="form-control"></textarea></div>
+                    <div class="form-group">
+                        <label>Stock</label>
+                        <input v-model="editForm.stock" type="number" min="0" class="form-control" :class="{ 'is-invalid': editForm.errors.stock }">
+                        <div v-if="editForm.errors.stock" class="invalid-feedback d-block">{{ editForm.errors.stock }}</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Deskripsi</label>
+                        <textarea v-model="editForm.deskripsi" rows="3" class="form-control" :class="{ 'is-invalid': editForm.errors.deskripsi }"></textarea>
+                        <div v-if="editForm.errors.deskripsi" class="invalid-feedback d-block">{{ editForm.errors.deskripsi }}</div>
+                    </div>
                     <div class="form-group">
                         <label>Fragrance Detail</label>
                         <div class="border rounded p-2 bg-light fragrance-box">
@@ -51,6 +94,7 @@
                                 <label class="custom-control-label" :for="`edit-fragrance-${item.id_fd}`">{{ item.detail }}</label>
                             </div>
                         </div>
+                        <div v-if="editForm.errors.fragrance_details" class="text-danger small mt-1">{{ editForm.errors.fragrance_details }}</div>
                     </div>
                     <div v-if="editForm.gambar_lama" class="form-group">
                         <label>Gambar Saat Ini</label>
@@ -59,7 +103,11 @@
                         </div>
                         <small class="text-muted">Upload gambar baru hanya jika ingin mengganti gambar product.</small>
                     </div>
-                    <div class="form-group"><label>Gambar Baru</label><input type="file" class="form-control" accept="image/*" @change="setImageFile(editForm, $event)"></div>
+                    <div class="form-group">
+                        <label>Gambar Baru</label>
+                        <input type="file" class="form-control" accept="image/*" :class="{ 'is-invalid': editForm.errors.gambar }" @change="setImageFile(editForm, $event)">
+                        <div v-if="editForm.errors.gambar" class="invalid-feedback d-block">{{ editForm.errors.gambar }}</div>
+                    </div>
                     <div class="d-flex flex-wrap">
                         <button class="btn btn-warning mr-2 mb-2" @click="submitEdit" :disabled="editForm.processing">Update</button>
                         <button class="btn btn-secondary mb-2" @click="resetEdit">Batal</button>
@@ -132,6 +180,8 @@ const showDeleteModal = ref(false);
 const deleteTarget = ref(null);
 const filteredProducts = computed(() => props.products.filter((item) => item.nama_product.toLowerCase().includes(keyword.value.toLowerCase())));
 const toCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0);
+const createErrorMessages = computed(() => Object.values(createForm.errors || {}));
+const editErrorMessages = computed(() => Object.values(editForm.errors || {}));
 
 const truncateWords = (value, limit = 10) => {
     const words = String(value || '').trim().split(/\s+/).filter(Boolean);
@@ -142,7 +192,11 @@ const setImageFile = (form, event) => {
     form.gambar = event.target.files?.[0] ?? null;
 };
 
-const submitCreate = () => createForm.post('/products', { forceFormData: true, preserveScroll: true, onSuccess: () => createForm.reset() });
+const submitCreate = () => createForm.post('/products', {
+    forceFormData: true,
+    preserveScroll: true,
+    onSuccess: () => createForm.reset(),
+});
 const pickEdit = (item) => Object.assign(editForm, {
     id_product: item.id_product,
     nama_product: item.nama_product,
@@ -202,5 +256,4 @@ const confirmDelete = () => {
     font-weight: 600;
 }
 </style>
-
 

@@ -81,6 +81,19 @@
                         <button type="button" class="btn-close" aria-label="Close" @click="showFlashSuccess = false"></button>
                     </div>
 
+                    <div v-if="flashWarning" class="alert alert-warning" role="alert">
+                        {{ flashWarning }}
+                    </div>
+
+                    <div v-if="flashError" class="alert alert-danger" role="alert">
+                        {{ flashError }}
+                    </div>
+
+                    <div v-if="validationErrors.length" class="alert alert-danger" role="alert">
+                        <div class="fw-semibold mb-1">Mohon periksa kembali input Anda.</div>
+                        <div v-for="message in validationErrors" :key="message">{{ message }}</div>
+                    </div>
+
                     <slot />
                 </div>
             </div>
@@ -103,6 +116,9 @@ const user = computed(() => page.props.auth?.user ?? null);
 const navigation = computed(() => page.props.navigation ?? []);
 const currentUrl = computed(() => page.url ?? '');
 const flashSuccess = computed(() => page.props.flash?.success ?? null);
+const flashWarning = computed(() => page.props.flash?.warning ?? null);
+const flashError = computed(() => page.props.flash?.error ?? null);
+const validationErrors = computed(() => Object.values(page.props.errors ?? {}).filter(Boolean));
 const pageHeading = ref(props.title || 'Dashboard');
 
 const showFlashSuccess = ref(true);
@@ -226,6 +242,8 @@ onBeforeUnmount(() => {
     closeMobileSidebar();
 });
 </script>
+
+
 
 
 

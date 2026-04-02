@@ -6,12 +6,15 @@
             <div class="card card-outline card-primary">
                 <div class="card-header"><h3 class="card-title">Input Raw Material</h3></div>
                 <div class="card-body">
+                    <div v-if="createErrorMessages.length" class="alert alert-danger">
+                        <div v-for="message in createErrorMessages" :key="`create-rm-${message}`">{{ message }}</div>
+                    </div>
                     <form @submit.prevent="submitCreate">
-                        <div class="form-group"><label>Nama</label><input v-model="createForm.nama_rm" type="text" class="form-control" placeholder="Nama raw material"></div>
-                        <div class="form-group"><label>Harga per Pack</label><input v-model="createForm.harga" type="number" min="0" step="0.01" class="form-control" placeholder="0"></div>
-                        <div class="form-group"><label>Quantity per Pack</label><input v-model="createForm.quantity" type="number" min="0.01" step="0.01" class="form-control" placeholder="0"></div>
-                        <div class="form-group"><label>Satuan</label><Select2Input v-model="createForm.satuan" :options="satuanOptions" placeholder="Pilih satuan" /></div>
-                        <div class="form-group"><label>Stock Pack</label><input v-model="createForm.stock" type="number" min="0" step="0.01" class="form-control" placeholder="0"></div>
+                        <div class="form-group"><label>Nama</label><input v-model="createForm.nama_rm" type="text" class="form-control" placeholder="Nama raw material" :class="{ 'is-invalid': createForm.errors.nama_rm }"><div v-if="createForm.errors.nama_rm" class="invalid-feedback d-block">{{ createForm.errors.nama_rm }}</div></div>
+                        <div class="form-group"><label>Harga per Pack</label><input v-model="createForm.harga" type="number" min="0" step="0.01" class="form-control" placeholder="0" :class="{ 'is-invalid': createForm.errors.harga }"><div v-if="createForm.errors.harga" class="invalid-feedback d-block">{{ createForm.errors.harga }}</div></div>
+                        <div class="form-group"><label>Quantity per Pack</label><input v-model="createForm.quantity" type="number" min="0.01" step="0.01" class="form-control" placeholder="0" :class="{ 'is-invalid': createForm.errors.quantity }"><div v-if="createForm.errors.quantity" class="invalid-feedback d-block">{{ createForm.errors.quantity }}</div></div>
+                        <div class="form-group"><label>Satuan</label><Select2Input v-model="createForm.satuan" :options="satuanOptions" placeholder="Pilih satuan" /><div v-if="createForm.errors.satuan" class="text-danger small mt-1">{{ createForm.errors.satuan }}</div></div>
+                        <div class="form-group"><label>Stock Pack</label><input v-model="createForm.stock" type="number" min="0" step="0.01" class="form-control" placeholder="0" :class="{ 'is-invalid': createForm.errors.stock }"><div v-if="createForm.errors.stock" class="invalid-feedback d-block">{{ createForm.errors.stock }}</div></div>
 
                         <div class="alert alert-info mb-0">
                             <div><strong>Harga Total:</strong> {{ toCurrency(createPreview.hargaTotal) }}</div>
@@ -28,8 +31,11 @@
             <div class="card card-outline card-info mt-4">
                 <div class="card-header"><h3 class="card-title">Tambah Stock Raw Material</h3></div>
                 <div class="card-body">
-                    <div class="form-group"><label>Raw Material</label><Select2Input v-model="restockForm.id_rm" :options="materials" value-key="id_rm" label-key="option_label" placeholder="Pilih raw material" /></div>
-                    <div class="form-group"><label>Stock Pack Ditambahkan</label><input v-model="restockForm.stock" type="number" min="0.01" step="0.01" class="form-control" placeholder="0"></div>
+                    <div v-if="restockErrorMessages.length" class="alert alert-danger">
+                        <div v-for="message in restockErrorMessages" :key="`restock-rm-${message}`">{{ message }}</div>
+                    </div>
+                    <div class="form-group"><label>Raw Material</label><Select2Input v-model="restockForm.id_rm" :options="materials" value-key="id_rm" label-key="option_label" placeholder="Pilih raw material" /><div v-if="restockForm.errors.id_rm" class="text-danger small mt-1">{{ restockForm.errors.id_rm }}</div></div>
+                    <div class="form-group"><label>Stock Pack Ditambahkan</label><input v-model="restockForm.stock" type="number" min="0.01" step="0.01" class="form-control" placeholder="0" :class="{ 'is-invalid': restockForm.errors.stock }"><div v-if="restockForm.errors.stock" class="invalid-feedback d-block">{{ restockForm.errors.stock }}</div></div>
                     <div class="alert alert-info mb-0" v-if="selectedRestockMaterial">
                         <div><strong>Nama:</strong> {{ selectedRestockMaterial.nama_rm }}</div>
                         <div><strong>Stock Sekarang:</strong> {{ formatNumber(selectedRestockMaterial.stock) }}</div>
@@ -42,11 +48,14 @@
             <div class="card card-outline card-warning mt-4">
                 <div class="card-header"><h3 class="card-title">Edit Raw Material</h3></div>
                 <div v-if="editForm.id_rm" class="card-body">
-                    <div class="form-group"><label>Nama</label><input v-model="editForm.nama_rm" type="text" class="form-control"></div>
-                    <div class="form-group"><label>Harga per Pack</label><input v-model="editForm.harga" type="number" min="0" step="0.01" class="form-control"></div>
-                    <div class="form-group"><label>Quantity per Pack</label><input v-model="editForm.quantity" type="number" min="0.01" step="0.01" class="form-control"></div>
-                    <div class="form-group"><label>Satuan</label><Select2Input v-model="editForm.satuan" :options="satuanOptions" placeholder="Pilih satuan" /></div>
-                    <div class="form-group"><label>Stock Pack</label><input v-model="editForm.stock" type="number" min="0" step="0.01" class="form-control"></div>
+                    <div v-if="editErrorMessages.length" class="alert alert-danger">
+                        <div v-for="message in editErrorMessages" :key="`edit-rm-${message}`">{{ message }}</div>
+                    </div>
+                    <div class="form-group"><label>Nama</label><input v-model="editForm.nama_rm" type="text" class="form-control" :class="{ 'is-invalid': editForm.errors.nama_rm }"><div v-if="editForm.errors.nama_rm" class="invalid-feedback d-block">{{ editForm.errors.nama_rm }}</div></div>
+                    <div class="form-group"><label>Harga per Pack</label><input v-model="editForm.harga" type="number" min="0" step="0.01" class="form-control" :class="{ 'is-invalid': editForm.errors.harga }"><div v-if="editForm.errors.harga" class="invalid-feedback d-block">{{ editForm.errors.harga }}</div></div>
+                    <div class="form-group"><label>Quantity per Pack</label><input v-model="editForm.quantity" type="number" min="0.01" step="0.01" class="form-control" :class="{ 'is-invalid': editForm.errors.quantity }"><div v-if="editForm.errors.quantity" class="invalid-feedback d-block">{{ editForm.errors.quantity }}</div></div>
+                    <div class="form-group"><label>Satuan</label><Select2Input v-model="editForm.satuan" :options="satuanOptions" placeholder="Pilih satuan" /><div v-if="editForm.errors.satuan" class="text-danger small mt-1">{{ editForm.errors.satuan }}</div></div>
+                    <div class="form-group"><label>Stock Pack</label><input v-model="editForm.stock" type="number" min="0" step="0.01" class="form-control" :class="{ 'is-invalid': editForm.errors.stock }"><div v-if="editForm.errors.stock" class="invalid-feedback d-block">{{ editForm.errors.stock }}</div></div>
 
                     <div class="alert alert-warning mb-0">
                         <div><strong>Harga Total:</strong> {{ toCurrency(editPreview.hargaTotal) }}</div>
@@ -119,6 +128,9 @@ const editForm = useForm({ id_rm: null, nama_rm: '', harga: '', quantity: 1, sat
 const restockForm = useForm({ id_rm: '', stock: 0 });
 const showDeleteModal = ref(false);
 const deleteTarget = ref(null);
+const createErrorMessages = computed(() => Object.values(createForm.errors || {}));
+const editErrorMessages = computed(() => Object.values(editForm.errors || {}));
+const restockErrorMessages = computed(() => Object.values(restockForm.errors || {}));
 
 const previewFor = (form) => computed(() => {
     const harga = Number(form.harga || 0);
@@ -170,7 +182,6 @@ const confirmDelete = () => {
     router.delete(`/raw-materials/${id}`, { preserveScroll: true });
 };
 </script>
-
 
 
 

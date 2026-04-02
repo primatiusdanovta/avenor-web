@@ -6,12 +6,15 @@
             <div class="card card-outline card-primary">
                 <div class="card-header"><h3 class="card-title">Tambah Promo</h3></div>
                 <div class="card-body">
+                    <div v-if="createErrorMessages.length" class="alert alert-danger">
+                        <div v-for="message in createErrorMessages" :key="`create-${message}`">{{ message }}</div>
+                    </div>
                     <form @submit.prevent="submitCreate">
-                        <div class="form-group"><label>Nama Promo</label><input v-model="createForm.nama_promo" type="text" class="form-control"></div>
-                        <div class="form-group"><label>Potongan</label><input v-model="createForm.potongan" type="number" min="0" class="form-control"></div>
-                        <div class="form-group"><label>Masa Aktif</label><input v-model="createForm.masa_aktif" type="date" class="form-control"></div>
-                        <div class="form-group"><label>Minimal Quantity</label><input v-model="createForm.minimal_quantity" type="number" min="1" class="form-control"></div>
-                        <div class="form-group"><label>Minimal Belanja</label><input v-model="createForm.minimal_belanja" type="number" min="0" class="form-control"></div>
+                        <div class="form-group"><label>Nama Promo</label><input v-model="createForm.nama_promo" type="text" class="form-control" :class="{ 'is-invalid': createForm.errors.nama_promo }"><div v-if="createForm.errors.nama_promo" class="invalid-feedback d-block">{{ createForm.errors.nama_promo }}</div></div>
+                        <div class="form-group"><label>Potongan</label><input v-model="createForm.potongan" type="number" min="0" class="form-control" :class="{ 'is-invalid': createForm.errors.potongan }"><div v-if="createForm.errors.potongan" class="invalid-feedback d-block">{{ createForm.errors.potongan }}</div></div>
+                        <div class="form-group"><label>Masa Aktif</label><input v-model="createForm.masa_aktif" type="date" class="form-control" :class="{ 'is-invalid': createForm.errors.masa_aktif }"><div v-if="createForm.errors.masa_aktif" class="invalid-feedback d-block">{{ createForm.errors.masa_aktif }}</div></div>
+                        <div class="form-group"><label>Minimal Quantity</label><input v-model="createForm.minimal_quantity" type="number" min="1" class="form-control" :class="{ 'is-invalid': createForm.errors.minimal_quantity }"><div v-if="createForm.errors.minimal_quantity" class="invalid-feedback d-block">{{ createForm.errors.minimal_quantity }}</div></div>
+                        <div class="form-group"><label>Minimal Belanja</label><input v-model="createForm.minimal_belanja" type="number" min="0" class="form-control" :class="{ 'is-invalid': createForm.errors.minimal_belanja }"><div v-if="createForm.errors.minimal_belanja" class="invalid-feedback d-block">{{ createForm.errors.minimal_belanja }}</div></div>
                         <button class="btn btn-primary" style="margin-top: 10px;" :disabled="createForm.processing">Simpan Promo</button>
                     </form>
                 </div>
@@ -20,11 +23,14 @@
             <div class="card card-outline card-warning">
                 <div class="card-header"><h3 class="card-title">Edit Promo</h3></div>
                 <div v-if="editForm.id" class="card-body">
-                    <div class="form-group"><label>Nama Promo</label><input v-model="editForm.nama_promo" type="text" class="form-control"></div>
-                    <div class="form-group"><label>Potongan</label><input v-model="editForm.potongan" type="number" min="0" class="form-control"></div>
-                    <div class="form-group"><label>Masa Aktif</label><input v-model="editForm.masa_aktif" type="date" class="form-control"></div>
-                    <div class="form-group"><label>Minimal Quantity</label><input v-model="editForm.minimal_quantity" type="number" min="1" class="form-control"></div>
-                    <div class="form-group"><label>Minimal Belanja</label><input v-model="editForm.minimal_belanja" type="number" min="0" class="form-control"></div>
+                    <div v-if="editErrorMessages.length" class="alert alert-danger">
+                        <div v-for="message in editErrorMessages" :key="`edit-${message}`">{{ message }}</div>
+                    </div>
+                    <div class="form-group"><label>Nama Promo</label><input v-model="editForm.nama_promo" type="text" class="form-control" :class="{ 'is-invalid': editForm.errors.nama_promo }"><div v-if="editForm.errors.nama_promo" class="invalid-feedback d-block">{{ editForm.errors.nama_promo }}</div></div>
+                    <div class="form-group"><label>Potongan</label><input v-model="editForm.potongan" type="number" min="0" class="form-control" :class="{ 'is-invalid': editForm.errors.potongan }"><div v-if="editForm.errors.potongan" class="invalid-feedback d-block">{{ editForm.errors.potongan }}</div></div>
+                    <div class="form-group"><label>Masa Aktif</label><input v-model="editForm.masa_aktif" type="date" class="form-control" :class="{ 'is-invalid': editForm.errors.masa_aktif }"><div v-if="editForm.errors.masa_aktif" class="invalid-feedback d-block">{{ editForm.errors.masa_aktif }}</div></div>
+                    <div class="form-group"><label>Minimal Quantity</label><input v-model="editForm.minimal_quantity" type="number" min="1" class="form-control" :class="{ 'is-invalid': editForm.errors.minimal_quantity }"><div v-if="editForm.errors.minimal_quantity" class="invalid-feedback d-block">{{ editForm.errors.minimal_quantity }}</div></div>
+                    <div class="form-group"><label>Minimal Belanja</label><input v-model="editForm.minimal_belanja" type="number" min="0" class="form-control" :class="{ 'is-invalid': editForm.errors.minimal_belanja }"><div v-if="editForm.errors.minimal_belanja" class="invalid-feedback d-block">{{ editForm.errors.minimal_belanja }}</div></div>
                     <button class="btn btn-warning mr-2" @click="submitEdit">Update</button>
                     <button class="btn btn-secondary" @click="editForm.reset()">Batal</button>
                 </div>
@@ -69,7 +75,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import BootstrapModal from '../../Components/BootstrapModal.vue';
@@ -81,6 +87,8 @@ const createForm = useForm({ nama_promo: '', potongan: '', masa_aktif: '', minim
 const editForm = useForm({ id: null, nama_promo: '', potongan: '', masa_aktif: '', minimal_quantity: 1, minimal_belanja: 0 });
 const showDeleteModal = ref(false);
 const deleteTarget = ref(null);
+const createErrorMessages = computed(() => Object.values(createForm.errors || {}));
+const editErrorMessages = computed(() => Object.values(editForm.errors || {}));
 const toCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0);
 const submitCreate = () => createForm.post('/promos', { preserveScroll: true, onSuccess: () => createForm.reset() });
 const pickEdit = (item) => Object.assign(editForm, item);
@@ -100,8 +108,6 @@ const confirmDelete = () => {
     router.delete(`/promos/${id}`, { preserveScroll: true });
 };
 </script>
-
-
 
 
 

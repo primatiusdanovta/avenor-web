@@ -946,23 +946,6 @@ class _MarketingRootState extends State<MarketingRoot> {
     return customer is Map<String, dynamic> ? customer : null;
   }
 
-  Future<void> _toggleMockMode(bool value) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('marketing_mock_mode', value);
-    setState(() => _mockMode = value);
-    if (value) {
-      await prefs.setString('marketing_token', 'mock-token');
-      _token = 'mock-token';
-      _hydrateMockData();
-      setState(() {});
-      return;
-    }
-    await _clearSession();
-    if (mounted) {
-      setState(() => _loading = false);
-    }
-  }
-
   Future<void> _logout() async {
     try {
       if (!_mockMode) {
@@ -1020,10 +1003,8 @@ class _MarketingRootState extends State<MarketingRoot> {
         usernameController: _usernameController,
         passwordController: _passwordController,
         loggingIn: _loggingIn,
-        mockMode: _mockMode,
         error: _error,
         onLogin: _login,
-        onToggleMockMode: _toggleMockMode,
       );
     }
 
@@ -1260,19 +1241,15 @@ class _LoginPage extends StatelessWidget {
     required this.usernameController,
     required this.passwordController,
     required this.loggingIn,
-    required this.mockMode,
     required this.error,
     required this.onLogin,
-    required this.onToggleMockMode,
   });
 
   final TextEditingController usernameController;
   final TextEditingController passwordController;
   final bool loggingIn;
-  final bool mockMode;
   final String? error;
   final Future<void> Function() onLogin;
-  final ValueChanged<bool> onToggleMockMode;
 
   @override
   Widget build(BuildContext context) {
@@ -1288,92 +1265,99 @@ class _LoginPage extends StatelessWidget {
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 440),
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(28),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          width: 84,
-                          height: 84,
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(24),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x140F0A05),
-                                blurRadius: 18,
-                                offset: Offset(0, 8),
+                child: Column(
+                  children: [
+                    Container(
+                      width: 112,
+                      height: 112,
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(32),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x1F0F0A05),
+                            blurRadius: 28,
+                            offset: Offset(0, 14),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(22),
+                        child: Image.asset(
+                          kAvenorBlackLogoAsset,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(28, 32, 28, 28),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Avenor Sales App',
+                              style: Theme.of(context).textTheme.headlineMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 24),
+                            TextField(
+                              controller: usernameController,
+                              decoration: const InputDecoration(
+                                labelText: 'Username marketing',
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: passwordController,
+                              obscureText: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Password',
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: const Color(0xFF2B2117),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 16,
+                                  ),
+                                ),
+                                onPressed: loggingIn ? null : onLogin,
+                                child: loggingIn
+                                    ? const SizedBox(
+                                        height: 18,
+                                        width: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text('Masuk'),
+                              ),
+                            ),
+                            if (error != null) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                error!,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
                               ),
                             ],
-                          ),
-                          child: Image.asset(kAvenorBlackLogoAsset,
-                              fit: BoxFit.contain),
+                          ],
                         ),
-                        const SizedBox(height: 18),
-                        Text('Avenor Marketing App',
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineMedium
-                                ?.copyWith(fontWeight: FontWeight.w700)),
-                        const SizedBox(height: 10),
-                        const Text(
-                            'Versi native untuk aktivitas lapangan: absensi, inventory harian, sales offline, dan product knowledge.'),
-                        const SizedBox(height: 22),
-                        SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          value: mockMode,
-                          onChanged: onToggleMockMode,
-                          title: const Text('Mode demo / mock data'),
-                          subtitle: const Text(
-                              'Aktifkan untuk cek flow UI tanpa backend lokal.'),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: usernameController,
-                          decoration: const InputDecoration(
-                              labelText: 'Username marketing'),
-                        ),
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: passwordController,
-                          obscureText: true,
-                          decoration:
-                              const InputDecoration(labelText: 'Password'),
-                        ),
-                        const SizedBox(height: 18),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton(
-                            style: FilledButton.styleFrom(
-                              backgroundColor: const Color(0xFF2B2117),
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                            ),
-                            onPressed: loggingIn ? null : onLogin,
-                            child: loggingIn
-                                ? const SizedBox(
-                                    height: 18,
-                                    width: 18,
-                                    child: CircularProgressIndicator(
-                                        strokeWidth: 2, color: Colors.white))
-                                : Text(mockMode ? 'Masuk ke demo' : 'Masuk'),
-                          ),
-                        ),
-                        if (error != null) ...[
-                          const SizedBox(height: 12),
-                          Text(error!,
-                              style: TextStyle(
-                                  color: Theme.of(context).colorScheme.error)),
-                        ],
-                      ],
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
@@ -5434,10 +5418,6 @@ class _SaleItemDraft {
     );
   }
 }
-
-
-
-
 
 
 
