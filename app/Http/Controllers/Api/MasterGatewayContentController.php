@@ -13,7 +13,7 @@ class MasterGatewayContentController extends Controller
     public function __invoke(): JsonResponse
     {
         $products = Product::query()
-            ->with('fragranceDetails')
+            ->with(['fragranceDetails', 'images'])
             ->orderBy('nama_product')
             ->get()
             ->map(fn (Product $product) => [
@@ -50,4 +50,3 @@ class MasterGatewayContentController extends Controller
         ]);
     }
 }
-

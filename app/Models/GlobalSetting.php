@@ -61,11 +61,18 @@ class GlobalSetting extends Model
     {
         $merged = array_replace_recursive(static::defaultMasterSocialHub(), $value);
         $heroVideoPath = (string) ($merged['hero_video_path'] ?? '');
+        $salesAppApkPath = (string) ($merged['sales_app_apk_path'] ?? '');
 
         $merged['hero_video_url'] = $heroVideoPath !== ''
             ? route('global-settings.master-hero-video', ['v' => md5($heroVideoPath)])
             : null;
         $merged['hero_video_name'] = $heroVideoPath !== '' ? basename($heroVideoPath) : null;
+        $merged['sales_app_apk_url'] = $salesAppApkPath !== ''
+            ? route('global-settings.sales-app-apk', ['v' => md5($salesAppApkPath)])
+            : null;
+        $merged['sales_app_apk_name'] = $salesAppApkPath !== ''
+            ? ((string) ($merged['sales_app_apk_original_name'] ?? basename($salesAppApkPath)))
+            : null;
 
         return $merged;
     }
@@ -75,6 +82,16 @@ class GlobalSetting extends Model
         return [
             'master_page' => [
                 'hero' => static::defaultMasterHero(),
+                'navigation' => [
+                    'items' => [
+                        ['label' => 'Home', 'href' => '#top', 'side' => 'left'],
+                        ['label' => 'Social Hub', 'href' => '#social-hub', 'side' => 'left'],
+                        ['label' => 'The Collection', 'href' => '#collection', 'side' => 'left'],
+                        ['label' => 'Discovery', 'href' => '#discovery', 'side' => 'right'],
+                        ['label' => 'Contact', 'href' => '#main-footer', 'side' => 'right'],
+                        ['label' => 'Carrers', 'href' => '/carrers', 'side' => 'right'],
+                    ],
+                ],
                 'social_hub_section' => [
                     'eyebrow' => 'Social Hub',
                     'title' => 'Follow the brand atmosphere across channels',
@@ -126,6 +143,73 @@ class GlobalSetting extends Model
                 'system_messages' => [
                     'loading' => 'Curating the gateway...',
                     'error' => 'The master gateway could not be loaded right now.',
+                ],
+            ],
+            'careers_page' => [
+                'hero' => [
+                    'eyebrow' => 'Carrers',
+                    'title' => 'Build the next chapter of Avenor with us.',
+                    'description' => 'We are looking for thoughtful builders, operators, and storytellers who care about craft, customer experience, and brand detail.',
+                ],
+                'section' => [
+                    'kicker' => 'Open Roles',
+                    'title' => 'Find a role that matches your strengths',
+                    'description' => 'Each role card can open the same apply modal with a form that you control from the backend.',
+                ],
+                'cards' => [
+                    [
+                        'title' => 'Brand & Content Executive',
+                        'description' => 'Own content planning, campaign execution, and day-to-day storytelling for fragrance launches.',
+                        'button_label' => 'Apply',
+                    ],
+                    [
+                        'title' => 'Retail Operations Lead',
+                        'description' => 'Help us improve booth readiness, stock discipline, and customer experience on the ground.',
+                        'button_label' => 'Apply',
+                    ],
+                ],
+                'form' => [
+                    'title' => 'Apply for {job_title}',
+                    'description' => 'Complete the form below and upload supporting files if needed.',
+                    'submit_label' => 'Send Application',
+                    'success_message' => 'Lamaran berhasil dikirim.',
+                ],
+                'form_fields' => [
+                    [
+                        'key' => 'full_name',
+                        'label' => 'Full Name',
+                        'type' => 'text',
+                        'required' => true,
+                        'placeholder' => 'Your full name',
+                    ],
+                    [
+                        'key' => 'email',
+                        'label' => 'Email',
+                        'type' => 'email',
+                        'required' => true,
+                        'placeholder' => 'name@example.com',
+                    ],
+                    [
+                        'key' => 'phone',
+                        'label' => 'Phone Number',
+                        'type' => 'tel',
+                        'required' => true,
+                        'placeholder' => '08xxxxxxxxxx',
+                    ],
+                    [
+                        'key' => 'cover_letter',
+                        'label' => 'Why do you want to join Avenor?',
+                        'type' => 'textarea',
+                        'required' => true,
+                        'placeholder' => 'Tell us briefly about yourself and why this role fits you.',
+                    ],
+                    [
+                        'key' => 'cv_file',
+                        'label' => 'CV / Resume',
+                        'type' => 'file',
+                        'required' => true,
+                        'accept' => '.pdf,.doc,.docx',
+                    ],
                 ],
             ],
             'product_page' => [
@@ -313,6 +397,9 @@ class GlobalSetting extends Model
             'tiktok_shop_url' => '',
             'hero_video_path' => '',
             'hero_video_mime' => '',
+            'sales_app_apk_path' => '',
+            'sales_app_apk_mime' => '',
+            'sales_app_apk_original_name' => '',
             'cards' => [
                 'tiktok' => [
                     'eyebrow' => 'TikTok',

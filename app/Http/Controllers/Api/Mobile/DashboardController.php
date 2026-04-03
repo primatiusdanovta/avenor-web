@@ -39,13 +39,17 @@ class DashboardController extends Controller
             ])
             ->values();
 
-        $activeOnhands = ProductOnhand::query()
+        $onhands = ProductOnhand::query()
             ->with('user')
             ->where('user_id', $user->id_user)
             ->whereDate('assignment_date', now()->toDateString())
             ->orderByDesc('id_product_onhand')
             ->get()
             ->map(fn (ProductOnhand $onhand) => MarketingMobileSupport::transformOnhand($onhand))
+            ->values();
+
+        $activeOnhands = $onhands
+            ->filter(fn (array $onhand) => MarketingMobileSupport::countsAsActiveOnhand($onhand))
             ->values();
 
         return response()->json([
@@ -59,9 +63,9 @@ class DashboardController extends Controller
             'marketing_kpi' => $marketingKpi,
             'target_summary' => $targetSummary,
             'stats' => [
-                'onhand_count' => $activeOnhands->count(),
-                'pending_return_count' => $activeOnhands->where('return_status', 'pending')->count(),
-                'pending_take_count' => $activeOnhands->where('take_status', 'pending')->count(),
+                'onhand_count' => (int) $activeOnhands->sum(fn (array $onhand) => (int) ($onhand['remaining_quantity'] ?? 0)),
+                'pending_return_count' => $onhands->where('return_status', 'pending')->count(),
+                'pending_take_count' => $onhands->where('take_status', 'pending')->count(),
                 'approved_sales_count' => OfflineSale::query()
                     ->where('id_user', $user->id_user)
                     ->where('approval_status', 'disetujui')

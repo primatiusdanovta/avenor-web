@@ -13,7 +13,7 @@ class ProductLandingData
     public static function findActiveProductBySlug(string $slug): ?Product
     {
         return Product::query()
-            ->with('fragranceDetails')
+            ->with(['fragranceDetails', 'images'])
             ->get()
             ->first(fn (Product $product) => $product->landing_slug === $slug);
     }
@@ -33,7 +33,8 @@ class ProductLandingData
         $education = static::normalizeEducationContent($product, $productPage);
         $faqItems = static::normalizeFaqData($product);
         $seo = static::buildSeo($product, $productPage);
-        $bottle = static::resolveBottleConfig($productPage);
+        $bottle = static::resolveBottleConfig($productPage, $product);
+        [$storySection, $noteSections] = static::resolveNarrativeSections($product, $productPage, $theme, $bottle);
 
         return [
             'product' => [
@@ -44,6 +45,8 @@ class ProductLandingData
                 'stock' => (int) $product->stock,
                 'description' => $product->deskripsi,
                 'image_url' => $product->public_image_url,
+                'images' => $product->gallery_image_urls,
+                'bottle_image_url' => $product->public_bottle_image_url,
                 'whatsapp_url' => static::whatsAppUrl($product, $socialHub),
                 'theme_key' => $product->landing_theme_key ?: data_get($productPage, 'default_theme_key'),
                 'seo_fallback_key' => $product->landing_seo_fallback_key ?: data_get($productPage, 'default_seo_fallback_key'),
@@ -71,39 +74,8 @@ class ProductLandingData
                     'bottle' => $bottle,
                 ],
             ],
-            'story' => [
-                'is_active' => true,
-                'title' => static::applyTemplate((string) data_get($productPage, 'story.title_template'), $product),
-                'description' => data_get($productPage, 'story.description'),
-                'meta_data' => [
-                    'kicker' => data_get($productPage, 'story.kicker'),
-                    'bottle_fallback_name' => data_get($productPage, 'story.bottle_fallback_name'),
-                    'bottle' => $bottle,
-                ],
-            ],
-            'notes' => [
-                [
-                    'section_name' => 'top_notes',
-                    'title' => data_get($productPage, 'notes.top_title'),
-                    'description' => $product->top_notes_text ?: static::fallbackNoteText($product, 'top', $productPage),
-                    'is_active' => true,
-                    'meta_data' => ['accent' => data_get($theme, 'accent')],
-                ],
-                [
-                    'section_name' => 'heart_notes',
-                    'title' => data_get($productPage, 'notes.middle_title'),
-                    'description' => $product->heart_notes_text ?: static::fallbackNoteText($product, 'middle', $productPage),
-                    'is_active' => true,
-                    'meta_data' => ['accent' => data_get($theme, 'accentSoft')],
-                ],
-                [
-                    'section_name' => 'base_notes',
-                    'title' => data_get($productPage, 'notes.base_title'),
-                    'description' => $product->base_notes_text ?: static::fallbackNoteText($product, 'base', $productPage),
-                    'is_active' => true,
-                    'meta_data' => ['accent' => data_get($theme, 'accentDeep')],
-                ],
-            ],
+            'story' => $storySection,
+            'notes' => $noteSections,
             'ingredients_intro' => [
                 'is_active' => true,
                 'title' => data_get($productPage, 'ingredients.title'),
@@ -190,11 +162,24 @@ class ProductLandingData
         return [
             'title' => $title,
             'description' => Str::limit($description, 160, ''),
+            'meta_keywords' => static::buildProductKeywords($product),
             'canonical_url' => $canonicalUrl,
             'robots' => data_get($seoPreset, 'robots'),
+            'author' => 'Avenor Perfume',
             'og_title' => $ogTitle,
             'og_description' => Str::limit($ogDescription, 200, ''),
             'og_image' => $image,
+            'og_image_alt' => $product->nama_product,
+            'twitter_site' => '@avenorperfume',
+            'twitter_creator' => '@avenorperfume',
+            'product' => [
+                'brand' => 'Avenor Perfume',
+                'availability' => $product->stock > 0 ? 'in stock' : 'preorder',
+                'price' => [
+                    'amount' => number_format((float) $product->harga, 0, '.', ''),
+                    'currency' => 'IDR',
+                ],
+            ],
         ];
     }
 
@@ -251,9 +236,10 @@ class ProductLandingData
             ->all();
     }
 
-    private static function resolveBottleConfig(array $productPage): array
+    private static function resolveBottleConfig(array $productPage, Product $product): array
     {
         return [
+            'image_url' => $product->public_bottle_image_url,
             'use_product_image_when_available' => (bool) data_get($productPage, 'story.bottle.use_product_image_when_available', true),
             'floating_mobile' => (bool) data_get($productPage, 'story.bottle.floating_mobile', true),
             'tilt_desktop' => (bool) data_get($productPage, 'story.bottle.tilt_desktop', true),
@@ -385,8 +371,98 @@ class ProductLandingData
         return str_replace('{product_name}', $product->nama_product, $template);
     }
 
+    private static function buildProductKeywords(Product $product): string
+    {
+        $keywords = collect([
+            $product->nama_product,
+            'Avenor Perfume',
+            'parfum premium',
+            'luxury fragrance',
+            ...$product->fragranceDetails->pluck('detail')->all(),
+            ...static::scentTags($product, 5),
+        ])
+            ->map(fn ($item) => trim((string) $item))
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $keywords->implode(', ');
+    }
+
     private static function normalizePresetKey(?string $value): string
     {
         return Str::of((string) $value)->trim()->lower()->replace(' ', '_')->value();
+    }
+
+    private static function resolveNarrativeSections(Product $product, array $productPage, array $theme, array $bottle): array
+    {
+        $narrative = $product->narrative_scroll ?? [];
+        $stages = collect(data_get($narrative, 'stages', []))
+            ->map(function ($item, $index) use ($theme) {
+                $accents = [
+                    data_get($theme, 'accent'),
+                    data_get($theme, 'accentSoft'),
+                    data_get($theme, 'accentDeep'),
+                ];
+
+                return [
+                    'section_name' => trim((string) data_get($item, 'section_name', 'stage_' . ($index + 1))),
+                    'title' => trim((string) data_get($item, 'title', '')),
+                    'description' => trim((string) data_get($item, 'description', '')),
+                    'is_active' => data_get($item, 'is_active', true) !== false,
+                    'meta_data' => [
+                        'accent' => data_get($item, 'accent', $accents[$index % count($accents)]),
+                    ],
+                ];
+            })
+            ->filter(fn (array $item) => filled($item['title']) && filled($item['description']))
+            ->values()
+            ->all();
+
+        if ($stages !== []) {
+            return [[
+                'is_active' => true,
+                'title' => trim((string) data_get($narrative, 'title', static::applyTemplate((string) data_get($productPage, 'story.title_template'), $product))),
+                'description' => trim((string) data_get($narrative, 'description', data_get($productPage, 'story.description'))),
+                'meta_data' => [
+                    'kicker' => trim((string) data_get($narrative, 'kicker', data_get($productPage, 'story.kicker'))),
+                    'bottle_fallback_name' => data_get($productPage, 'story.bottle_fallback_name'),
+                    'bottle' => $bottle,
+                ],
+            ], $stages];
+        }
+
+        return [[
+            'is_active' => true,
+            'title' => static::applyTemplate((string) data_get($productPage, 'story.title_template'), $product),
+            'description' => data_get($productPage, 'story.description'),
+            'meta_data' => [
+                'kicker' => data_get($productPage, 'story.kicker'),
+                'bottle_fallback_name' => data_get($productPage, 'story.bottle_fallback_name'),
+                'bottle' => $bottle,
+            ],
+        ], [
+            [
+                'section_name' => 'top_notes',
+                'title' => data_get($productPage, 'notes.top_title'),
+                'description' => $product->top_notes_text ?: static::fallbackNoteText($product, 'top', $productPage),
+                'is_active' => true,
+                'meta_data' => ['accent' => data_get($theme, 'accent')],
+            ],
+            [
+                'section_name' => 'heart_notes',
+                'title' => data_get($productPage, 'notes.middle_title'),
+                'description' => $product->heart_notes_text ?: static::fallbackNoteText($product, 'middle', $productPage),
+                'is_active' => true,
+                'meta_data' => ['accent' => data_get($theme, 'accentSoft')],
+            ],
+            [
+                'section_name' => 'base_notes',
+                'title' => data_get($productPage, 'notes.base_title'),
+                'description' => $product->base_notes_text ?: static::fallbackNoteText($product, 'base', $productPage),
+                'is_active' => true,
+                'meta_data' => ['accent' => data_get($theme, 'accentDeep')],
+            ],
+        ]];
     }
 }

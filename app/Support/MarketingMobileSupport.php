@@ -193,6 +193,13 @@ class MarketingMobileSupport
         ];
     }
 
+    public static function countsAsActiveOnhand(array $onhand): bool
+    {
+        return ($onhand['take_status'] ?? null) === 'disetujui'
+            && ! ($onhand['sold_out'] ?? false)
+            && (int) ($onhand['remaining_quantity'] ?? 0) > 0;
+    }
+
     public static function stateForOnhand(ProductOnhand $onhand): array
     {
         if ($onhand->take_status !== 'disetujui') {

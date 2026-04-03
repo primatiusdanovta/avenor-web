@@ -35,6 +35,12 @@ class GlobalSettingController extends Controller
             'master_page.hero.eyebrow' => ['nullable', 'string', 'max:100'],
             'master_page.hero.title' => ['nullable', 'string', 'max:255'],
             'master_page.hero.description' => ['nullable', 'string', 'max:2000'],
+            'master_page.navigation' => ['nullable', 'array'],
+            'master_page.navigation.items' => ['nullable', 'array'],
+            'master_page.navigation.items.*' => ['nullable', 'array'],
+            'master_page.navigation.items.*.label' => ['nullable', 'string', 'max:100'],
+            'master_page.navigation.items.*.href' => ['nullable', 'string', 'max:255'],
+            'master_page.navigation.items.*.side' => ['nullable', 'string', 'in:left,right'],
             'master_page.social_hub_section' => ['nullable', 'array'],
             'master_page.social_hub_section.eyebrow' => ['nullable', 'string', 'max:100'],
             'master_page.social_hub_section.title' => ['nullable', 'string', 'max:255'],
@@ -71,6 +77,37 @@ class GlobalSettingController extends Controller
             'master_page.system_messages' => ['nullable', 'array'],
             'master_page.system_messages.loading' => ['nullable', 'string', 'max:255'],
             'master_page.system_messages.error' => ['nullable', 'string', 'max:255'],
+
+            'careers_page' => ['nullable', 'array'],
+            'careers_page.hero' => ['nullable', 'array'],
+            'careers_page.hero.eyebrow' => ['nullable', 'string', 'max:100'],
+            'careers_page.hero.title' => ['nullable', 'string', 'max:255'],
+            'careers_page.hero.description' => ['nullable', 'string', 'max:2000'],
+            'careers_page.section' => ['nullable', 'array'],
+            'careers_page.section.kicker' => ['nullable', 'string', 'max:100'],
+            'careers_page.section.title' => ['nullable', 'string', 'max:255'],
+            'careers_page.section.description' => ['nullable', 'string', 'max:2000'],
+            'careers_page.cards' => ['nullable', 'array'],
+            'careers_page.cards.*' => ['nullable', 'array'],
+            'careers_page.cards.*.title' => ['nullable', 'string', 'max:255'],
+            'careers_page.cards.*.description' => ['nullable', 'string', 'max:3000'],
+            'careers_page.cards.*.button_label' => ['nullable', 'string', 'max:100'],
+            'careers_page.form' => ['nullable', 'array'],
+            'careers_page.form.title' => ['nullable', 'string', 'max:255'],
+            'careers_page.form.description' => ['nullable', 'string', 'max:1000'],
+            'careers_page.form.submit_label' => ['nullable', 'string', 'max:100'],
+            'careers_page.form.success_message' => ['nullable', 'string', 'max:255'],
+            'careers_page.form_fields' => ['nullable', 'array'],
+            'careers_page.form_fields.*' => ['nullable', 'array'],
+            'careers_page.form_fields.*.key' => ['nullable', 'string', 'max:100'],
+            'careers_page.form_fields.*.label' => ['nullable', 'string', 'max:255'],
+            'careers_page.form_fields.*.type' => ['nullable', 'string', 'in:text,email,tel,textarea,file,select'],
+            'careers_page.form_fields.*.required' => ['nullable', 'boolean'],
+            'careers_page.form_fields.*.placeholder' => ['nullable', 'string', 'max:255'],
+            'careers_page.form_fields.*.helper' => ['nullable', 'string', 'max:500'],
+            'careers_page.form_fields.*.accept' => ['nullable', 'string', 'max:255'],
+            'careers_page.form_fields.*.options' => ['nullable', 'array'],
+            'careers_page.form_fields.*.options.*' => ['nullable', 'string', 'max:255'],
 
             'product_page' => ['nullable', 'array'],
             'product_page.default_theme_key' => ['nullable', 'string', 'max:100'],
@@ -245,15 +282,19 @@ class GlobalSettingController extends Controller
             'cards.whatsapp.description' => ['nullable', 'string', 'max:1000'],
             'hero_video_file' => ['nullable', 'file', 'mimetypes:video/mp4,video/webm,video/quicktime', 'max:65536'],
             'remove_hero_video' => ['nullable', 'boolean'],
+            'sales_app_apk_file' => ['nullable', 'file', 'mimes:apk', 'max:262144'],
+            'remove_sales_app_apk' => ['nullable', 'boolean'],
         ]);
 
         GlobalSetting::ensureDefaults();
         $current = GlobalSetting::getValue('master_social_hub');
         $payload = array_replace_recursive(GlobalSetting::defaultMasterSocialHub(), $validated);
         $existingHeroVideoPath = (string) data_get($current, 'hero_video_path', '');
+        $existingSalesAppApkPath = (string) data_get($current, 'sales_app_apk_path', '');
         $shouldRemoveHeroVideo = (bool) ($validated['remove_hero_video'] ?? false);
+        $shouldRemoveSalesAppApk = (bool) ($validated['remove_sales_app_apk'] ?? false);
 
-        unset($payload['hero_video_file'], $payload['remove_hero_video']);
+        unset($payload['hero_video_file'], $payload['remove_hero_video'], $payload['sales_app_apk_file'], $payload['remove_sales_app_apk']);
 
         if ($shouldRemoveHeroVideo) {
             $payload['hero_video_path'] = '';
@@ -261,6 +302,16 @@ class GlobalSettingController extends Controller
         } else {
             $payload['hero_video_path'] = $existingHeroVideoPath;
             $payload['hero_video_mime'] = (string) data_get($current, 'hero_video_mime', '');
+        }
+
+        if ($shouldRemoveSalesAppApk) {
+            $payload['sales_app_apk_path'] = '';
+            $payload['sales_app_apk_mime'] = '';
+            $payload['sales_app_apk_original_name'] = '';
+        } else {
+            $payload['sales_app_apk_path'] = $existingSalesAppApkPath;
+            $payload['sales_app_apk_mime'] = (string) data_get($current, 'sales_app_apk_mime', '');
+            $payload['sales_app_apk_original_name'] = (string) data_get($current, 'sales_app_apk_original_name', '');
         }
 
         try {
@@ -284,6 +335,13 @@ class GlobalSettingController extends Controller
             ]);
         }
 
+        if ($request->hasFile('sales_app_apk_file')) {
+            $storedApk = $request->file('sales_app_apk_file');
+            $payload['sales_app_apk_path'] = $storedApk->store('sales-app', 'public');
+            $payload['sales_app_apk_mime'] = $storedApk->getClientMimeType() ?: 'application/vnd.android.package-archive';
+            $payload['sales_app_apk_original_name'] = $storedApk->getClientOriginalName();
+        }
+
         GlobalSetting::query()->updateOrCreate(
             ['key' => 'master_social_hub'],
             ['value' => $payload]
@@ -291,6 +349,10 @@ class GlobalSettingController extends Controller
 
         if (($shouldRemoveHeroVideo || $request->hasFile('hero_video_file')) && $existingHeroVideoPath !== '') {
             Storage::disk('public')->delete($existingHeroVideoPath);
+        }
+
+        if (($shouldRemoveSalesAppApk || $request->hasFile('sales_app_apk_file')) && $existingSalesAppApkPath !== '') {
+            Storage::disk('public')->delete($existingSalesAppApkPath);
         }
 
         return redirect()->route('global-settings.index')->with('success', 'Global settings berhasil diperbarui.');
@@ -305,5 +367,20 @@ class GlobalSettingController extends Controller
         abort_unless(Storage::disk('public')->exists($path), 404);
 
         return Storage::disk('public')->response($path);
+    }
+
+    public function showSalesAppApk(): StreamedResponse
+    {
+        $settings = GlobalSetting::getValue('master_social_hub');
+        $path = (string) data_get($settings, 'sales_app_apk_path', '');
+        $downloadName = (string) data_get($settings, 'sales_app_apk_original_name', 'avenor-sales-app.apk');
+        $mime = (string) data_get($settings, 'sales_app_apk_mime', 'application/vnd.android.package-archive');
+
+        abort_if($path === '', 404);
+        abort_unless(Storage::disk('public')->exists($path), 404);
+
+        return Storage::disk('public')->download($path, $downloadName, [
+            'Content-Type' => $mime !== '' ? $mime : 'application/vnd.android.package-archive',
+        ]);
     }
 }

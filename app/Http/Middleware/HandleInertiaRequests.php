@@ -58,6 +58,8 @@ class HandleInertiaRequests extends Middleware
                     ['label' => 'Marketing', 'href' => route('marketing.index'), 'icon' => 'far fa-circle nav-icon'],
                     ['label' => 'Customers', 'href' => route('customers.index'), 'icon' => 'far fa-circle nav-icon'],
                     ['label' => 'Content Creator', 'href' => route('content-creators.index'), 'icon' => 'far fa-circle nav-icon'],
+                    $user?->role === 'superadmin' ? ['label' => 'Applicant', 'href' => route('applicants.index'), 'icon' => 'far fa-circle nav-icon'] : null,
+                    $user?->role === 'superadmin' ? ['label' => 'Article', 'href' => route('articles.manage'), 'icon' => 'far fa-circle nav-icon'] : null,
                 ])),
             ];
             if ($user?->role === 'superadmin') {
@@ -128,3 +130,8 @@ class HandleInertiaRequests extends Middleware
         ];
     }
 }
+
+
+
+
+

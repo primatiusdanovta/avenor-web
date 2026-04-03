@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\GlobalSetting;
 use App\Models\Product;
 use App\Support\ProductLandingData;
+use App\Support\SeoSchemaBuilder;
 use Illuminate\Contracts\View\View;
 
 class MasterGatewayController extends Controller
@@ -12,7 +13,7 @@ class MasterGatewayController extends Controller
     public function __invoke(): View
     {
         $products = Product::query()
-            ->with('fragranceDetails')
+            ->with(['fragranceDetails', 'images'])
             ->orderBy('nama_product')
             ->get()
             ->map(fn (Product $product) => [
@@ -70,19 +71,24 @@ class MasterGatewayController extends Controller
             'seo' => [
                 'title' => $seoTitle,
                 'description' => $heroDescription,
+                'meta_keywords' => 'avenor perfume, parfum premium, parfum mewah, luxury fragrance, parfum indonesia',
                 'canonical_url' => url('/'),
                 'robots' => 'index,follow',
                 'og_title' => $seoTitle,
                 'og_description' => $heroDescription,
                 'og_image' => asset('img/logo.png'),
             ],
-            'schemas' => [[
-                '@context' => 'https://schema.org',
-                '@type' => 'WebPage',
-                'name' => $seoTitle,
-                'url' => url('/'),
-                'description' => $heroDescription,
-            ]],
+            'schemas' => [
+                SeoSchemaBuilder::organization(),
+                SeoSchemaBuilder::website($heroDescription),
+                [
+                    '@context' => 'https://schema.org',
+                    '@type' => 'WebPage',
+                    'name' => $seoTitle,
+                    'url' => url('/'),
+                    'description' => $heroDescription,
+                ],
+            ],
             'tracking' => [
                 'ga4_measurement_id' => config('services.analytics.ga4_measurement_id'),
                 'facebook_pixel_id' => config('services.meta.pixel_id'),

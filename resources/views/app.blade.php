@@ -7,6 +7,7 @@
     <meta name="robots" content="noindex,nofollow">
     <title inertia>{{ config('app.name') }}</title>
     @inertiaHead
+    @include('partials.google-tag')
 
     <link rel="icon" type="image/png" href="{{ asset('img/logo.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('img/logo.png') }}">

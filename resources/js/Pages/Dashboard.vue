@@ -15,6 +15,24 @@
             </div>
         </div>
 
+        <div v-if="isMarketing && salesAppDownload?.url" class="row">
+            <div class="col-12">
+                <div class="card card-outline card-success">
+                    <div class="card-body d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
+                        <div>
+                            <div class="text-muted small text-uppercase mb-2">Sales App</div>
+                            <div class="h5 mb-1">Download aplikasi sales Android terbaru</div>
+                            <div class="text-muted small">{{ salesAppDownload.name || 'APK siap diunduh untuk tim marketing.' }}</div>
+                        </div>
+                        <a :href="salesAppDownload.url" class="btn btn-success btn-lg download-app-button">
+                            <i class="fab fa-android mr-2"></i>
+                            Download App Sales
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div v-if="dashboardFilters && isSuperadmin" class="row">
             <div class="col-12">
                 <div class="card card-outline card-secondary">
@@ -394,7 +412,7 @@ const SimplePieChart = defineComponent({
     },
 });
 
-const props = defineProps({ summary: Object, inventorySummary: Object, dashboardData: Object, dashboardFilters: Object });
+const props = defineProps({ summary: Object, inventorySummary: Object, dashboardData: Object, dashboardFilters: Object, salesAppDownload: Object });
 const toCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0);
 const formatCompact = (value) => new Intl.NumberFormat('id-ID', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(value || 0));
 const formatStock = (value) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(Number(value || 0));
@@ -422,7 +440,13 @@ const showOnlineManagerContent = computed(() => ['all', 'online'].includes(props
 .dashboard-page .row {
     margin-bottom: 10px;
 }
+
+.download-app-button {
+    min-width: 240px;
+}
 </style>
+
+
 
 
 

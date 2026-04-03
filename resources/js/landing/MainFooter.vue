@@ -35,3 +35,20 @@ const footerContent = computed(() => ({
     whatsapp_label: props.socialHub?.master_page?.footer?.whatsapp_label,
 }));
 </script>
+
+<style scoped>
+.main-footer,
+.main-footer .section-title,
+.main-footer .section-description,
+.main-footer .footer-links a {
+    color: #f8f1dc;
+}
+
+.main-footer .section-description {
+    color: rgba(248, 241, 220, 0.82);
+}
+
+.main-footer .footer-links a {
+    border-bottom-color: rgba(212, 175, 55, 0.35);
+}
+</style>

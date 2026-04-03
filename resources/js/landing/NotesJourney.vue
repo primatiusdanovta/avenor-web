@@ -25,6 +25,7 @@
                             <div class="col-lg-6">
                                 <div class="journey-bottle-frame">
                                     <LuxuryBottlePlaceholder
+                                        :image-src="story?.meta_data?.bottle?.image_url"
                                         :name="fallbackBottleName"
                                         :tilt-enabled="story?.meta_data?.bottle?.tilt_desktop"
                                         :brand-label="story?.meta_data?.bottle?.brand_label"
@@ -46,6 +47,7 @@
                 <div class="container">
                     <div class="journey-mobile-bottle mb-4">
                         <LuxuryBottlePlaceholder
+                            :image-src="story?.meta_data?.bottle?.image_url"
                             :floating="story?.meta_data?.bottle?.floating_mobile"
                             :tilt-enabled="false"
                             :name="fallbackBottleName"

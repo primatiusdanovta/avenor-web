@@ -6,9 +6,33 @@ use App\Models\Product;
 
 class SeoSchemaBuilder
 {
+    public static function organization(): array
+    {
+        return [
+            '@context' => 'https://schema.org',
+            '@type' => 'Organization',
+            'name' => 'Avenor Perfume',
+            'url' => url('/'),
+            'logo' => asset('img/logo.png'),
+        ];
+    }
+
+    public static function website(?string $description = null): array
+    {
+        return [
+            '@context' => 'https://schema.org',
+            '@type' => 'WebSite',
+            'name' => 'Avenor Perfume',
+            'url' => url('/'),
+            'description' => $description ?: 'Luxury fragrance experience by Avenor Perfume.',
+        ];
+    }
+
     public static function product(Product $product, array $seo, array $faqItems = []): array
     {
-        $schemas = [[
+        $schemas = [
+            static::organization(),
+            [
             '@context' => 'https://schema.org',
             '@type' => 'Product',
             'name' => $product->nama_product,

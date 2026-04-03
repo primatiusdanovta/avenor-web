@@ -2,17 +2,20 @@
     <div ref="bottleRef" class="luxury-bottle" :class="{ 'luxury-bottle--floating': floating }" :style="bottleStyles">
         <div v-if="showGlow" class="luxury-bottle__glow"></div>
         <div v-if="showShadow" class="luxury-bottle__shadow"></div>
-        <div class="luxury-bottle__cap"></div>
-        <div class="luxury-bottle__neck"></div>
-        <div class="luxury-bottle__body">
-            <div class="luxury-bottle__highlight luxury-bottle__highlight--left"></div>
-            <div class="luxury-bottle__highlight luxury-bottle__highlight--right"></div>
-            <div v-if="showLiquid" class="luxury-bottle__liquid"></div>
-            <div v-if="showLabel" class="luxury-bottle__label">
-                <span class="luxury-bottle__label-mark">{{ displayBrandLabel }}</span>
-                <span class="luxury-bottle__label-name">{{ shortName }}</span>
+        <img v-if="imageSrc" :src="imageSrc" :alt="name" class="luxury-bottle__image">
+        <template v-else>
+            <div class="luxury-bottle__cap"></div>
+            <div class="luxury-bottle__neck"></div>
+            <div class="luxury-bottle__body">
+                <div class="luxury-bottle__highlight luxury-bottle__highlight--left"></div>
+                <div class="luxury-bottle__highlight luxury-bottle__highlight--right"></div>
+                <div v-if="showLiquid" class="luxury-bottle__liquid"></div>
+                <div v-if="showLabel" class="luxury-bottle__label">
+                    <span class="luxury-bottle__label-mark">{{ displayBrandLabel }}</span>
+                    <span class="luxury-bottle__label-name">{{ shortName }}</span>
+                </div>
             </div>
-        </div>
+        </template>
     </div>
 </template>
 
@@ -23,6 +26,7 @@ const props = defineProps({
     floating: { type: Boolean, default: false },
     tiltEnabled: { type: Boolean, default: true },
     name: { type: String, default: 'Nocturne' },
+    imageSrc: { type: String, default: '' },
     brandLabel: { type: String, default: 'AVENOR' },
     showGlow: { type: Boolean, default: true },
     showShadow: { type: Boolean, default: true },

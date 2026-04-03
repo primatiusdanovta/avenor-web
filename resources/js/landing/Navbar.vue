@@ -3,8 +3,7 @@
         <div class="container">
             <div class="landing-navbar__inner">
                 <nav class="landing-navbar__menu landing-navbar__menu--left" aria-label="Primary">
-                    <a :href="homeHref" @click="handleNavClick($event, homeHref)">{{ resolvedLabels.home_label }}</a>
-                    <a :href="collectionHref" @click="handleNavClick($event, collectionHref)">{{ resolvedLabels.collection_label }}</a>
+                    <a v-for="item in leftItems" :key="`${item.label}-${item.href}`" :href="resolveHref(item.href)" @click="handleNavClick($event, resolveHref(item.href))">{{ item.label }}</a>
                 </nav>
 
                 <a :href="homeHref" class="landing-navbar__brand" :aria-label="brandLabel ? brandLabel + ' home' : ''" @click="handleNavClick($event, homeHref)">
@@ -12,8 +11,7 @@
                 </a>
 
                 <nav class="landing-navbar__menu landing-navbar__menu--right" aria-label="Secondary">
-                    <a :href="discoveryHref" @click="handleNavClick($event, discoveryHref)">{{ resolvedLabels.discovery_label }}</a>
-                    <a :href="contactHref" @click="handleNavClick($event, contactHref)">{{ resolvedLabels.contact_label }}</a>
+                    <a v-for="item in rightItems" :key="`${item.label}-${item.href}`" :href="resolveHref(item.href)" @click="handleNavClick($event, resolveHref(item.href))">{{ item.label }}</a>
                 </nav>
             </div>
         </div>
@@ -34,25 +32,48 @@ const props = defineProps({
 const isScrolled = ref(false);
 
 const homeHref = computed(() => (props.pageType === 'master' ? '#top' : '/'));
-const collectionHref = computed(() => (props.pageType === 'master' ? '#collection' : '/#collection'));
-const discoveryHref = computed(() => (props.pageType === 'master' ? '#discovery' : '/#discovery'));
-const contactHref = computed(() => (props.pageType === 'master' ? '#main-footer' : '/#main-footer'));
-const resolvedLabels = computed(() => ({
-    home_label: props.uiLabels?.home_label || 'Home',
-    brand_label: props.uiLabels?.brand_label || 'Avenor Perfume',
-    collection_label: props.uiLabels?.collection_label || 'Collection',
-    discovery_label: props.uiLabels?.discovery_label || 'Discovery',
-    contact_label: props.uiLabels?.contact_label || 'Contact',
-}));
+const defaultItems = [
+    { label: 'Home', href: '#top', side: 'left' },
+    { label: 'Social Hub', href: '#social-hub', side: 'left' },
+    { label: 'The Collection', href: '#collection', side: 'left' },
+    { label: 'Discovery', href: '#discovery', side: 'right' },
+    { label: 'Contact', href: '#main-footer', side: 'right' },
+    { label: 'Carrers', href: '/carrers', side: 'right' },
+];
+const navItems = computed(() => {
+    const configured = props.socialHub?.master_page?.navigation?.items;
+    if (Array.isArray(configured) && configured.length) {
+        return configured.filter((item) => item?.label && item?.href);
+    }
 
-const brandLabel = computed(() => resolvedLabels.value.brand_label || resolvedLabels.value.home_label || '');
+    return defaultItems;
+});
+const leftItems = computed(() => navItems.value.filter((item) => (item.side || 'left') === 'left'));
+const rightItems = computed(() => navItems.value.filter((item) => (item.side || 'right') === 'right'));
+const brandLabel = computed(() => props.uiLabels?.brand_label || 'Avenor Perfume');
+
+const resolveHref = (href) => {
+    if (!href) {
+        return homeHref.value;
+    }
+
+    if (href === '#top') {
+        return props.pageType === 'master' ? '#top' : '/';
+    }
+
+    if (href.startsWith('#')) {
+        return props.pageType === 'master' ? href : `/${href}`;
+    }
+
+    return href;
+};
 
 const updateScrollState = () => {
     isScrolled.value = window.scrollY > 24;
 };
 
 const handleNavClick = (event, href) => {
-    if (!href || href.startsWith('/#') || !href.startsWith('#')) {
+    if (!href || href.startsWith('/#') || href === '/' || !href.startsWith('#')) {
         return;
     }
 
@@ -84,4 +105,3 @@ onBeforeUnmount(() => {
     window.removeEventListener('scroll', updateScrollState);
 });
 </script>
-

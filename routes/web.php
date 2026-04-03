@@ -2,6 +2,12 @@
 
 use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\AccountPayableController;
+use App\Http\Controllers\ArticleController;
+use App\Http\Controllers\ArticleLandingController;
+use App\Http\Controllers\ArticlesLandingController;
+use App\Http\Controllers\ApplicantController;
+use App\Http\Controllers\CareerApplicationController;
+use App\Http\Controllers\CarrersController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\ContentCreatorController;
 use App\Http\Controllers\CustomerController;
@@ -25,6 +31,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SalesTargetController;
 use App\Http\Controllers\SeoSettingController;
 use App\Http\Controllers\SuperAdminUserController;
+use App\Http\Controllers\TechnicalSeoController;
 use App\Support\ProductLandingData;
 use Illuminate\Support\Facades\Route;
 
@@ -32,6 +39,8 @@ use Illuminate\Support\Facades\Route;
 $administratorPrefix = trim((string) env('ADMIN_ROUTE_PREFIX', 'administrator'), '/');
 
 Route::get('/', MasterGatewayController::class)->name('landing-page');
+Route::get('/robots.txt', [TechnicalSeoController::class, 'robots'])->name('seo.robots');
+Route::get('/sitemap.xml', [TechnicalSeoController::class, 'sitemap'])->name('seo.sitemap');
 Route::get('/product', function () {
     $product = ProductLandingData::firstActiveProduct();
     abort_if(! $product, 404);
@@ -39,7 +48,16 @@ Route::get('/product', function () {
     return redirect()->route('product.landing', ['slug' => $product->landing_slug]);
 })->name('product.index');
 Route::get('/master-hero-video', [GlobalSettingController::class, 'showMasterHeroVideo'])->name('global-settings.master-hero-video');
+Route::get('/sales-app-apk', [GlobalSettingController::class, 'showSalesAppApk'])->middleware('auth')->name('global-settings.sales-app-apk');
 Route::get('/product-image/{product}', [ProductController::class, 'showPublicImage'])->name('products.public-image');
+Route::get('/product-bottle-image/{product}', [ProductController::class, 'showPublicBottleImage'])->name('products.public-bottle-image');
+Route::get('/product-gallery-image/{image}', [ProductController::class, 'showPublicGalleryImage'])->name('product-images.public');
+Route::get('/careers', fn () => redirect('/carrers'))->name('careers.redirect');
+Route::get('/carrers', CarrersController::class)->name('carrers.index');
+Route::post('/carrers/apply', [CareerApplicationController::class, 'store'])->name('carrers.apply');
+Route::get('/articles', ArticlesLandingController::class)->name('articles.index');
+Route::get('/article-image/{article}', [ArticleController::class, 'showPublicImage'])->name('articles.public-image');
+Route::get('/article/{slug}', ArticleLandingController::class)->name('articles.show');
 Route::get('/product/{slug}', ProductLandingController::class)
     ->middleware(\App\Http\Middleware\InjectProductLandingSeo::class)
     ->name('product.landing');
@@ -86,6 +104,12 @@ Route::prefix($administratorPrefix)->group(function () {
             Route::put('/global-settings/master-social-hub', [GlobalSettingController::class, 'updateMasterSocialHub'])->name('global-settings.master-social-hub.update');
             Route::get('/seo-settings', [SeoSettingController::class, 'index'])->name('seo-settings.index');
             Route::put('/seo-settings', [SeoSettingController::class, 'update'])->name('seo-settings.update');
+            Route::get('/applicants', [ApplicantController::class, 'index'])->name('applicants.index');
+            Route::post('/applicants/connect-content-creators', [ApplicantController::class, 'connectToContentCreator'])->name('applicants.connect-content-creators');
+            Route::get('/articles', [ArticleController::class, 'index'])->name('articles.manage');
+            Route::post('/articles', [ArticleController::class, 'store'])->name('articles.store');
+            Route::put('/articles/{article}', [ArticleController::class, 'update'])->name('articles.update');
+            Route::delete('/articles/{article}', [ArticleController::class, 'destroy'])->name('articles.destroy');
         });
 
         Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals.index');
@@ -160,7 +184,3 @@ Route::prefix($administratorPrefix)->group(function () {
         Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
     });
 });
-
-
-
-

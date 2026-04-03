@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Attendance;
 use App\Models\Expense;
+use App\Models\GlobalSetting;
 use App\Models\OfflineSale;
 use App\Models\OnlineSaleItem;
 use App\Models\Product;
@@ -37,6 +38,7 @@ class DashboardController extends Controller
             $quickActions[] = ['label' => 'Promos', 'href' => route('promos.index')];
             $quickActions[] = ['label' => 'Pelanggan', 'href' => route('customers.index')];
             $quickActions[] = ['label' => 'Content Creator', 'href' => route('content-creators.index')];
+            $quickActions[] = ['label' => 'Applicant', 'href' => route('applicants.index')];
             $quickActions[] = ['label' => 'Penjualan Offline', 'href' => route('offline-sales.index')];
             $quickActions[] = ['label' => 'Penjualan Online', 'href' => route('online-sales.index')];
             $quickActions[] = ['label' => 'Pengeluaran', 'href' => route('expenses.index')];
@@ -88,6 +90,12 @@ class DashboardController extends Controller
             'roleHighlights' => $roleHighlights,
             'dashboardFilters' => $dashboardFilters,
             'dashboardData' => $this->buildDashboardData($user, $monthStart, $monthEnd, $dashboardFilters['type'] ?? 'all'),
+            'salesAppDownload' => $user->role === 'marketing'
+                ? [
+                    'url' => data_get(GlobalSetting::masterSocialHub(), 'sales_app_apk_url'),
+                    'name' => data_get(GlobalSetting::masterSocialHub(), 'sales_app_apk_name'),
+                ]
+                : null,
             'inventorySummary' => $user->role === 'superadmin' ? [
                 'products' => Product::count(),
                 'rawMaterials' => RawMaterial::count(),
@@ -548,8 +556,6 @@ class DashboardController extends Controller
         ];
     }
 }
-
-
 
 
 

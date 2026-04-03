@@ -177,6 +177,7 @@ class _MarketingRootState extends State<MarketingRoot> {
   bool _loggingIn = false;
   bool _busy = false;
   bool _mockMode = kUseMock;
+  bool _obscureLoginPassword = true;
   int _navigationIndex = 0;
   String? _token;
   String? _error;
@@ -465,12 +466,10 @@ class _MarketingRootState extends State<MarketingRoot> {
         onhands.where((item) => item['take_status'] == 'pending').length;
     final pendingReturn =
         onhands.where((item) => item['return_status'] == 'pending').length;
-    final onHandCount = onhands
-        .where((item) => item['take_status'] == 'disetujui')
-        .fold<int>(
-            0,
-            (sum, item) =>
-                sum + ((item['remaining_quantity'] as num?)?.toInt() ?? 0));
+    final onHandCount =
+        onhands.where(_isCountedAsOnHand).fold<int>(0, (sum, item) {
+      return sum + ((item['remaining_quantity'] as num?)?.toInt() ?? 0);
+    });
 
     _dashboard = {
       'stats': {
@@ -485,12 +484,25 @@ class _MarketingRootState extends State<MarketingRoot> {
     };
 
     _attendance?['carried_products'] =
-        onhands.where((item) => item['take_status'] == 'disetujui').toList();
+        onhands.where(_isCountedAsOnHand).toList();
     _products?['today_return_items'] = onhands
-        .where((item) =>
-            item['take_status'] == 'disetujui' &&
-            (item['remaining_quantity'] as num? ?? 0) > 0)
+        .where(_isCountedAsOnHand)
         .toList();
+  }
+
+  static bool _isCountedAsOnHand(Map<String, dynamic> item) {
+    final takeStatus = item['take_status']?.toString().toLowerCase() ?? '';
+    final remainingQuantity =
+        (item['remaining_quantity'] as num?)?.toInt() ?? 0;
+    final soldOut = item['sold_out'] == true || remainingQuantity <= 0;
+
+    return takeStatus == 'disetujui' && !soldOut;
+  }
+
+  static bool _countsTowardTarget(Map<String, dynamic> sale) {
+    final approvalStatus =
+        sale['approval_status']?.toString().toLowerCase().trim() ?? '';
+    return approvalStatus != 'rejected' && approvalStatus != 'ditolak';
   }
 
   void _setToken(String token) {
@@ -849,24 +861,30 @@ class _MarketingRootState extends State<MarketingRoot> {
         final onhands = ((_products?['onhands'] as List?) ?? [])
             .cast<Map<String, dynamic>>();
         for (final item in items) {
-          Map<String, dynamic>? onhand;
-          for (final entry in onhands) {
-            if (entry['id_product'] == item.productId &&
-                entry['take_status'] == 'disetujui') {
-              onhand = entry;
+          var remainingToDeduct = item.quantity;
+          for (final onhand in onhands) {
+            if (remainingToDeduct <= 0) {
               break;
             }
-          }
-          if (onhand != null) {
-            onhand['remaining_quantity'] =
-                ((onhand['remaining_quantity'] as num?)?.toInt() ?? 0) -
-                    item.quantity;
-            final remaining =
+            if (onhand['id_product'] != item.productId ||
+                !_isCountedAsOnHand(onhand)) {
+              continue;
+            }
+
+            final available =
                 (onhand['remaining_quantity'] as num?)?.toInt() ?? 0;
+            final deducted = available >= remainingToDeduct
+                ? remainingToDeduct
+                : available;
+            final remaining = available - deducted;
+
+            onhand['remaining_quantity'] = remaining;
             onhand['sold_out'] = remaining == 0;
             onhand['status_label'] =
                 remaining == 0 ? 'Sold out' : 'Masih dibawa';
             onhand['max_return'] = remaining;
+
+            remainingToDeduct -= deducted;
           }
         }
         _syncMockDerivedState();
@@ -1003,7 +1021,11 @@ class _MarketingRootState extends State<MarketingRoot> {
         usernameController: _usernameController,
         passwordController: _passwordController,
         loggingIn: _loggingIn,
+        obscurePassword: _obscureLoginPassword,
         error: _error,
+        onTogglePasswordVisibility: () {
+          setState(() => _obscureLoginPassword = !_obscureLoginPassword);
+        },
         onLogin: _login,
       );
     }
@@ -1013,6 +1035,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         _attendance?['today_attendance'] as Map<String, dynamic>? ?? {};
     final onhands =
         ((_products?['onhands'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final activeOnhands = onhands.where(_isCountedAsOnHand).toList();
     final availableProducts =
         ((_products?['products'] as List?) ?? []).cast<Map<String, dynamic>>();
     final sales =
@@ -1049,7 +1072,7 @@ class _MarketingRootState extends State<MarketingRoot> {
       ),
       _InventoryPage(
         products: availableProducts,
-        onhands: onhands,
+        onhands: activeOnhands,
         attendanceBlockedReason:
             _products?['attendance_blocked_reason']?.toString(),
         busy: _busy,
@@ -1241,14 +1264,18 @@ class _LoginPage extends StatelessWidget {
     required this.usernameController,
     required this.passwordController,
     required this.loggingIn,
+    required this.obscurePassword,
     required this.error,
+    required this.onTogglePasswordVisibility,
     required this.onLogin,
   });
 
   final TextEditingController usernameController;
   final TextEditingController passwordController;
   final bool loggingIn;
+  final bool obscurePassword;
   final String? error;
+  final VoidCallback onTogglePasswordVisibility;
   final Future<void> Function() onLogin;
 
   @override
@@ -1315,9 +1342,17 @@ class _LoginPage extends StatelessWidget {
                             const SizedBox(height: 12),
                             TextField(
                               controller: passwordController,
-                              obscureText: true,
-                              decoration: const InputDecoration(
+                              obscureText: obscurePassword,
+                              decoration: InputDecoration(
                                 labelText: 'Password',
+                                suffixIcon: IconButton(
+                                  onPressed: onTogglePasswordVisibility,
+                                  icon: Icon(
+                                    obscurePassword
+                                        ? Icons.visibility_outlined
+                                        : Icons.visibility_off_outlined,
+                                  ),
+                                ),
                               ),
                             ),
                             const SizedBox(height: 18),
@@ -1600,11 +1635,17 @@ class _DashboardPage extends StatelessWidget {
     );
     final targetSummary =
         dashboard['target_summary'] as Map<String, dynamic>? ?? {};
+    final targetSales =
+        sales.where(_MarketingRootState._countsTowardTarget).toList();
     final monthAttendances = recentAttendances.where((item) {
       final date = _parseFlexibleDate(item['attendance_date']?.toString());
       return date != null && date.year == now.year && date.month == now.month;
     }).toList();
     final monthSales = sales.where((sale) {
+      final date = _parseFlexibleDate(sale['created_at']?.toString());
+      return date != null && date.year == now.year && date.month == now.month;
+    }).toList();
+    final monthTargetSales = targetSales.where((sale) {
       final date = _parseFlexibleDate(sale['created_at']?.toString());
       return date != null && date.year == now.year && date.month == now.month;
     }).toList();
@@ -1629,14 +1670,14 @@ class _DashboardPage extends StatelessWidget {
     );
     final totalBonus =
         (targetSummary['bonus_total'] as num?)?.toDouble() ?? 0.0;
-    final dailySold = _totalSoldQuantity(sales.where((sale) {
+    final dailySold = _totalSoldQuantity(targetSales.where((sale) {
       final date = _parseFlexibleDate(sale['created_at']?.toString());
       return date != null &&
           date.year == now.year &&
           date.month == now.month &&
           date.day == now.day;
     }).toList());
-    final weeklySold = _totalSoldQuantity(sales.where((sale) {
+    final weeklySold = _totalSoldQuantity(targetSales.where((sale) {
       final date = _parseFlexibleDate(sale['created_at']?.toString());
       if (date == null) {
         return false;
@@ -1646,7 +1687,7 @@ class _DashboardPage extends StatelessWidget {
       final weekEnd = weekStart.add(const Duration(days: 7));
       return !date.isBefore(weekStart) && date.isBefore(weekEnd);
     }).toList());
-    final monthlySold = _totalSoldQuantity(monthSales);
+    final monthlySold = _totalSoldQuantity(monthTargetSales);
     final topProducts = _buildTopProducts(monthSales);
 
     return ListView(
@@ -5418,6 +5459,3 @@ class _SaleItemDraft {
     );
   }
 }
-
-
-

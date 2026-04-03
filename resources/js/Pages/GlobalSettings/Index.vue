@@ -44,6 +44,31 @@
                         </div>
                     </div>
 
+                    <div v-show="activePanel === 'media'" class="border rounded p-3 mb-4">
+                        <h4 class="h6 text-uppercase text-muted mb-2">Target: Role Marketing - Sales App APK</h4>
+                        <p class="text-muted small mb-3">Preview: tombol download app sales Android pada dashboard marketing.</p>
+                        <div class="row align-items-end">
+                            <div class="col-md-8 form-group">
+                                <label>Upload APK Sales App</label>
+                                <input type="file" class="form-control" accept=".apk,application/vnd.android.package-archive" @change="handleSalesAppApkChange">
+                                <small class="form-text text-muted">Upload file APK terbaru agar marketing bisa download langsung dari dashboard.</small>
+                            </div>
+                            <div class="col-md-4 form-group">
+                                <div class="custom-control custom-checkbox mt-4 pt-2">
+                                    <input id="remove-sales-app-apk" v-model="form.remove_sales_app_apk" type="checkbox" class="custom-control-input">
+                                    <label class="custom-control-label" for="remove-sales-app-apk">Hapus APK sales app</label>
+                                </div>
+                            </div>
+                            <div v-if="masterSocialHub?.sales_app_apk_url" class="col-12 form-group mb-0">
+                                <label class="d-block">APK Saat Ini</label>
+                                <a :href="masterSocialHub.sales_app_apk_url" class="btn btn-outline-success btn-sm" target="_blank" rel="noopener">
+                                    Download {{ masterSocialHub.sales_app_apk_name || 'sales-app.apk' }}
+                                </a>
+                                <small class="form-text text-muted d-block mt-2">{{ masterSocialHub.sales_app_apk_name || 'APK tersedia untuk diunduh.' }}</small>
+                            </div>
+                        </div>
+                    </div>
+
                     <div v-show="activePanel === 'hero'" class="border rounded p-3 mb-4">
                         <h4 class="h6 text-uppercase text-muted mb-2">Target: "/" - Hero Copy</h4>
                         <p class="text-muted small mb-3">Preview: eyebrow, title, dan description utama di hero halaman `/`.</p>
@@ -59,6 +84,43 @@
                             <div class="col-12 form-group mb-0">
                                 <label>Hero Description</label>
                                 <textarea v-model="form.master_page.hero.description" rows="2" class="form-control"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-show="activePanel === 'navigation'" class="border rounded p-3 mb-4">
+                        <h4 class="h6 text-uppercase text-muted mb-2">Target: "/" & Shared Navbar Navigation</h4>
+                        <p class="text-muted small mb-3">Atur item menu kiri/kanan secara dinamis. Target anchor seperti `#collection` akan otomatis diarahkan ke section yang sesuai, dan target seperti `/carrers` akan membuka halaman baru.</p>
+                        <div class="card bg-light">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <strong>Navigation Items</strong>
+                                <button type="button" class="btn btn-sm btn-outline-dark" @click="addNavItem">Tambah Menu</button>
+                            </div>
+                            <div class="card-body">
+                                <div v-for="(item, index) in form.master_page.navigation.items" :key="'nav-item-' + index" class="border rounded p-3 mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <strong>Menu {{ index + 1 }}</strong>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" @click="removeNavItem(index)">Hapus</button>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-4 form-group">
+                                            <label>Label</label>
+                                            <input v-model="item.label" type="text" class="form-control">
+                                        </div>
+                                        <div class="col-md-5 form-group">
+                                            <label>Target / Href</label>
+                                            <input v-model="item.href" type="text" class="form-control" placeholder="#social-hub atau /carrers">
+                                        </div>
+                                        <div class="col-md-3 form-group mb-0">
+                                            <label>Sisi</label>
+                                            <select v-model="item.side" class="form-control">
+                                                <option value="left">Left</option>
+                                                <option value="right">Right</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-if="!form.master_page.navigation.items.length" class="text-muted">Belum ada menu. Tambahkan item untuk navbar.</div>
                             </div>
                         </div>
                     </div>
@@ -322,6 +384,86 @@
                         </div>
                     </div>
 
+                    <div v-show="activePanel === 'careers'" class="border rounded p-3 mb-4">
+                        <h4 class="h6 text-uppercase text-muted mb-2">Target: "/carrers"</h4>
+                        <p class="text-muted small mb-3">Atur hero, card lowongan, dan field form apply yang muncul di modal.</p>
+                        <div class="row">
+                            <div class="col-md-4 form-group"><label>Hero Eyebrow</label><input v-model="form.careers_page.hero.eyebrow" type="text" class="form-control"></div>
+                            <div class="col-md-8 form-group"><label>Hero Title</label><input v-model="form.careers_page.hero.title" type="text" class="form-control"></div>
+                            <div class="col-12 form-group"><label>Hero Description</label><textarea v-model="form.careers_page.hero.description" rows="2" class="form-control"></textarea></div>
+                            <div class="col-md-4 form-group"><label>Section Kicker</label><input v-model="form.careers_page.section.kicker" type="text" class="form-control"></div>
+                            <div class="col-md-8 form-group"><label>Section Title</label><input v-model="form.careers_page.section.title" type="text" class="form-control"></div>
+                            <div class="col-12 form-group"><label>Section Description</label><textarea v-model="form.careers_page.section.description" rows="2" class="form-control"></textarea></div>
+                        </div>
+
+                        <div class="card bg-light mt-3">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <strong>Role Cards</strong>
+                                <button type="button" class="btn btn-sm btn-outline-dark" @click="addCareerCard">Tambah Card</button>
+                            </div>
+                            <div class="card-body">
+                                <div v-for="(card, index) in form.careers_page.cards" :key="'career-card-' + index" class="border rounded p-3 mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <strong>Card {{ index + 1 }}</strong>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" @click="removeCareerCard(index)">Hapus</button>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Title</label>
+                                        <input v-model="card.title" type="text" class="form-control">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Description</label>
+                                        <textarea v-model="card.description" rows="3" class="form-control"></textarea>
+                                    </div>
+                                    <div class="form-group mb-0">
+                                        <label>Button Label</label>
+                                        <input v-model="card.button_label" type="text" class="form-control">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card bg-light mt-3">
+                            <div class="card-header"><strong>Apply Modal</strong></div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 form-group"><label>Modal Title Template</label><input v-model="form.careers_page.form.title" type="text" class="form-control" placeholder="Apply for {job_title}"></div>
+                                    <div class="col-md-3 form-group"><label>Submit Label</label><input v-model="form.careers_page.form.submit_label" type="text" class="form-control"></div>
+                                    <div class="col-md-3 form-group"><label>Success Message</label><input v-model="form.careers_page.form.success_message" type="text" class="form-control"></div>
+                                    <div class="col-12 form-group mb-0"><label>Modal Description</label><textarea v-model="form.careers_page.form.description" rows="2" class="form-control"></textarea></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card bg-light mt-3">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <strong>Form Fields</strong>
+                                <button type="button" class="btn btn-sm btn-outline-dark" @click="addCareerField">Tambah Field</button>
+                            </div>
+                            <div class="card-body">
+                                <div v-for="(field, index) in form.careers_page.form_fields" :key="'career-field-' + index" class="border rounded p-3 mb-3">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <strong>Field {{ index + 1 }}</strong>
+                                        <button type="button" class="btn btn-sm btn-outline-danger" @click="removeCareerField(index)">Hapus</button>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-4 form-group"><label>Key</label><input v-model="field.key" type="text" class="form-control" placeholder="full_name"></div>
+                                        <div class="col-md-5 form-group"><label>Label</label><input v-model="field.label" type="text" class="form-control"></div>
+                                        <div class="col-md-3 form-group"><label>Type</label><select v-model="field.type" class="form-control"><option value="text">text</option><option value="email">email</option><option value="tel">tel</option><option value="textarea">textarea</option><option value="file">file</option><option value="select">select</option></select></div>
+                                        <div class="col-md-6 form-group"><label>Placeholder</label><input v-model="field.placeholder" type="text" class="form-control"></div>
+                                        <div class="col-md-6 form-group"><label>Helper</label><input v-model="field.helper" type="text" class="form-control"></div>
+                                        <div class="col-md-6 form-group"><label>Accept File</label><input v-model="field.accept" type="text" class="form-control" placeholder=".pdf,.doc,.docx"></div>
+                                        <div class="col-md-6 form-group d-flex align-items-center"><div class="custom-control custom-checkbox mt-4"><input :id="'career-required-' + index" v-model="field.required" type="checkbox" class="custom-control-input"><label class="custom-control-label" :for="'career-required-' + index">Required</label></div></div>
+                                        <div v-if="field.type === 'select'" class="col-12 form-group mb-0">
+                                            <label>Options</label>
+                                            <textarea v-model="field.options_text" rows="3" class="form-control" placeholder="Satu opsi per baris"></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <button type="button" class="btn btn-dark" :disabled="form.processing" @click="submit">Simpan Global Settings</button>
                 </div>
             </div>
@@ -344,10 +486,12 @@ const props = defineProps({
 const panelOptions = [
     { id: 'media', label: 'Media' },
     { id: 'hero', label: 'Hero' },
+    { id: 'navigation', label: 'Navigation' },
     { id: 'social', label: 'Social' },
     { id: 'collection', label: 'Collection' },
     { id: 'manifesto', label: 'Manifesto' },
     { id: 'discovery', label: 'Discovery' },
+    { id: 'careers', label: 'Carrers' },
     { id: 'product', label: 'Product Page' },
     { id: 'footer', label: 'Footer' },
 ];
@@ -389,6 +533,13 @@ const createState = (source = {}) => ({
             eyebrow: source.master_page?.hero?.eyebrow ?? '',
             title: source.master_page?.hero?.title ?? '',
             description: source.master_page?.hero?.description ?? '',
+        },
+        navigation: {
+            items: (source.master_page?.navigation?.items ?? []).map((item) => ({
+                label: item?.label ?? '',
+                href: item?.href ?? '',
+                side: item?.side ?? 'left',
+            })),
         },
         social_hub_section: {
             eyebrow: source.master_page?.social_hub_section?.eyebrow ?? '',
@@ -432,6 +583,39 @@ const createState = (source = {}) => ({
             loading: source.master_page?.system_messages?.loading ?? '',
             error: source.master_page?.system_messages?.error ?? '',
         },
+    },
+    careers_page: {
+        hero: {
+            eyebrow: source.careers_page?.hero?.eyebrow ?? '',
+            title: source.careers_page?.hero?.title ?? '',
+            description: source.careers_page?.hero?.description ?? '',
+        },
+        section: {
+            kicker: source.careers_page?.section?.kicker ?? '',
+            title: source.careers_page?.section?.title ?? '',
+            description: source.careers_page?.section?.description ?? '',
+        },
+        cards: (source.careers_page?.cards ?? []).map((item) => ({
+            title: item?.title ?? '',
+            description: item?.description ?? '',
+            button_label: item?.button_label ?? '',
+        })),
+        form: {
+            title: source.careers_page?.form?.title ?? '',
+            description: source.careers_page?.form?.description ?? '',
+            submit_label: source.careers_page?.form?.submit_label ?? '',
+            success_message: source.careers_page?.form?.success_message ?? '',
+        },
+        form_fields: (source.careers_page?.form_fields ?? []).map((item) => ({
+            key: item?.key ?? '',
+            label: item?.label ?? '',
+            type: item?.type ?? 'text',
+            required: item?.required ?? false,
+            placeholder: item?.placeholder ?? '',
+            helper: item?.helper ?? '',
+            accept: item?.accept ?? '',
+            options_text: Array.isArray(item?.options) ? item.options.join('\n') : '',
+        })),
     },
     product_page: {
         default_theme_key: source.product_page?.default_theme_key ?? 'signature',
@@ -562,6 +746,8 @@ const createState = (source = {}) => ({
     },
     hero_video_file: null,
     remove_hero_video: false,
+    sales_app_apk_file: null,
+    remove_sales_app_apk: false,
 });
 
 const form = useForm(createState(props.masterSocialHub));
@@ -582,6 +768,39 @@ const removeDiscoveryPreview = (index) => {
     form.master_page.discovery.preview_cards.splice(index, 1);
 };
 
+const addNavItem = () => {
+    form.master_page.navigation.items.push({ label: '', href: '', side: 'left' });
+};
+
+const removeNavItem = (index) => {
+    form.master_page.navigation.items.splice(index, 1);
+};
+
+const addCareerCard = () => {
+    form.careers_page.cards.push({ title: '', description: '', button_label: 'Apply' });
+};
+
+const removeCareerCard = (index) => {
+    form.careers_page.cards.splice(index, 1);
+};
+
+const addCareerField = () => {
+    form.careers_page.form_fields.push({
+        key: '',
+        label: '',
+        type: 'text',
+        required: false,
+        placeholder: '',
+        helper: '',
+        accept: '',
+        options_text: '',
+    });
+};
+
+const removeCareerField = (index) => {
+    form.careers_page.form_fields.splice(index, 1);
+};
+
 const handleHeroVideoChange = (event) => {
     form.hero_video_file = event.target.files?.[0] ?? null;
 
@@ -590,16 +809,38 @@ const handleHeroVideoChange = (event) => {
     }
 };
 
+const handleSalesAppApkChange = (event) => {
+    form.sales_app_apk_file = event.target.files?.[0] ?? null;
+
+    if (form.sales_app_apk_file) {
+        form.remove_sales_app_apk = false;
+    }
+};
+
 const submit = () => {
-    form.post(adminUrl('/global-settings/master-social-hub'), {
+    form.transform((data) => ({
+        ...data,
+        careers_page: {
+            ...data.careers_page,
+            form_fields: (data.careers_page?.form_fields ?? []).map((field) => ({
+                key: field.key,
+                label: field.label,
+                type: field.type,
+                required: !!field.required,
+                placeholder: field.placeholder,
+                helper: field.helper,
+                accept: field.accept,
+                options: String(field.options_text ?? '')
+                    .split(/\r?\n/)
+                    .map((item) => item.trim())
+                    .filter(Boolean),
+            })),
+        },
+    })).post(adminUrl('/global-settings/master-social-hub'), {
         forceFormData: true,
         preserveScroll: true,
     });
 };
 </script>
-
-
-
-
 
 

@@ -7,6 +7,7 @@ use App\Models\FragranceDetail;
 use App\Models\HppCalculationItem;
 use App\Models\OfflineSale;
 use App\Models\Product;
+use App\Models\ProductImage;
 use App\Models\ProductOnhand;
 use App\Models\RawMaterial;
 use App\Support\RawMaterialUsage;
@@ -28,7 +29,7 @@ class ProductController extends Controller
 
         if (in_array($user->role, ['superadmin', 'admin'], true)) {
             $products = Product::query()
-                ->with('fragranceDetails')
+                ->with(['fragranceDetails', 'images'])
                 ->orderByDesc('created_at')
                 ->orderByDesc('id_product')
                 ->get()
@@ -39,6 +40,13 @@ class ProductController extends Controller
                     'harga_modal' => (float) $product->harga_modal,
                     'stock' => (int) $product->stock,
                     'gambar' => $this->productImageUrl($product),
+                    'gallery_images' => $product->images
+                        ->map(fn (ProductImage $image) => [
+                            'id' => $image->id,
+                            'image_url' => $image->public_url,
+                            'sort_order' => (int) $image->sort_order,
+                        ])
+                        ->values(),
                     'deskripsi' => $product->deskripsi,
                     'fragrance_details' => $product->fragranceDetails
                         ->sortBy(['jenis', 'detail'])
@@ -252,6 +260,17 @@ class ProductController extends Controller
             Storage::disk('public')->delete($product->gambar);
         }
 
+        if ($product->normalized_bottle_image_path && Storage::disk('public')->exists($product->normalized_bottle_image_path)) {
+            Storage::disk('public')->delete($product->normalized_bottle_image_path);
+        }
+
+        $product->load('images');
+        $product->images->each(function (ProductImage $image): void {
+            if ($image->normalized_image_path && Storage::disk('public')->exists($image->normalized_image_path)) {
+                Storage::disk('public')->delete($image->normalized_image_path);
+            }
+        });
+
         $product->delete();
 
         return redirect()->route('products.index')->with('success', 'Product berhasil dihapus.');
@@ -268,10 +287,29 @@ class ProductController extends Controller
 
     public function showPublicImage(Product $product)
     {
-        abort_if(! $product->normalized_image_path, 404);
-        abort_unless(Storage::disk('public')->exists($product->normalized_image_path), 404);
+        if (! $product->normalized_image_path || ! Storage::disk('public')->exists($product->normalized_image_path)) {
+            return $this->publicFallbackImageResponse();
+        }
 
         return Storage::disk('public')->response($product->normalized_image_path);
+    }
+
+    public function showPublicBottleImage(Product $product)
+    {
+        if (! $product->normalized_bottle_image_path || ! Storage::disk('public')->exists($product->normalized_bottle_image_path)) {
+            return $this->publicFallbackImageResponse();
+        }
+
+        return Storage::disk('public')->response($product->normalized_bottle_image_path);
+    }
+
+    public function showPublicGalleryImage(ProductImage $image)
+    {
+        if (! $image->normalized_image_path || ! Storage::disk('public')->exists($image->normalized_image_path)) {
+            return $this->publicFallbackImageResponse();
+        }
+
+        return Storage::disk('public')->response($image->normalized_image_path);
     }
 
     public function take(Request $request): RedirectResponse
@@ -608,13 +646,16 @@ class ProductController extends Controller
 
     private function productImageUrl(Product $product): ?string
     {
-        if (! $product->normalized_image_path) {
-            return null;
-        }
+        return $product->public_image_url;
+    }
 
-        return route('products.image', [
-            'product' => $product,
-            'v' => md5((string) $product->gambar),
+    private function publicFallbackImageResponse()
+    {
+        $fallbackPath = public_path('img/logo.png');
+        abort_unless(is_file($fallbackPath), 404);
+
+        return response()->file($fallbackPath, [
+            'Cache-Control' => 'public, max-age=86400',
         ]);
     }
 }

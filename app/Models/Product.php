@@ -23,6 +23,7 @@ class Product extends Model
         'harga_modal',
         'stock',
         'gambar',
+        'bottle_image',
         'deskripsi',
         'landing_page_active',
         'seo_title',
@@ -36,6 +37,7 @@ class Product extends Model
         'education_content',
         'faq_data',
         'educational_blocks',
+        'narrative_scroll',
     ];
 
     protected $appends = [
@@ -51,8 +53,16 @@ class Product extends Model
             'education_content' => 'array',
             'faq_data' => 'array',
             'educational_blocks' => 'array',
+            'narrative_scroll' => 'array',
             'created_at' => 'datetime',
         ];
+    }
+
+    public function images(): HasMany
+    {
+        return $this->hasMany(ProductImage::class, 'product_id', 'id_product')
+            ->orderBy('sort_order')
+            ->orderBy('id');
     }
 
     public function onhands(): HasMany
@@ -77,12 +87,22 @@ class Product extends Model
 
     public function getPublicImageUrlAttribute(): ?string
     {
+        $primaryGalleryImage = $this->images->first();
+
+        if ($primaryGalleryImage?->public_url) {
+            return $primaryGalleryImage->public_url;
+        }
+
         if (! $this->gambar) {
             return null;
         }
 
         if (Str::startsWith($this->gambar, ['http://', 'https://'])) {
             return $this->gambar;
+        }
+
+        if (! $this->normalized_image_path || ! Storage::disk('public')->exists($this->normalized_image_path)) {
+            return null;
         }
 
         return route('products.public-image', [
@@ -98,5 +118,49 @@ class Product extends Model
         }
 
         return ltrim(Str::replaceFirst('storage/', '', str_replace('\\', '/', (string) $this->gambar)), '/');
+    }
+
+    public function getPublicBottleImageUrlAttribute(): ?string
+    {
+        if (! $this->bottle_image) {
+            return null;
+        }
+
+        if (Str::startsWith($this->bottle_image, ['http://', 'https://'])) {
+            return $this->bottle_image;
+        }
+
+        if (! $this->normalized_bottle_image_path || ! Storage::disk('public')->exists($this->normalized_bottle_image_path)) {
+            return null;
+        }
+
+        return route('products.public-bottle-image', [
+            'product' => $this,
+            'v' => md5((string) $this->bottle_image),
+        ]);
+    }
+
+    public function getNormalizedBottleImagePathAttribute(): ?string
+    {
+        if (! $this->bottle_image || Str::startsWith($this->bottle_image, ['http://', 'https://'])) {
+            return null;
+        }
+
+        return ltrim(Str::replaceFirst('storage/', '', str_replace('\\', '/', (string) $this->bottle_image)), '/');
+    }
+
+    public function getGalleryImageUrlsAttribute(): array
+    {
+        $urls = $this->images
+            ->map(fn (ProductImage $image) => $image->public_url)
+            ->filter()
+            ->values()
+            ->all();
+
+        if ($urls !== []) {
+            return $urls;
+        }
+
+        return $this->public_image_url ? [$this->public_image_url] : [];
     }
 }
