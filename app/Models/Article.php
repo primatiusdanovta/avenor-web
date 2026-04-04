@@ -11,14 +11,32 @@ class Article extends Model
 {
     use HasFactory;
 
+    public const DEFAULT_CATEGORIES = [
+        'Fragrance Guide',
+        'Scent Story',
+        'Layering Tips',
+        'Brand Journal',
+        'Product Spotlight',
+    ];
+
     protected $fillable = [
         'title',
         'slug',
         'author',
+        'category',
         'published_at',
         'excerpt',
         'body',
         'image_path',
+        'seo_title',
+        'seo_description',
+        'seo_keywords',
+        'seo_canonical_url',
+        'seo_robots',
+        'og_title',
+        'og_description',
+        'og_image_url',
+        'og_image_alt',
         'is_published',
     ];
 

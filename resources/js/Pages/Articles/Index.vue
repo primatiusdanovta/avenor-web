@@ -15,7 +15,7 @@
                 <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h3 class="card-title mb-0">Daftar Article</h3>
                     <div class="d-flex align-items-center flex-wrap gap-2">
-                        <input v-model="searchQuery" type="text" class="form-control form-control-sm article-search" placeholder="Cari judul, author, slug, atau deskripsi">
+                        <input v-model="searchQuery" type="text" class="form-control form-control-sm article-search" placeholder="Cari judul, author, slug, kategori, atau deskripsi">
                         <select v-model.number="pageSize" class="form-control form-control-sm article-page-size">
                             <option :value="5">5</option>
                             <option :value="10">10</option>
@@ -30,6 +30,7 @@
                             <tr>
                                 <th>Article</th>
                                 <th>Author</th>
+                                <th>Kategori</th>
                                 <th>Tanggal</th>
                                 <th>Status</th>
                                 <th>Preview</th>
@@ -42,8 +43,14 @@
                                     <button type="button" class="btn btn-link p-0 font-weight-bold text-left" @click="openEditModal(item)">{{ item.title }}</button>
                                     <div class="text-muted small">{{ item.slug }}</div>
                                     <div class="text-muted small mt-1">{{ item.excerpt }}</div>
+                                    <div v-if="item.seo_title || item.seo_description" class="text-muted small mt-2">
+                                        SEO custom aktif
+                                    </div>
                                 </td>
                                 <td>{{ item.author }}</td>
+                                <td>
+                                    <span class="badge badge-light border">{{ item.category || 'Journal' }}</span>
+                                </td>
                                 <td>{{ item.published_at || '-' }}</td>
                                 <td>
                                     <span class="badge" :class="item.is_published ? 'badge-success' : 'badge-secondary'">
@@ -61,7 +68,7 @@
                                 </td>
                             </tr>
                             <tr v-if="!paginatedArticles.length">
-                                <td colspan="6" class="text-center text-muted">Belum ada article.</td>
+                                <td colspan="7" class="text-center text-muted">Belum ada article.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -85,10 +92,19 @@
                 <label>Judul</label>
                 <input v-model="activeForm.title" type="text" class="form-control" placeholder="Masukkan judul article">
             </div>
-            <div class="form-group mb-0">
-                <label>Slug</label>
-                <input v-model="activeForm.slug" type="text" class="form-control" placeholder="Kosongkan agar dibuat otomatis">
-                <small class="text-muted">Publik akan dibuka di `/article/{slug}`.</small>
+            <div class="form-row">
+                <div class="form-group col-md-6 mb-0">
+                    <label>Slug</label>
+                    <input v-model="activeForm.slug" type="text" class="form-control" placeholder="Kosongkan agar dibuat otomatis">
+                    <small class="text-muted">Publik akan dibuka di `/article/{slug}`.</small>
+                </div>
+                <div class="form-group col-md-6 mb-0">
+                    <label>Kategori</label>
+                    <input v-model="activeForm.category" list="article-category-options" type="text" class="form-control" placeholder="Pilih atau ketik kategori">
+                    <datalist id="article-category-options">
+                        <option v-for="category in categories" :key="category" :value="category"></option>
+                    </datalist>
+                </div>
             </div>
             <div class="form-row">
                 <div class="form-group col-md-6 mb-0">
@@ -115,6 +131,52 @@
             <div v-if="imagePreviewUrl" class="article-preview">
                 <img :src="imagePreviewUrl" alt="Preview article" class="article-preview__image">
             </div>
+
+            <div class="seo-panel">
+                <div class="seo-panel__title">SEO Manage</div>
+                <div class="text-muted small">Field ini akan dipakai khusus untuk halaman article ini. Jika dikosongkan, sistem akan fallback ke judul, excerpt, gambar, dan kategori article.</div>
+                <div class="form-group mb-0">
+                    <label>SEO Title</label>
+                    <input v-model="activeForm.seo_title" type="text" class="form-control" maxlength="255" placeholder="Kosongkan untuk pakai judul article">
+                </div>
+                <div class="form-group mb-0">
+                    <label>SEO Description</label>
+                    <textarea v-model="activeForm.seo_description" rows="3" class="form-control" maxlength="500" placeholder="Kosongkan untuk pakai deskripsi singkat"></textarea>
+                </div>
+                <div class="form-group mb-0">
+                    <label>SEO Keywords</label>
+                    <input v-model="activeForm.seo_keywords" type="text" class="form-control" maxlength="1000" placeholder="keyword1, keyword2, keyword3">
+                </div>
+                <div class="form-row">
+                    <div class="form-group col-md-6 mb-0">
+                        <label>Canonical URL</label>
+                        <input v-model="activeForm.seo_canonical_url" type="text" class="form-control" maxlength="2048" placeholder="https://domain.com/article/...">
+                    </div>
+                    <div class="form-group col-md-6 mb-0">
+                        <label>Robots</label>
+                        <input v-model="activeForm.seo_robots" type="text" class="form-control" maxlength="255" placeholder="index,follow">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group col-md-6 mb-0">
+                        <label>OG Title</label>
+                        <input v-model="activeForm.og_title" type="text" class="form-control" maxlength="255" placeholder="Kosongkan untuk ikut SEO title">
+                    </div>
+                    <div class="form-group col-md-6 mb-0">
+                        <label>OG Image URL</label>
+                        <input v-model="activeForm.og_image_url" type="text" class="form-control" maxlength="2048" placeholder="Kosongkan untuk pakai gambar article">
+                    </div>
+                </div>
+                <div class="form-group mb-0">
+                    <label>OG Description</label>
+                    <textarea v-model="activeForm.og_description" rows="3" class="form-control" maxlength="500" placeholder="Kosongkan untuk ikut SEO description"></textarea>
+                </div>
+                <div class="form-group mb-0">
+                    <label>OG Image Alt</label>
+                    <input v-model="activeForm.og_image_alt" type="text" class="form-control" maxlength="255" placeholder="Kosongkan untuk pakai judul article">
+                </div>
+            </div>
+
             <div v-if="editForm.id && editForm.image_url" class="mb-0">
                 <button type="button" class="btn btn-sm" :class="activeForm.remove_image ? 'btn-outline-success' : 'btn-outline-danger'" @click="activeForm.remove_image = !activeForm.remove_image">
                     {{ activeForm.remove_image ? 'Batal hapus gambar' : 'Hapus gambar lama' }}
@@ -156,6 +218,7 @@ import { adminUrl } from '../../utils/admin';
 
 const props = defineProps({
     articles: { type: Array, default: () => [] },
+    categories: { type: Array, default: () => [] },
 });
 
 const defaults = () => ({
@@ -163,9 +226,19 @@ const defaults = () => ({
     title: '',
     slug: '',
     author: 'Avenor Team',
+    category: props.categories[0] || 'Fragrance Guide',
     published_at: new Date().toISOString().slice(0, 10),
     excerpt: '',
     body: '',
+    seo_title: '',
+    seo_description: '',
+    seo_keywords: '',
+    seo_canonical_url: '',
+    seo_robots: 'index,follow',
+    og_title: '',
+    og_description: '',
+    og_image_url: '',
+    og_image_alt: '',
     is_published: true,
     image: null,
     image_url: '',
@@ -198,7 +271,10 @@ const filteredArticles = computed(() => {
         item.title,
         item.slug,
         item.author,
+        item.category,
         item.excerpt,
+        item.seo_title,
+        item.seo_description,
     ].some((field) => normalize(field).includes(keyword)));
 });
 
@@ -270,9 +346,19 @@ const openEditModal = (item) => {
         title: item.title,
         slug: item.slug,
         author: item.author || 'Avenor Team',
+        category: item.category || props.categories[0] || 'Fragrance Guide',
         published_at: item.published_at || new Date().toISOString().slice(0, 10),
         excerpt: item.excerpt || '',
         body: item.body || '',
+        seo_title: item.seo_title || '',
+        seo_description: item.seo_description || '',
+        seo_keywords: item.seo_keywords || '',
+        seo_canonical_url: item.seo_canonical_url || '',
+        seo_robots: item.seo_robots || 'index,follow',
+        og_title: item.og_title || '',
+        og_description: item.og_description || '',
+        og_image_url: item.og_image_url || '',
+        og_image_alt: item.og_image_alt || '',
         is_published: Boolean(item.is_published),
         image: null,
         image_url: item.image_url || '',
@@ -373,6 +459,20 @@ const confirmDelete = () => {
     object-fit: cover;
 }
 
+.seo-panel {
+    display: grid;
+    gap: 1rem;
+    padding: 1rem;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 1rem;
+    background: rgba(248, 249, 250, 0.75);
+}
+
+.seo-panel__title {
+    font-weight: 700;
+    color: #212529;
+}
+
 .crud-modal-body {
     display: grid;
     gap: 1rem;
@@ -389,4 +489,3 @@ const confirmDelete = () => {
     }
 }
 </style>
-

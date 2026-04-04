@@ -22,10 +22,24 @@ class ArticlesLandingController extends Controller
                 'slug' => $article->slug,
                 'excerpt' => $article->excerpt,
                 'author' => $article->author,
+                'category' => $article->category ?: 'Journal',
                 'published_at' => optional($article->published_at)->translatedFormat('d M Y'),
                 'image_url' => $article->public_image_url ?: asset('img/logo.png'),
                 'url' => url('/article/' . $article->slug),
             ]);
+
+        $categorySpotlight = Article::query()
+            ->where('is_published', true)
+            ->whereNotNull('category')
+            ->where('category', '!=', '')
+            ->orderByDesc('published_at')
+            ->orderByDesc('created_at')
+            ->limit(12)
+            ->pluck('category')
+            ->filter(fn (?string $category) => filled($category))
+            ->unique()
+            ->take(5)
+            ->values();
 
         $socialHub = GlobalSetting::masterSocialHub();
         $seoTitle = 'Article | Avenor Perfume';
@@ -45,6 +59,7 @@ class ArticlesLandingController extends Controller
                         'title' => 'Stories that slow the scroll and deepen discovery.',
                         'description' => 'A curated line of articles about scent mood, ritual, and the details behind the Avenor atmosphere.',
                     ],
+                    'category_spotlight' => $categorySpotlight,
                     'pagination' => [
                         'current_page' => $articles->currentPage(),
                         'last_page' => $articles->lastPage(),
@@ -70,6 +85,7 @@ class ArticlesLandingController extends Controller
                         'title' => 'Stories that slow the scroll and deepen discovery.',
                         'description' => 'A curated line of articles about scent mood, ritual, and the details behind the Avenor atmosphere.',
                     ],
+                    'category_spotlight' => [],
                     'pagination' => [
                         'current_page' => 1,
                         'last_page' => 1,

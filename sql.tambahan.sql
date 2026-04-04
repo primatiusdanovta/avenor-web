@@ -103,6 +103,54 @@ CREATE TABLE IF NOT EXISTS `marketing_bonus_adjustments` (
         ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- =========================================================
+-- 5. ARTICLES
+-- Tambahan kategori dan SEO per article agar sinkron dengan backend.
+-- =========================================================
+
+SET @article_category_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'articles'
+      AND COLUMN_NAME = 'category'
+);
+
+SET @sql := IF(
+    @article_category_exists = 0,
+    'ALTER TABLE `articles` ADD COLUMN `category` VARCHAR(100) NULL AFTER `author`;',
+    'SELECT ''Column category already exists'';'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @article_seo_title_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'articles'
+      AND COLUMN_NAME = 'seo_title'
+);
+
+SET @sql := IF(
+    @article_seo_title_exists = 0,
+    'ALTER TABLE `articles`
+        ADD COLUMN `seo_title` VARCHAR(255) NULL AFTER `image_path`,
+        ADD COLUMN `seo_description` VARCHAR(500) NULL AFTER `seo_title`,
+        ADD COLUMN `seo_keywords` VARCHAR(1000) NULL AFTER `seo_description`,
+        ADD COLUMN `seo_canonical_url` VARCHAR(2048) NULL AFTER `seo_keywords`,
+        ADD COLUMN `seo_robots` VARCHAR(255) NULL AFTER `seo_canonical_url`,
+        ADD COLUMN `og_title` VARCHAR(255) NULL AFTER `seo_robots`,
+        ADD COLUMN `og_description` VARCHAR(500) NULL AFTER `og_title`,
+        ADD COLUMN `og_image_url` VARCHAR(2048) NULL AFTER `og_description`,
+        ADD COLUMN `og_image_alt` VARCHAR(255) NULL AFTER `og_image_url`;',
+    'SELECT ''Article SEO columns already exist'';'
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 COMMIT;
 
 -- =========================================================
