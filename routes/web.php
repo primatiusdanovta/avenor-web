@@ -20,6 +20,7 @@ use App\Http\Controllers\LandingPageBuilderController;
 use App\Http\Controllers\LandingPageManagerController;
 use App\Http\Controllers\MarketingAttendanceController;
 use App\Http\Controllers\MarketingManagementController;
+use App\Http\Controllers\MarketingNotificationController;
 use App\Http\Controllers\OfflineSaleController;
 use App\Http\Controllers\OnlineSaleController;
 use App\Http\Controllers\ProductLandingController;
@@ -49,6 +50,7 @@ Route::get('/product', function () {
 })->name('product.index');
 Route::get('/master-hero-video', [GlobalSettingController::class, 'showMasterHeroVideo'])->name('global-settings.master-hero-video');
 Route::get('/sales-app-apk', [GlobalSettingController::class, 'showSalesAppApk'])->middleware('auth')->name('global-settings.sales-app-apk');
+Route::get('/sales-qr-image', [GlobalSettingController::class, 'showSalesQrImage'])->name('global-settings.sales-qr-image');
 Route::get('/product-image/{product}', [ProductController::class, 'showPublicImage'])->name('products.public-image');
 Route::get('/product-bottle-image/{product}', [ProductController::class, 'showPublicBottleImage'])->name('products.public-bottle-image');
 Route::get('/product-gallery-image/{image}', [ProductController::class, 'showPublicGalleryImage'])->name('product-images.public');
@@ -90,6 +92,7 @@ Route::prefix($administratorPrefix)->group(function () {
         Route::put('/marketing/{user}', [MarketingManagementController::class, 'update'])->name('marketing.update');
         Route::put('/marketing/{user}/return-policy', [MarketingManagementController::class, 'updateReturnPolicy'])->name('marketing.return-policy.update');
         Route::delete('/marketing/{user}', [MarketingManagementController::class, 'destroy'])->name('marketing.destroy');
+        Route::post('/marketing/{user}/manual-bonuses', [MarketingManagementController::class, 'storeManualBonus'])->name('marketing.manual-bonuses.store');
 
         Route::middleware('superadmin')->group(function () {
             Route::get('/landing-page-manager', [LandingPageManagerController::class, 'index'])->name('landing-page-manager.index');
@@ -105,11 +108,17 @@ Route::prefix($administratorPrefix)->group(function () {
             Route::get('/seo-settings', [SeoSettingController::class, 'index'])->name('seo-settings.index');
             Route::put('/seo-settings', [SeoSettingController::class, 'update'])->name('seo-settings.update');
             Route::get('/applicants', [ApplicantController::class, 'index'])->name('applicants.index');
+            Route::get('/applicants/{application}/files/{fileKey}', [ApplicantController::class, 'showFile'])->name('applicants.files.show');
             Route::post('/applicants/connect-content-creators', [ApplicantController::class, 'connectToContentCreator'])->name('applicants.connect-content-creators');
             Route::get('/articles', [ArticleController::class, 'index'])->name('articles.manage');
             Route::post('/articles', [ArticleController::class, 'store'])->name('articles.store');
             Route::put('/articles/{article}', [ArticleController::class, 'update'])->name('articles.update');
             Route::delete('/articles/{article}', [ArticleController::class, 'destroy'])->name('articles.destroy');
+            Route::get('/notifications', [MarketingNotificationController::class, 'index'])->name('notifications.index');
+            Route::post('/notifications', [MarketingNotificationController::class, 'store'])->name('notifications.store');
+            Route::put('/notifications/{notification}', [MarketingNotificationController::class, 'update'])->name('notifications.update');
+            Route::post('/notifications/{notification}/publish', [MarketingNotificationController::class, 'publish'])->name('notifications.publish');
+            Route::delete('/notifications/{notification}', [MarketingNotificationController::class, 'destroy'])->name('notifications.destroy');
         });
 
         Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals.index');

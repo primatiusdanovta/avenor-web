@@ -121,6 +121,7 @@
 import { ref, watch } from 'vue';
 import { Deferred, Head, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { adminUrl } from '../../utils/admin';
 import Select2Input from '../../Components/Select2Input.vue';
 import BootstrapModal from '../../Components/BootstrapModal.vue';
 
@@ -178,7 +179,7 @@ const runConfirmedAction = async () => {
         locationError.value = '';
         attendanceForm.latitude = coords.latitude;
         attendanceForm.longitude = coords.longitude;
-        attendanceForm.post(`/marketing/attendance/${action}`, { preserveScroll: true });
+        attendanceForm.post(adminUrl(`/marketing/attendance/${action}`), { preserveScroll: true });
     } catch (error) {
         locationError.value = error.message;
         openErrorModal(error.message);
@@ -195,5 +196,6 @@ watch(() => page.props.errors?.checkin, (value) => {
     if (value) openErrorModal(value);
 }, { immediate: true });
 </script>
+
 
 

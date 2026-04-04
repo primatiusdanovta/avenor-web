@@ -1,69 +1,16 @@
 <template>
+    <AppLayout>
     <Head title="Article" />
 
-    <div class="row g-4">
-        <div class="col-lg-5">
-            <div class="card card-outline card-primary">
-                <div class="card-header">
-                    <h3 class="card-title mb-0">{{ editForm.id ? 'Edit Article' : 'Tambah Article' }}</h3>
-                </div>
-                <div class="card-body">
-                    <div class="form-group">
-                        <label>Judul</label>
-                        <input v-model="activeForm.title" type="text" class="form-control" placeholder="Masukkan judul article">
-                    </div>
-                    <div class="form-group">
-                        <label>Slug</label>
-                        <input v-model="activeForm.slug" type="text" class="form-control" placeholder="Kosongkan agar dibuat otomatis">
-                        <small class="text-muted">Publik akan dibuka di `/article/{slug}`.</small>
-                    </div>
-                    <div class="form-row">
-                        <div class="form-group col-md-6">
-                            <label>Author</label>
-                            <input v-model="activeForm.author" type="text" class="form-control" placeholder="Nama penulis">
-                        </div>
-                        <div class="form-group col-md-6">
-                            <label>Tanggal</label>
-                            <input v-model="activeForm.published_at" type="date" class="form-control">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Deskripsi Singkat</label>
-                        <textarea v-model="activeForm.excerpt" rows="3" class="form-control" maxlength="500" placeholder="Ringkasan singkat untuk card article"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Isi Article</label>
-                        <textarea v-model="activeForm.body" rows="10" class="form-control" placeholder="Tulis isi article. Pisahkan paragraf dengan baris kosong."></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Gambar</label>
-                        <input type="file" class="form-control" accept="image/*" @change="setImage(activeForm, $event)">
-                    </div>
-                    <div v-if="imagePreviewUrl" class="article-preview mb-3">
-                        <img :src="imagePreviewUrl" alt="Preview article" class="article-preview__image">
-                    </div>
-                    <div v-if="editForm.id && editForm.image_url" class="mb-3">
-                        <button type="button" class="btn btn-sm" :class="activeForm.remove_image ? 'btn-outline-success' : 'btn-outline-danger'" @click="activeForm.remove_image = !activeForm.remove_image">
-                            {{ activeForm.remove_image ? 'Batal hapus gambar' : 'Hapus gambar lama' }}
-                        </button>
-                    </div>
-                    <div class="form-group">
-                        <label class="mb-0 d-inline-flex align-items-center gap-2">
-                            <input v-model="activeForm.is_published" type="checkbox">
-                            <span>Publish article</span>
-                        </label>
-                    </div>
-                    <div class="d-flex gap-2 flex-wrap">
-                        <button class="btn btn-primary" :disabled="activeForm.processing" @click="submitForm">
-                            {{ activeForm.processing ? 'Menyimpan...' : (editForm.id ? 'Update Article' : 'Simpan Article') }}
-                        </button>
-                        <button v-if="editForm.id" class="btn btn-secondary" type="button" @click="resetEdit">Batal</button>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <template #actions>
+        <button type="button" class="btn btn-primary" @click="openCreateModal">
+            <i class="fas fa-plus mr-1"></i>
+            Tambah Article
+        </button>
+    </template>
 
-        <div class="col-lg-7">
+    <div class="row">
+        <div class="col-lg-12">
             <div class="card card-outline card-success">
                 <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h3 class="card-title mb-0">Daftar Article</h3>
@@ -86,13 +33,13 @@
                                 <th>Tanggal</th>
                                 <th>Status</th>
                                 <th>Preview</th>
-                                <th>Aksi</th>
+                                <th class="action-column">Aksi</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr v-for="item in paginatedArticles" :key="item.id">
                                 <td class="article-cell">
-                                    <div class="fw-semibold">{{ item.title }}</div>
+                                    <button type="button" class="btn btn-link p-0 font-weight-bold text-left" @click="openEditModal(item)">{{ item.title }}</button>
                                     <div class="text-muted small">{{ item.slug }}</div>
                                     <div class="text-muted small mt-1">{{ item.excerpt }}</div>
                                 </td>
@@ -107,8 +54,10 @@
                                     <a :href="item.public_url" target="_blank" rel="noopener" class="btn btn-xs btn-outline-dark">Buka</a>
                                 </td>
                                 <td>
-                                    <button class="btn btn-xs btn-warning mr-1" @click="pickEdit(item)">Edit</button>
-                                    <button class="btn btn-xs btn-outline-danger" @click="removeArticle(item)">Hapus</button>
+                                    <div class="action-group">
+                                        <button class="btn btn-xs btn-warning" @click="openEditModal(item)"><i class="fas fa-pen mr-1"></i>Edit</button>
+                                        <button class="btn btn-xs btn-outline-danger" @click="removeArticle(item)"><i class="fas fa-trash-alt mr-1"></i>Hapus</button>
+                                    </div>
                                 </td>
                             </tr>
                             <tr v-if="!paginatedArticles.length">
@@ -130,6 +79,62 @@
         </div>
     </div>
 
+    <BootstrapModal :show="showFormModal" :title="formModalTitle" size="xl" @close="closeFormModal">
+        <div class="crud-modal-body">
+            <div class="form-group mb-0">
+                <label>Judul</label>
+                <input v-model="activeForm.title" type="text" class="form-control" placeholder="Masukkan judul article">
+            </div>
+            <div class="form-group mb-0">
+                <label>Slug</label>
+                <input v-model="activeForm.slug" type="text" class="form-control" placeholder="Kosongkan agar dibuat otomatis">
+                <small class="text-muted">Publik akan dibuka di `/article/{slug}`.</small>
+            </div>
+            <div class="form-row">
+                <div class="form-group col-md-6 mb-0">
+                    <label>Author</label>
+                    <input v-model="activeForm.author" type="text" class="form-control" placeholder="Nama penulis">
+                </div>
+                <div class="form-group col-md-6 mb-0">
+                    <label>Tanggal</label>
+                    <input v-model="activeForm.published_at" type="date" class="form-control">
+                </div>
+            </div>
+            <div class="form-group mb-0">
+                <label>Deskripsi Singkat</label>
+                <textarea v-model="activeForm.excerpt" rows="3" class="form-control" maxlength="500" placeholder="Ringkasan singkat untuk card article"></textarea>
+            </div>
+            <div class="form-group mb-0">
+                <label>Isi Article</label>
+                <RichTextEditor v-model="activeForm.body" />
+            </div>
+            <div class="form-group mb-0">
+                <label>Gambar</label>
+                <input type="file" class="form-control" accept="image/*" @change="setImage(activeForm, $event)">
+            </div>
+            <div v-if="imagePreviewUrl" class="article-preview">
+                <img :src="imagePreviewUrl" alt="Preview article" class="article-preview__image">
+            </div>
+            <div v-if="editForm.id && editForm.image_url" class="mb-0">
+                <button type="button" class="btn btn-sm" :class="activeForm.remove_image ? 'btn-outline-success' : 'btn-outline-danger'" @click="activeForm.remove_image = !activeForm.remove_image">
+                    {{ activeForm.remove_image ? 'Batal hapus gambar' : 'Hapus gambar lama' }}
+                </button>
+            </div>
+            <div class="form-group mb-0">
+                <label class="mb-0 d-inline-flex align-items-center gap-2">
+                    <input v-model="activeForm.is_published" type="checkbox">
+                    <span>Publish article</span>
+                </label>
+            </div>
+        </div>
+        <template #footer>
+            <button type="button" class="btn btn-secondary" @click="closeFormModal">Batal</button>
+            <button class="btn btn-primary" :disabled="activeForm.processing" @click="submitForm">
+                {{ activeForm.processing ? 'Menyimpan...' : (editForm.id ? 'Update Article' : 'Simpan Article') }}
+            </button>
+        </template>
+    </BootstrapModal>
+
     <BootstrapModal :show="showDeleteModal" title="Konfirmasi Hapus" size="mobile-full" @close="closeDeleteModal">
         Hapus article {{ deleteTarget?.title }}?
         <template #footer>
@@ -137,16 +142,17 @@
             <button type="button" class="btn btn-danger" @click="confirmDelete">Hapus</button>
         </template>
     </BootstrapModal>
+
+    </AppLayout>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import BootstrapModal from '../../Components/BootstrapModal.vue';
+import RichTextEditor from '../../Components/RichTextEditor.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { adminUrl } from '../../utils/admin';
-
-defineOptions({ layout: AppLayout });
 
 const props = defineProps({
     articles: { type: Array, default: () => [] },
@@ -171,12 +177,14 @@ const editForm = useForm(defaults());
 const searchQuery = ref('');
 const currentPage = ref(1);
 const pageSize = ref(5);
+const showFormModal = ref(false);
 const showDeleteModal = ref(false);
 const deleteTarget = ref(null);
 const previewObjectUrl = ref('');
 
 const activeForm = computed(() => (editForm.id ? editForm : createForm));
 const imagePreviewUrl = computed(() => previewObjectUrl.value || activeForm.value.image_url || '');
+const formModalTitle = computed(() => editForm.id ? 'Edit Article' : 'Tambah Article');
 
 const normalize = (value) => String(value || '').toLowerCase();
 
@@ -249,7 +257,13 @@ const resetEdit = () => {
     Object.assign(editForm, defaults());
 };
 
-const pickEdit = (item) => {
+const openCreateModal = () => {
+    resetEdit();
+    resetCreate();
+    showFormModal.value = true;
+};
+
+const openEditModal = (item) => {
     revokePreview();
     Object.assign(editForm, {
         id: item.id,
@@ -264,6 +278,13 @@ const pickEdit = (item) => {
         image_url: item.image_url || '',
         remove_image: false,
     });
+    showFormModal.value = true;
+};
+
+const closeFormModal = () => {
+    showFormModal.value = false;
+    resetEdit();
+    resetCreate();
 };
 
 const submitForm = () => {
@@ -277,6 +298,7 @@ const submitForm = () => {
             } else {
                 resetCreate();
             }
+            showFormModal.value = false;
         },
     };
 
@@ -318,6 +340,22 @@ const confirmDelete = () => {
     width: 84px;
 }
 
+.action-column {
+    min-width: 170px;
+}
+
+.action-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+}
+
+.action-group .btn {
+    width: 100%;
+    min-width: 0;
+    white-space: nowrap;
+}
+
 .article-cell {
     min-width: 280px;
 }
@@ -334,4 +372,21 @@ const confirmDelete = () => {
     max-height: 240px;
     object-fit: cover;
 }
+
+.crud-modal-body {
+    display: grid;
+    gap: 1rem;
+}
+
+@media (max-width: 575.98px) {
+    .action-group {
+        grid-template-columns: 1fr;
+    }
+
+    .article-search,
+    .article-page-size {
+        width: 100%;
+    }
+}
 </style>
+

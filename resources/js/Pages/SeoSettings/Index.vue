@@ -93,6 +93,7 @@
 <script setup>
 import { Head, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { adminUrl } from '../../utils/admin';
 
 defineOptions({ layout: AppLayout });
 
@@ -114,6 +115,8 @@ const form = useForm({
 });
 
 const submit = () => {
-    form.put('/seo-settings', { preserveScroll: true });
+    form.put(adminUrl('/seo-settings'), { preserveScroll: true });
 };
 </script>
+
+

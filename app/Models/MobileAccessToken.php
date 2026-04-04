@@ -14,6 +14,9 @@ class MobileAccessToken extends Model
         'user_id',
         'name',
         'token',
+        'push_token',
+        'push_platform',
+        'push_token_updated_at',
         'last_used_at',
         'expires_at',
     ];
@@ -23,6 +26,7 @@ class MobileAccessToken extends Model
         return [
             'last_used_at' => 'datetime',
             'expires_at' => 'datetime',
+            'push_token_updated_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];

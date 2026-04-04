@@ -110,6 +110,7 @@ import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import Select2Input from '../../Components/Select2Input.vue';
 import BootstrapModal from '../../Components/BootstrapModal.vue';
+import { adminUrl } from '../../utils/admin';
 
 defineOptions({ layout: AppLayout });
 
@@ -155,13 +156,13 @@ const submitTake = () => {
         return;
     }
 
-    takeForm.post('/products/take', {
+    takeForm.post(adminUrl('/products/take'), {
         preserveScroll: true,
         onSuccess: () => takeForm.reset('id_product', 'quantity'),
     });
 };
 
-const submitReturn = (item) => router.put(`/products/onhand/${item.id_product_onhand}/return`, {
+const submitReturn = (item) => router.put(adminUrl(`/products/onhand/${item.id_product_onhand}/return`), {
     quantity_dikembalikan: Number(returnInputs[item.id_product_onhand] ?? item.max_return ?? 0),
 }, { preserveScroll: true });
 
@@ -173,3 +174,5 @@ watch(() => page.props.errors?.request_product, (value) => {
     if (value) openWarningModal(value);
 }, { immediate: true });
 </script>
+
+

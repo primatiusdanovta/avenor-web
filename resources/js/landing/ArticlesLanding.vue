@@ -118,7 +118,7 @@ const goTo = (url) => {
 
 .article-card {
     display: grid;
-    grid-template-columns: minmax(220px, 320px) 1fr;
+    grid-template-columns: minmax(180px, 250px) minmax(0, 1fr);
     align-items: stretch;
     gap: 1.5rem;
     padding: 1.25rem;
@@ -144,7 +144,7 @@ const goTo = (url) => {
 .article-card__media {
     display: block;
     overflow: hidden;
-    min-height: 240px;
+    min-height: 200px;
     border-radius: 1.25rem;
     background: rgba(255, 255, 255, 0.04);
 }
@@ -152,7 +152,7 @@ const goTo = (url) => {
 .article-card__image {
     width: 100%;
     height: 100%;
-    min-height: 220px;
+    min-height: 200px;
     object-fit: cover;
     transition: transform 0.45s ease;
 }
@@ -216,7 +216,7 @@ const goTo = (url) => {
 }
 
 .article-card__excerpt {
-    max-width: 60ch;
+    max-width: 78ch;
     margin-bottom: 1.25rem;
     color: rgba(248, 241, 220, 0.82);
 }

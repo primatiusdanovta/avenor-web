@@ -1,13 +1,26 @@
 <template>
+    <AppLayout>
     <Head title="Pengeluaran" />
+
+    <template #actions>
+        <div class="d-flex flex-wrap justify-content-end gap-2">
+            <button type="button" class="btn btn-warning" @click="showOperasionalModal = true">
+                <i class="fas fa-plus mr-1"></i>
+                Tambah Operasional
+            </button>
+            <button type="button" class="btn btn-primary" @click="showBahanBakuModal = true">
+                <i class="fas fa-plus mr-1"></i>
+                Tambah Bahan Baku
+            </button>
+        </div>
+    </template>
 
     <div class="row">
         <div class="col-md-12 col-xl-4 mb-3">
             <div class="card card-outline card-primary h-100">
                 <div class="card-body">
                     <div class="text-muted small mb-2">Total Bahan Baku</div>
-                    <div class="h4 mb-3">{{ toCurrency(summary.bahan_baku) }}</div>
-                    <button type="button" class="btn btn-primary" @click="showBahanBakuModal = true">Tambah Pengeluaran Bahan Baku</button>
+                    <div class="h4 mb-0">{{ toCurrency(summary.bahan_baku) }}</div>
                 </div>
             </div>
         </div>
@@ -15,8 +28,7 @@
             <div class="card card-outline card-warning h-100">
                 <div class="card-body">
                     <div class="text-muted small mb-2">Total Operasional</div>
-                    <div class="h4 mb-3">{{ toCurrency(summary.operasional) }}</div>
-                    <button type="button" class="btn btn-warning" @click="showOperasionalModal = true">Tambah Pengeluaran Operasional</button>
+                    <div class="h4 mb-0">{{ toCurrency(summary.operasional) }}</div>
                 </div>
             </div>
         </div>
@@ -30,44 +42,50 @@
         </div>
     </div>
 
-    <div class="card card-outline card-secondary">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h3 class="card-title">Riwayat Pengeluaran</h3>
-            <input v-model="keyword" type="text" class="form-control form-control-sm w-auto" placeholder="Cari pengeluaran">
-        </div>
-        <div class="card-body p-0 table-responsive">
-            <table class="table table-hover mb-0">
-                <thead>
-                    <tr>
-                        <th>Tanggal</th>
-                        <th>Kategori</th>
-                        <th>Judul</th>
-                        <th>Keterangan</th>
-                        <th>Jumlah</th>
-                        <th>Input Oleh</th>
-                        <th>Dibuat</th>
-                        <th>Aksi</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr v-for="item in filteredExpenses" :key="item.id">
-                        <td>{{ item.expense_date }}</td>
-                        <td><span class="badge" :class="badgeClass(item.category)">{{ item.category_label }}</span></td>
-                        <td>{{ item.title }}</td>
-                        <td class="text-muted">{{ item.notes || '-' }}</td>
-                        <td>{{ toCurrency(item.amount) }}</td>
-                        <td>{{ item.created_by_name }}</td>
-                        <td>{{ item.created_at }}</td>
-                        <td>
-                            <button type="button" class="btn btn-xs btn-warning mr-1" @click="pickEdit(item)">Edit</button>
-                            <button type="button" class="btn btn-xs btn-danger" @click="askDelete(item)">Hapus</button>
-                        </td>
-                    </tr>
-                    <tr v-if="!filteredExpenses.length">
-                        <td colspan="8" class="text-center text-muted">Belum ada data pengeluaran.</td>
-                    </tr>
-                </tbody>
-            </table>
+    <div class="row">
+        <div class="col-lg-12">
+            <div class="card card-outline card-secondary">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h3 class="card-title">Riwayat Pengeluaran</h3>
+                    <input v-model="keyword" type="text" class="form-control form-control-sm w-auto" placeholder="Cari pengeluaran">
+                </div>
+                <div class="card-body p-0 table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Tanggal</th>
+                                <th>Kategori</th>
+                                <th>Judul</th>
+                                <th>Keterangan</th>
+                                <th>Jumlah</th>
+                                <th>Input Oleh</th>
+                                <th>Dibuat</th>
+                                <th class="action-column">Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="item in filteredExpenses" :key="item.id">
+                                <td>{{ item.expense_date }}</td>
+                                <td><span class="badge" :class="badgeClass(item.category)">{{ item.category_label }}</span></td>
+                                <td><button type="button" class="btn btn-link p-0 font-weight-bold text-left" @click="pickEdit(item)">{{ item.title }}</button></td>
+                                <td class="text-muted">{{ item.notes || '-' }}</td>
+                                <td>{{ toCurrency(item.amount) }}</td>
+                                <td>{{ item.created_by_name }}</td>
+                                <td>{{ item.created_at }}</td>
+                                <td>
+                                    <div class="action-group">
+                                        <button type="button" class="btn btn-xs btn-warning" @click="pickEdit(item)"><i class="fas fa-pen mr-1"></i>Edit</button>
+                                        <button type="button" class="btn btn-xs btn-danger" @click="askDelete(item)"><i class="fas fa-trash-alt mr-1"></i>Hapus</button>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr v-if="!filteredExpenses.length">
+                                <td colspan="8" class="text-center text-muted">Belum ada data pengeluaran.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -160,6 +178,8 @@
             <button type="button" class="btn btn-danger" @click="confirmDelete">Hapus</button>
         </template>
     </BootstrapModal>
+
+    </AppLayout>
 </template>
 
 <script setup>
@@ -167,8 +187,7 @@ import { computed, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import BootstrapModal from '../../Components/BootstrapModal.vue';
-
-defineOptions({ layout: AppLayout });
+import { adminUrl } from '../../utils/admin';
 
 const props = defineProps({
     expenses: Array,
@@ -255,17 +274,17 @@ const closeDeleteModal = () => {
     deleteTarget.value = null;
 };
 
-const submitBahanBaku = () => bahanBakuForm.post('/expenses', {
+const submitBahanBaku = () => bahanBakuForm.post(adminUrl('/expenses'), {
     preserveScroll: true,
     onSuccess: closeBahanBakuModal,
 });
 
-const submitOperasional = () => operasionalForm.post('/expenses', {
+const submitOperasional = () => operasionalForm.post(adminUrl('/expenses'), {
     preserveScroll: true,
     onSuccess: closeOperasionalModal,
 });
 
-const submitEdit = () => editForm.put(`/expenses/${editForm.id}`, {
+const submitEdit = () => editForm.put(adminUrl(`/expenses/${editForm.id}`), {
     preserveScroll: true,
     onSuccess: closeEditModal,
 });
@@ -274,6 +293,33 @@ const confirmDelete = () => {
     if (!deleteTarget.value) return;
     const id = deleteTarget.value.id;
     closeDeleteModal();
-    router.delete(`/expenses/${id}`, { preserveScroll: true });
+    router.delete(adminUrl(`/expenses/${id}`), { preserveScroll: true });
 };
 </script>
+
+<style scoped>
+.action-column {
+    min-width: 170px;
+}
+
+.action-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+}
+
+.action-group .btn {
+    width: 100%;
+    min-width: 0;
+    white-space: nowrap;
+}
+
+@media (max-width: 575.98px) {
+    .action-group {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+
+

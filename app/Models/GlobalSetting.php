@@ -62,6 +62,7 @@ class GlobalSetting extends Model
         $merged = array_replace_recursive(static::defaultMasterSocialHub(), $value);
         $heroVideoPath = (string) ($merged['hero_video_path'] ?? '');
         $salesAppApkPath = (string) ($merged['sales_app_apk_path'] ?? '');
+        $salesQrPath = (string) ($merged['sales_qr_path'] ?? '');
 
         $merged['hero_video_url'] = $heroVideoPath !== ''
             ? route('global-settings.master-hero-video', ['v' => md5($heroVideoPath)])
@@ -72,6 +73,12 @@ class GlobalSetting extends Model
             : null;
         $merged['sales_app_apk_name'] = $salesAppApkPath !== ''
             ? ((string) ($merged['sales_app_apk_original_name'] ?? basename($salesAppApkPath)))
+            : null;
+        $merged['sales_qr_url'] = $salesQrPath !== ''
+            ? route('global-settings.sales-qr-image', ['v' => md5($salesQrPath)])
+            : null;
+        $merged['sales_qr_name'] = $salesQrPath !== ''
+            ? ((string) ($merged['sales_qr_original_name'] ?? basename($salesQrPath)))
             : null;
 
         return $merged;

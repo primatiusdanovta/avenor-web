@@ -8,7 +8,6 @@ use App\Models\ProductOnhand;
 use App\Models\SalesTarget;
 use App\Models\User;
 use Carbon\Carbon;
-use Illuminate\Support\Collection;
 
 class MarketingMobileSupport
 {
@@ -100,86 +99,34 @@ class MarketingMobileSupport
 
     public static function buildTargetSummary(User $user, Carbon $periodStart, Carbon $periodEnd): array
     {
-        $today = now()->startOfDay();
-        $effectiveEnd = $periodEnd->copy()->startOfDay()->gt($today) ? $today->copy() : $periodEnd->copy()->startOfDay();
-        $target = SalesTarget::query()->firstWhere('role', 'marketing');
-
-        $sales = OfflineSale::query()
-            ->where('id_user', $user->id_user)
-            ->where('approval_status', '!=', 'ditolak')
-            ->whereBetween('created_at', [$periodStart->copy()->startOfDay(), $effectiveEnd->copy()->endOfDay()])
-            ->get();
-
-        $dailyTargetQty = (int) ($target?->daily_target_qty ?? 0);
-        $weeklyTargetQty = (int) ($target?->weekly_target_qty ?? 0);
-        $monthlyTargetQty = (int) ($target?->monthly_target_qty ?? 0);
-        $dailyBonus = (float) ($target?->daily_bonus ?? 0);
-        $weeklyBonus = (float) ($target?->weekly_bonus ?? 0);
-        $monthlyBonus = (float) ($target?->monthly_bonus ?? 0);
-
-        $dailyTotals = $sales->groupBy(fn (OfflineSale $sale) => optional($sale->created_at)->toDateString())
-            ->map(fn (Collection $items) => (int) $items->sum('quantity'));
-        $periodDayCount = $periodStart->copy()->startOfDay()->gt($effectiveEnd) ? 0 : $periodStart->copy()->startOfDay()->diffInDays($effectiveEnd) + 1;
-        $dailyAchievedCount = $dailyTargetQty > 0 ? $dailyTotals->filter(fn (int $quantity) => $quantity >= $dailyTargetQty)->count() : 0;
-
-        $weeklyPeriods = self::buildWeeklyPeriods($periodStart, $effectiveEnd);
-        $weeklyAchievedCount = 0;
-
-        foreach ($weeklyPeriods as $period) {
-            $weekQuantity = (int) $sales
-                ->filter(fn (OfflineSale $sale) => optional($sale->created_at)?->betweenIncluded($period['start'], $period['end']))
-                ->sum('quantity');
-            if ($weeklyTargetQty > 0 && $weekQuantity >= $weeklyTargetQty) {
-                $weeklyAchievedCount++;
-            }
-        }
-
-        $monthlyQuantity = (int) $sales->sum('quantity');
-        $monthlyMet = $monthlyTargetQty > 0 && $monthlyQuantity >= $monthlyTargetQty;
-        $todayQuantity = (int) ($dailyTotals[now()->toDateString()] ?? 0);
-        $isCurrentMonth = $periodStart->isSameMonth(now()) && $periodStart->isSameYear(now());
-        $bonusTotal = ($dailyAchievedCount * $dailyBonus) + ($weeklyAchievedCount * $weeklyBonus) + ($monthlyMet ? $monthlyBonus : 0);
-
-        return [
-            'period_label' => $periodStart->copy()->locale('id')->translatedFormat('F Y'),
-            'daily' => [
-                'target_qty' => $dailyTargetQty,
-                'achieved_count' => $dailyAchievedCount,
-                'total_periods' => $periodDayCount,
-                'bonus' => round($dailyAchievedCount * $dailyBonus, 2),
-            ],
-            'weekly' => [
-                'target_qty' => $weeklyTargetQty,
-                'achieved_count' => $weeklyAchievedCount,
-                'total_periods' => count($weeklyPeriods),
-                'bonus' => round($weeklyAchievedCount * $weeklyBonus, 2),
-            ],
-            'monthly' => [
-                'target_qty' => $monthlyTargetQty,
-                'total_quantity' => $monthlyQuantity,
-                'met' => $monthlyMet,
-                'bonus' => $monthlyMet ? round($monthlyBonus, 2) : 0,
-            ],
-            'bonus_total' => round($bonusTotal, 2),
-            'reminder' => $isCurrentMonth && $dailyTargetQty > 0 && $todayQuantity < $dailyTargetQty
-                ? sprintf('Target anda %d/%d, Penuhi Target anda hari ini!', $todayQuantity, $dailyTargetQty)
-                : null,
-        ];
+        return MarketingBonusSupport::buildTargetSummary(
+            $user,
+            $periodStart,
+            $periodEnd,
+            SalesTarget::query()->firstWhere('role', 'marketing')
+        );
     }
 
     public static function transformOnhand(ProductOnhand $onhand): array
     {
         $state = self::stateForOnhand($onhand);
+        $approvedReturnQuantity = (int) ($onhand->approved_return_quantity ?? 0);
+        $pendingReturnQuantity = $onhand->return_status === 'pending'
+            ? (int) $onhand->quantity_dikembalikan
+            : 0;
 
         return [
             'id_product_onhand' => $onhand->id_product_onhand,
             'id_product' => $onhand->id_product,
             'nama_product' => $onhand->nama_product,
             'quantity' => (int) $onhand->quantity,
-            'quantity_dikembalikan' => (int) $onhand->quantity_dikembalikan,
+            'quantity_dikembalikan' => $approvedReturnQuantity + $pendingReturnQuantity,
+            'approved_return_quantity' => $approvedReturnQuantity,
+            'pending_return_quantity' => $pendingReturnQuantity,
             'take_status' => $onhand->take_status,
             'take_status_label' => self::takeStatusLabel($onhand->take_status),
             'return_status' => $onhand->return_status,
+            'return_status_label' => self::returnStatusLabel($onhand->return_status),
             'status_label' => $state['status_label'],
             'assignment_date' => optional($onhand->assignment_date)->format('Y-m-d'),
             'sold_quantity' => $state['sold_quantity'],
@@ -215,18 +162,26 @@ class MarketingMobileSupport
         }
 
         $soldQuantity = self::soldForOnhand($onhand);
-        $countedReturn = in_array($onhand->return_status, ['pending', 'disetujui'], true) ? (int) $onhand->quantity_dikembalikan : 0;
+        $approvedReturnQuantity = (int) ($onhand->approved_return_quantity ?? 0);
+        $pendingReturnQuantity = $onhand->return_status === 'pending'
+            ? (int) $onhand->quantity_dikembalikan
+            : 0;
         $soldOut = $soldQuantity >= (int) $onhand->quantity;
-        $remainingQuantity = max((int) $onhand->quantity - $soldQuantity - $countedReturn, 0);
-        $maxReturn = max((int) $onhand->quantity - $soldQuantity, 0);
-        $requiresReturn = (bool) ($onhand->user?->require_return_before_checkout ?? true) && ! $soldOut;
-        $canCheckout = ! $requiresReturn || ($countedReturn > 0 && ($soldQuantity + $countedReturn) >= (int) $onhand->quantity);
+        $remainingQuantity = max((int) $onhand->quantity - $soldQuantity - $approvedReturnQuantity - $pendingReturnQuantity, 0);
+        $maxReturn = max((int) $onhand->quantity - $soldQuantity - $approvedReturnQuantity, 0);
+        $requiresReturn = (bool) ($onhand->user?->require_return_before_checkout ?? true)
+            && ! $soldOut
+            && $maxReturn > 0;
+        $canCheckout = ! $requiresReturn
+            || (($soldQuantity + $approvedReturnQuantity) >= (int) $onhand->quantity);
 
         $statusLabel = self::returnStatusLabel($onhand->return_status);
         if ($soldOut) {
             $statusLabel = 'Habis Terjual';
-        } elseif ($countedReturn > 0 && $onhand->return_status === 'disetujui') {
+        } elseif ($approvedReturnQuantity > 0 && $remainingQuantity === 0) {
             $statusLabel = 'Dikembalikan';
+        } elseif ($approvedReturnQuantity > 0) {
+            $statusLabel = 'Sebagian Dikembalikan';
         }
 
         return [
@@ -275,11 +230,13 @@ class MarketingMobileSupport
             ->where('approval_status', '!=', 'ditolak')
             ->sum('quantity');
 
-        $returnedQty = in_array($onhand->return_status, ['pending', 'disetujui'], true)
+        $returnedQty = $onhand->return_status === 'pending'
             ? (int) $onhand->quantity_dikembalikan
             : 0;
 
-        return max((int) $onhand->quantity - $soldQty - $returnedQty, 0);
+        $approvedReturnQty = (int) ($onhand->approved_return_quantity ?? 0);
+
+        return max((int) $onhand->quantity - $soldQty - $approvedReturnQty - $returnedQty, 0);
     }
 
     public static function normalizePhone(?string $value): ?string
@@ -313,28 +270,4 @@ class MarketingMobileSupport
         };
     }
 
-    private static function buildWeeklyPeriods(Carbon $periodStart, Carbon $periodEnd): array
-    {
-        if ($periodStart->copy()->startOfDay()->gt($periodEnd->copy()->startOfDay())) {
-            return [];
-        }
-
-        $periods = [];
-        $cursor = $periodStart->copy()->startOfDay();
-
-        while ($cursor->lte($periodEnd)) {
-            $weekEnd = $cursor->copy()->endOfWeek(Carbon::SUNDAY);
-            if ($weekEnd->gt($periodEnd)) {
-                $weekEnd = $periodEnd->copy()->endOfDay();
-            }
-
-            $periods[] = [
-                'start' => $cursor->copy()->startOfDay(),
-                'end' => $weekEnd->copy()->endOfDay(),
-            ];
-            $cursor = $weekEnd->copy()->addDay()->startOfDay();
-        }
-
-        return $periods;
-    }
 }

@@ -157,6 +157,23 @@ const isActive = (path) => {
 const hasActiveChild = (item) => Array.isArray(item?.children) && item.children.some((child) => isActive(child.href));
 const isMenuOpen = (label) => Boolean(openMenus.value[label]);
 
+const findActiveNavigationLabel = (items) => {
+    for (const item of items ?? []) {
+        if (item?.children?.length) {
+            const activeChild = item.children.find((child) => isActive(child.href));
+            if (activeChild) {
+                return activeChild.label;
+            }
+        }
+
+        if (item?.href && isActive(item.href)) {
+            return item.label;
+        }
+    }
+
+    return '';
+};
+
 const syncOpenMenusWithRoute = () => {
     const nextState = {};
     for (const item of navigation.value) {
@@ -177,6 +194,12 @@ const toggleMenu = (label) => {
 const syncPageHeading = () => {
     if (props.title) {
         pageHeading.value = props.title;
+        return;
+    }
+
+    const activeLabel = findActiveNavigationLabel(navigation.value);
+    if (activeLabel) {
+        pageHeading.value = activeLabel;
         return;
     }
 
@@ -242,6 +265,7 @@ onBeforeUnmount(() => {
     closeMobileSidebar();
 });
 </script>
+
 
 
 

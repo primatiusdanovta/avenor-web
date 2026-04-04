@@ -13,14 +13,15 @@ class ProductKnowledgeController extends Controller
     public function index(Request $request): Response
     {
         $products = Product::query()
-            ->with('fragranceDetails')
+            ->with(['fragranceDetails', 'images'])
             ->orderByDesc('created_at')
             ->orderByDesc('id_product')
             ->get()
             ->map(fn (Product $product) => [
                 'id_product' => $product->id_product,
                 'nama_product' => $product->nama_product,
-                'gambar' => $product->gambar ? route('products.image', ['product' => $product, 'v' => md5($product->gambar)]) : null,
+                'gambar' => $product->public_image_url,
+                'image_url' => $product->public_image_url,
                 'deskripsi' => $product->deskripsi,
                 'created_at' => optional($product->created_at)->format('Y-m-d H:i:s'),
                 'fragrance_details' => $product->fragranceDetails
@@ -56,4 +57,3 @@ class ProductKnowledgeController extends Controller
         ]);
     }
 }
-

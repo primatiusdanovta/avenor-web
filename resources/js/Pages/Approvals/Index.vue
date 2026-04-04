@@ -10,7 +10,7 @@
                         <thead><tr><th>Nama</th><th>Role</th><th>Product</th><th>Qty</th><th>Tanggal</th><th>Request</th><th>Aksi</th></tr></thead>
                         <tbody>
                             <tr v-for="item in takeRequests" :key="`take-${item.id_product_onhand}`">
-                                <td><Link :href="`/marketing?selected=${item.id_user}`" class="text-primary font-weight-bold">{{ item.nama }}</Link></td>
+                                <td><Link :href="adminUrl(`/marketing?selected=${item.id_user}`)" class="text-primary font-weight-bold">{{ item.nama }}</Link></td>
                                 <td>{{ item.role }}</td>
                                 <td>{{ item.nama_product }}</td>
                                 <td>{{ item.quantity }}</td>
@@ -40,7 +40,7 @@
                         <thead><tr><th>Nama</th><th>Role</th><th>Product</th><th>Dibawa</th><th>Dikembalikan</th><th>Tanggal</th><th>Aksi</th></tr></thead>
                         <tbody>
                             <tr v-for="item in returnRequests" :key="`return-${item.id_product_onhand}`">
-                                <td><Link :href="`/marketing?selected=${item.id_user}`" class="text-primary font-weight-bold">{{ item.nama }}</Link></td>
+                                <td><Link :href="adminUrl(`/marketing?selected=${item.id_user}`)" class="text-primary font-weight-bold">{{ item.nama }}</Link></td>
                                 <td>{{ item.role }}</td>
                                 <td>{{ item.nama_product }}</td>
                                 <td>{{ item.quantity }}</td>
@@ -65,6 +65,7 @@
 <script setup>
 import { Head, Link, router } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { adminUrl } from '../../utils/admin';
 
 defineOptions({ layout: AppLayout });
 
@@ -74,10 +75,10 @@ defineProps({
     selectedMarketing: { type: Object, default: null },
 });
 
-const approveTake = (item) => router.post(`/products/onhand/${item.id_product_onhand}/take-approve`, {}, { preserveScroll: true });
-const rejectTake = (item) => router.post(`/products/onhand/${item.id_product_onhand}/take-reject`, {}, { preserveScroll: true });
-const approveReturn = (item) => router.post(`/products/onhand/${item.id_product_onhand}/approve`, {}, { preserveScroll: true });
-const rejectReturn = (item) => router.post(`/products/onhand/${item.id_product_onhand}/reject`, {}, { preserveScroll: true });
+const approveTake = (item) => router.post(adminUrl(`/products/onhand/${item.id_product_onhand}/take-approve`), {}, { preserveScroll: true });
+const rejectTake = (item) => router.post(adminUrl(`/products/onhand/${item.id_product_onhand}/take-reject`), {}, { preserveScroll: true });
+const approveReturn = (item) => router.post(adminUrl(`/products/onhand/${item.id_product_onhand}/approve`), {}, { preserveScroll: true });
+const rejectReturn = (item) => router.post(adminUrl(`/products/onhand/${item.id_product_onhand}/reject`), {}, { preserveScroll: true });
 </script>
 
 <style scoped>
@@ -85,3 +86,4 @@ const rejectReturn = (item) => router.post(`/products/onhand/${item.id_product_o
     margin-bottom: 10px;
 }
 </style>
+

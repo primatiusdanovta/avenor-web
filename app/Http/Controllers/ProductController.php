@@ -135,6 +135,10 @@ class ProductController extends Controller
             ))
             ->values();
 
+        $historyOnhands = $onhands
+            ->filter(fn (array $onhand) => $onhand['take_status'] === 'disetujui' && $onhand['remaining_quantity'] <= 0)
+            ->values();
+
         return Inertia::render('Products/Onhand', [
             'products' => $products,
             'attendanceReady' => $attendanceReady,
@@ -146,6 +150,7 @@ class ProductController extends Controller
             ] : null,
             'onhands' => $onhands,
             'todayReturnItems' => $todayReturnItems,
+            'historyOnhands' => $historyOnhands,
         ]);
     }
 
@@ -420,12 +425,11 @@ class ProductController extends Controller
 
         DB::transaction(function () use ($request, $onhand): void {
             $product = Product::query()->lockForUpdate()->findOrFail($onhand->id_product);
-
-            if ($onhand->return_status !== 'disetujui') {
-                $product->increment('stock', $onhand->quantity_dikembalikan);
-            }
+            $product->increment('stock', $onhand->quantity_dikembalikan);
 
             $onhand->update([
+                'approved_return_quantity' => (int) ($onhand->approved_return_quantity ?? 0) + (int) $onhand->quantity_dikembalikan,
+                'quantity_dikembalikan' => 0,
                 'return_status' => 'disetujui',
                 'approved_by' => $request->user()->id_user,
             ]);
@@ -493,16 +497,23 @@ class ProductController extends Controller
     private function transformOnhand(ProductOnhand $onhand): array
     {
         $state = $this->stateForOnhand($onhand);
+        $approvedReturnQuantity = (int) ($onhand->approved_return_quantity ?? 0);
+        $pendingReturnQuantity = $onhand->return_status === 'pending'
+            ? (int) $onhand->quantity_dikembalikan
+            : 0;
 
         return [
             'id_product_onhand' => $onhand->id_product_onhand,
             'id_product' => $onhand->id_product,
             'nama_product' => $onhand->nama_product,
             'quantity' => (int) $onhand->quantity,
-            'quantity_dikembalikan' => (int) $onhand->quantity_dikembalikan,
+            'quantity_dikembalikan' => $approvedReturnQuantity + $pendingReturnQuantity,
+            'approved_return_quantity' => $approvedReturnQuantity,
+            'pending_return_quantity' => $pendingReturnQuantity,
             'take_status' => $onhand->take_status,
             'take_status_label' => $this->takeStatusLabel($onhand->take_status),
             'return_status' => $onhand->return_status,
+            'return_status_label' => $this->returnStatusLabel($onhand->return_status),
             'status_label' => $state['status_label'],
             'assignment_date' => optional($onhand->assignment_date)->format('Y-m-d'),
             'sold_quantity' => $state['sold_quantity'],
@@ -531,18 +542,26 @@ class ProductController extends Controller
         }
 
         $soldQuantity = $this->soldForOnhand($onhand);
-        $countedReturn = in_array($onhand->return_status, ['pending', 'disetujui'], true) ? (int) $onhand->quantity_dikembalikan : 0;
+        $approvedReturnQuantity = (int) ($onhand->approved_return_quantity ?? 0);
+        $pendingReturnQuantity = $onhand->return_status === 'pending'
+            ? (int) $onhand->quantity_dikembalikan
+            : 0;
         $soldOut = $soldQuantity >= (int) $onhand->quantity;
-        $remainingQuantity = max((int) $onhand->quantity - $soldQuantity - $countedReturn, 0);
-        $maxReturn = max((int) $onhand->quantity - $soldQuantity, 0);
-        $requiresReturn = (bool) ($onhand->user?->require_return_before_checkout ?? true) && ! $soldOut;
-        $canCheckout = ! $requiresReturn || ($countedReturn > 0 && ($soldQuantity + $countedReturn) >= (int) $onhand->quantity);
+        $remainingQuantity = max((int) $onhand->quantity - $soldQuantity - $approvedReturnQuantity - $pendingReturnQuantity, 0);
+        $maxReturn = max((int) $onhand->quantity - $soldQuantity - $approvedReturnQuantity, 0);
+        $requiresReturn = (bool) ($onhand->user?->require_return_before_checkout ?? true)
+            && ! $soldOut
+            && $maxReturn > 0;
+        $canCheckout = ! $requiresReturn
+            || (($soldQuantity + $approvedReturnQuantity) >= (int) $onhand->quantity);
 
         $statusLabel = $this->returnStatusLabel($onhand->return_status);
         if ($soldOut) {
             $statusLabel = 'Habis Terjual';
-        } elseif ($countedReturn > 0 && $onhand->return_status === 'disetujui') {
+        } elseif ($approvedReturnQuantity > 0 && $remainingQuantity === 0) {
             $statusLabel = 'Dikembalikan';
+        } elseif ($approvedReturnQuantity > 0) {
+            $statusLabel = 'Sebagian Dikembalikan';
         }
 
         return [

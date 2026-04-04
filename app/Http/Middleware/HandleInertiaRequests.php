@@ -56,6 +56,7 @@ class HandleInertiaRequests extends Middleware
                 'children' => array_values(array_filter([
                     $user?->role === 'superadmin' ? ['label' => 'Users', 'href' => route('users.manage'), 'icon' => 'far fa-circle nav-icon'] : null,
                     ['label' => 'Marketing', 'href' => route('marketing.index'), 'icon' => 'far fa-circle nav-icon'],
+                    $user?->role === 'superadmin' ? ['label' => 'Bonus Marketing', 'href' => route('marketing.index', ['mode' => 'bonus']), 'icon' => 'far fa-circle nav-icon'] : null,
                     ['label' => 'Customers', 'href' => route('customers.index'), 'icon' => 'far fa-circle nav-icon'],
                     ['label' => 'Content Creator', 'href' => route('content-creators.index'), 'icon' => 'far fa-circle nav-icon'],
                     $user?->role === 'superadmin' ? ['label' => 'Applicant', 'href' => route('applicants.index'), 'icon' => 'far fa-circle nav-icon'] : null,
@@ -66,6 +67,7 @@ class HandleInertiaRequests extends Middleware
                 $navigation[] = ['label' => 'Landing Page Builder', 'href' => route('landing-page-builder.index'), 'icon' => 'fas fa-gem'];
                 $navigation[] = ['label' => 'Global Settings', 'href' => route('global-settings.index'), 'icon' => 'fas fa-sliders-h'];
                 $navigation[] = ['label' => 'SEO Manager', 'href' => route('seo-settings.index'), 'icon' => 'fas fa-search'];
+                $navigation[] = ['label' => 'Notifications', 'href' => route('notifications.index'), 'icon' => 'fas fa-bell'];
             }
             $navigation[] = ['label' => 'Product Knowledge', 'href' => route('products.knowledge'), 'icon' => 'fas fa-book-open'];
         }
@@ -130,6 +132,8 @@ class HandleInertiaRequests extends Middleware
         ];
     }
 }
+
+
 
 
 

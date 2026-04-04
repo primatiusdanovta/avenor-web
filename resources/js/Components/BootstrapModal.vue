@@ -58,12 +58,29 @@ const closeClass = computed(() => ({
     'btn-close-white': ['danger', 'success', 'primary'].includes(props.headerVariant),
 }));
 
+const handleKeydown = (event) => {
+    if (!props.show || !props.closable) {
+        return;
+    }
+
+    if (event.key === 'Escape') {
+        emit('close');
+    }
+};
+
 watch(() => props.show, (value) => {
     if (typeof document === 'undefined') {
         return;
     }
 
     document.body.classList.toggle('modal-open', value);
+
+    if (value) {
+        document.addEventListener('keydown', handleKeydown);
+        return;
+    }
+
+    document.removeEventListener('keydown', handleKeydown);
 }, { immediate: true });
 
 onBeforeUnmount(() => {
@@ -72,6 +89,7 @@ onBeforeUnmount(() => {
     }
 
     document.body.classList.remove('modal-open');
+    document.removeEventListener('keydown', handleKeydown);
 });
 </script>
 

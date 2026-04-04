@@ -51,7 +51,7 @@
                             <div class="col-md-8 form-group">
                                 <label>Upload APK Sales App</label>
                                 <input type="file" class="form-control" accept=".apk,application/vnd.android.package-archive" @change="handleSalesAppApkChange">
-                                <small class="form-text text-muted">Upload file APK terbaru agar marketing bisa download langsung dari dashboard.</small>
+                                <small class="form-text text-muted">Upload file APK terbaru agar marketing bisa download langsung dari dashboard. Maksimal 100 MB.</small>
                             </div>
                             <div class="col-md-4 form-group">
                                 <div class="custom-control custom-checkbox mt-4 pt-2">
@@ -65,6 +65,29 @@
                                     Download {{ masterSocialHub.sales_app_apk_name || 'sales-app.apk' }}
                                 </a>
                                 <small class="form-text text-muted d-block mt-2">{{ masterSocialHub.sales_app_apk_name || 'APK tersedia untuk diunduh.' }}</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-show="activePanel === 'media'" class="border rounded p-3 mb-4">
+                        <h4 class="h6 text-uppercase text-muted mb-2">Target: Mobile Marketing - QR Code Penjualan</h4>
+                        <p class="text-muted small mb-3">Preview: tombol QR code pada header aplikasi mobile marketing.</p>
+                        <div class="row align-items-end">
+                            <div class="col-md-8 form-group">
+                                <label>Upload Foto QR Code</label>
+                                <input type="file" class="form-control" accept="image/*" @change="handleSalesQrChange">
+                                <small class="form-text text-muted">Upload gambar QR code yang akan ditampilkan di aplikasi mobile marketing.</small>
+                            </div>
+                            <div class="col-md-4 form-group">
+                                <div class="custom-control custom-checkbox mt-4 pt-2">
+                                    <input id="remove-sales-qr" v-model="form.remove_sales_qr" type="checkbox" class="custom-control-input">
+                                    <label class="custom-control-label" for="remove-sales-qr">Hapus QR code</label>
+                                </div>
+                            </div>
+                            <div v-if="masterSocialHub?.sales_qr_url" class="col-12 form-group mb-0">
+                                <label class="d-block">QR Code Saat Ini</label>
+                                <img :src="masterSocialHub.sales_qr_url" alt="Sales QR code" style="width:100%;max-width:280px;border-radius:12px;border:1px solid rgba(0,0,0,.08);background:#fff">
+                                <small class="form-text text-muted d-block mt-2">{{ masterSocialHub.sales_qr_name || 'QR code tersedia.' }}</small>
                             </div>
                         </div>
                     </div>
@@ -390,10 +413,10 @@
                         <div class="row">
                             <div class="col-md-4 form-group"><label>Hero Eyebrow</label><input v-model="form.careers_page.hero.eyebrow" type="text" class="form-control"></div>
                             <div class="col-md-8 form-group"><label>Hero Title</label><input v-model="form.careers_page.hero.title" type="text" class="form-control"></div>
-                            <div class="col-12 form-group"><label>Hero Description</label><textarea v-model="form.careers_page.hero.description" rows="2" class="form-control"></textarea></div>
+                            <div class="col-12 form-group"><label>Hero Description</label><RichTextEditor v-model="form.careers_page.hero.description" /></div>
                             <div class="col-md-4 form-group"><label>Section Kicker</label><input v-model="form.careers_page.section.kicker" type="text" class="form-control"></div>
                             <div class="col-md-8 form-group"><label>Section Title</label><input v-model="form.careers_page.section.title" type="text" class="form-control"></div>
-                            <div class="col-12 form-group"><label>Section Description</label><textarea v-model="form.careers_page.section.description" rows="2" class="form-control"></textarea></div>
+                            <div class="col-12 form-group"><label>Section Description</label><RichTextEditor v-model="form.careers_page.section.description" /></div>
                         </div>
 
                         <div class="card bg-light mt-3">
@@ -413,7 +436,7 @@
                                     </div>
                                     <div class="form-group">
                                         <label>Description</label>
-                                        <textarea v-model="card.description" rows="3" class="form-control"></textarea>
+                                        <RichTextEditor v-model="card.description" />
                                     </div>
                                     <div class="form-group mb-0">
                                         <label>Button Label</label>
@@ -430,7 +453,7 @@
                                     <div class="col-md-6 form-group"><label>Modal Title Template</label><input v-model="form.careers_page.form.title" type="text" class="form-control" placeholder="Apply for {job_title}"></div>
                                     <div class="col-md-3 form-group"><label>Submit Label</label><input v-model="form.careers_page.form.submit_label" type="text" class="form-control"></div>
                                     <div class="col-md-3 form-group"><label>Success Message</label><input v-model="form.careers_page.form.success_message" type="text" class="form-control"></div>
-                                    <div class="col-12 form-group mb-0"><label>Modal Description</label><textarea v-model="form.careers_page.form.description" rows="2" class="form-control"></textarea></div>
+                                    <div class="col-12 form-group mb-0"><label>Modal Description</label><RichTextEditor v-model="form.careers_page.form.description" /></div>
                                 </div>
                             </div>
                         </div>
@@ -475,6 +498,7 @@
 import { Head, useForm } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import RichTextEditor from '../../Components/RichTextEditor.vue';
 import { adminUrl } from '../../utils/admin';
 
 defineOptions({ layout: AppLayout });
@@ -748,6 +772,8 @@ const createState = (source = {}) => ({
     remove_hero_video: false,
     sales_app_apk_file: null,
     remove_sales_app_apk: false,
+    sales_qr_file: null,
+    remove_sales_qr: false,
 });
 
 const form = useForm(createState(props.masterSocialHub));
@@ -817,6 +843,14 @@ const handleSalesAppApkChange = (event) => {
     }
 };
 
+const handleSalesQrChange = (event) => {
+    form.sales_qr_file = event.target.files?.[0] ?? null;
+
+    if (form.sales_qr_file) {
+        form.remove_sales_qr = false;
+    }
+};
+
 const submit = () => {
     form.transform((data) => ({
         ...data,
@@ -842,5 +876,4 @@ const submit = () => {
     });
 };
 </script>
-
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Article;
+use App\Support\ArticleContentFormatter;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -27,6 +28,7 @@ class ArticleController extends Controller
                 'published_at' => optional($article->published_at)->format('Y-m-d'),
                 'excerpt' => $article->excerpt,
                 'body' => $article->body,
+                'body_html' => ArticleContentFormatter::toHtml($article->body),
                 'image_url' => $article->public_image_url,
                 'is_published' => (bool) $article->is_published,
                 'public_url' => url('/article/' . $article->slug),

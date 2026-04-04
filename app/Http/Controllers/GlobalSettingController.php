@@ -282,8 +282,10 @@ class GlobalSettingController extends Controller
             'cards.whatsapp.description' => ['nullable', 'string', 'max:1000'],
             'hero_video_file' => ['nullable', 'file', 'mimetypes:video/mp4,video/webm,video/quicktime', 'max:65536'],
             'remove_hero_video' => ['nullable', 'boolean'],
-            'sales_app_apk_file' => ['nullable', 'file', 'mimes:apk', 'max:262144'],
+            'sales_app_apk_file' => ['nullable', 'file', 'mimes:apk', 'max:102400'],
             'remove_sales_app_apk' => ['nullable', 'boolean'],
+            'sales_qr_file' => ['nullable', 'image', 'max:4096'],
+            'remove_sales_qr' => ['nullable', 'boolean'],
         ]);
 
         GlobalSetting::ensureDefaults();
@@ -291,10 +293,19 @@ class GlobalSettingController extends Controller
         $payload = array_replace_recursive(GlobalSetting::defaultMasterSocialHub(), $validated);
         $existingHeroVideoPath = (string) data_get($current, 'hero_video_path', '');
         $existingSalesAppApkPath = (string) data_get($current, 'sales_app_apk_path', '');
+        $existingSalesQrPath = (string) data_get($current, 'sales_qr_path', '');
         $shouldRemoveHeroVideo = (bool) ($validated['remove_hero_video'] ?? false);
         $shouldRemoveSalesAppApk = (bool) ($validated['remove_sales_app_apk'] ?? false);
+        $shouldRemoveSalesQr = (bool) ($validated['remove_sales_qr'] ?? false);
 
-        unset($payload['hero_video_file'], $payload['remove_hero_video'], $payload['sales_app_apk_file'], $payload['remove_sales_app_apk']);
+        unset(
+            $payload['hero_video_file'],
+            $payload['remove_hero_video'],
+            $payload['sales_app_apk_file'],
+            $payload['remove_sales_app_apk'],
+            $payload['sales_qr_file'],
+            $payload['remove_sales_qr'],
+        );
 
         if ($shouldRemoveHeroVideo) {
             $payload['hero_video_path'] = '';
@@ -312,6 +323,16 @@ class GlobalSettingController extends Controller
             $payload['sales_app_apk_path'] = $existingSalesAppApkPath;
             $payload['sales_app_apk_mime'] = (string) data_get($current, 'sales_app_apk_mime', '');
             $payload['sales_app_apk_original_name'] = (string) data_get($current, 'sales_app_apk_original_name', '');
+        }
+
+        if ($shouldRemoveSalesQr) {
+            $payload['sales_qr_path'] = '';
+            $payload['sales_qr_mime'] = '';
+            $payload['sales_qr_original_name'] = '';
+        } else {
+            $payload['sales_qr_path'] = $existingSalesQrPath;
+            $payload['sales_qr_mime'] = (string) data_get($current, 'sales_qr_mime', '');
+            $payload['sales_qr_original_name'] = (string) data_get($current, 'sales_qr_original_name', '');
         }
 
         try {
@@ -342,6 +363,13 @@ class GlobalSettingController extends Controller
             $payload['sales_app_apk_original_name'] = $storedApk->getClientOriginalName();
         }
 
+        if ($request->hasFile('sales_qr_file')) {
+            $storedQr = $request->file('sales_qr_file');
+            $payload['sales_qr_path'] = $storedQr->store('sales-qr', 'public');
+            $payload['sales_qr_mime'] = $storedQr->getClientMimeType() ?: 'image/png';
+            $payload['sales_qr_original_name'] = $storedQr->getClientOriginalName();
+        }
+
         GlobalSetting::query()->updateOrCreate(
             ['key' => 'master_social_hub'],
             ['value' => $payload]
@@ -353,6 +381,10 @@ class GlobalSettingController extends Controller
 
         if (($shouldRemoveSalesAppApk || $request->hasFile('sales_app_apk_file')) && $existingSalesAppApkPath !== '') {
             Storage::disk('public')->delete($existingSalesAppApkPath);
+        }
+
+        if (($shouldRemoveSalesQr || $request->hasFile('sales_qr_file')) && $existingSalesQrPath !== '') {
+            Storage::disk('public')->delete($existingSalesQrPath);
         }
 
         return redirect()->route('global-settings.index')->with('success', 'Global settings berhasil diperbarui.');
@@ -382,5 +414,16 @@ class GlobalSettingController extends Controller
         return Storage::disk('public')->download($path, $downloadName, [
             'Content-Type' => $mime !== '' ? $mime : 'application/vnd.android.package-archive',
         ]);
+    }
+
+    public function showSalesQrImage(): StreamedResponse
+    {
+        $settings = GlobalSetting::getValue('master_social_hub');
+        $path = (string) data_get($settings, 'sales_qr_path', '');
+
+        abort_if($path === '', 404);
+        abort_unless(Storage::disk('public')->exists($path), 404);
+
+        return Storage::disk('public')->response($path);
     }
 }

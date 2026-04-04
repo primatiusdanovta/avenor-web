@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Article;
 use App\Models\GlobalSetting;
+use App\Support\ArticleContentFormatter;
 use App\Support\SeoSchemaBuilder;
 use Illuminate\Contracts\View\View;
 
@@ -32,6 +33,7 @@ class ArticleLandingController extends Controller
                     'slug' => $article->slug,
                     'excerpt' => $article->excerpt,
                     'body' => $article->body,
+                    'body_html' => ArticleContentFormatter::toHtml($article->body),
                     'author' => $article->author,
                     'published_at' => optional($article->published_at)->translatedFormat('d F Y'),
                     'image_url' => $image,
@@ -49,6 +51,7 @@ class ArticleLandingController extends Controller
                     'slug' => $article->slug,
                     'excerpt' => $article->excerpt,
                     'body' => $article->body,
+                    'body_html' => ArticleContentFormatter::toHtml($article->body),
                     'author' => $article->author,
                     'published_at' => optional($article->published_at)->translatedFormat('d F Y'),
                     'image_url' => $image,

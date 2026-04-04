@@ -106,6 +106,7 @@
 import { computed, watch, ref } from 'vue';
 import { Head, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { adminUrl } from '../../utils/admin';
 import BootstrapModal from '../../Components/BootstrapModal.vue';
 
 defineOptions({ layout: AppLayout });
@@ -227,7 +228,7 @@ watch(feedbackMessage, (value) => {
     showFeedbackModal.value = Boolean(value);
 }, { immediate: true });
 
-const submitImport = () => form.post('/online-sales/import', {
+const submitImport = () => form.post(adminUrl('/online-sales/import'), {
     forceFormData: true,
     preserveScroll: true,
     onSuccess: () => form.reset(),
@@ -240,3 +241,5 @@ const toCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency'
     cursor: pointer;
 }
 </style>
+
+

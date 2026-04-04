@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
+use App\Models\MarketingBonusAdjustment;
 use App\Models\MarketingLocation;
 use App\Models\OfflineSale;
 use App\Models\ProductOnhand;
 use App\Models\SalesTarget;
 use App\Models\User;
+use App\Support\MarketingBonusSupport;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -89,6 +91,12 @@ class MarketingManagementController extends Controller
                         'notes' => $todayAttendance->notes,
                     ] : null,
                     'current_kpi' => $this->buildMarketingKpi($marketing->id_user, $periodStart, $periodEnd),
+                    'bonus_summary' => MarketingBonusSupport::buildTargetSummary(
+                        $marketing,
+                        $periodStart,
+                        $periodEnd,
+                        SalesTarget::query()->firstWhere('role', 'marketing')
+                    ),
                     'kpi_history' => $this->buildKpiHistory($marketing->id_user, $periodStart),
                     'latest_location' => $latestLocation ? [
                         'latitude' => $latestLocation->latitude,
@@ -171,6 +179,12 @@ class MarketingManagementController extends Controller
                 'notes' => $todayAttendance->notes,
             ] : null,
             'current_kpi' => $this->buildMarketingKpi($user->id_user, $periodStart, $periodStart->copy()->endOfMonth()),
+            'bonus_summary' => MarketingBonusSupport::buildTargetSummary(
+                $user,
+                $periodStart,
+                $periodStart->copy()->endOfMonth(),
+                SalesTarget::query()->firstWhere('role', 'marketing')
+            ),
             'kpi_history' => $this->buildKpiHistory($user->id_user, $periodStart),
             'latest_location' => $latestLocation ? [
                 'latitude' => $latestLocation->latitude,
@@ -231,15 +245,49 @@ class MarketingManagementController extends Controller
             ->with('success', 'Pengaturan pengembalian barang marketing berhasil diperbarui.');
     }
 
+    public function storeManualBonus(Request $request, User $user): RedirectResponse
+    {
+        abort_unless($request->user()->role === 'superadmin', 403);
+        abort_unless($user->role === 'marketing', 404);
+
+        $validated = $request->validate([
+            'bonus_month' => ['required', 'date_format:Y-m'],
+            'amount' => ['required', 'numeric', 'gt:0'],
+            'note' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $bonusMonth = Carbon::createFromFormat('Y-m', $validated['bonus_month'])->startOfMonth();
+
+        MarketingBonusAdjustment::query()->create([
+            'user_id' => $user->id_user,
+            'created_by' => $request->user()->id_user,
+            'bonus_month' => $bonusMonth->toDateString(),
+            'amount' => (float) $validated['amount'],
+            'note' => $validated['note'] ?? null,
+        ]);
+
+        return redirect()
+            ->route('marketing.index', [
+                'selected' => $user->id_user,
+                'month' => $bonusMonth->month,
+                'year' => $bonusMonth->year,
+            ])
+            ->with('success', 'Bonus manual marketing berhasil ditambahkan.');
+    }
+
     private function transformOnhand(ProductOnhand $onhand): array
     {
         $state = $this->stateForOnhand($onhand);
+        $approvedReturnQuantity = (int) ($onhand->approved_return_quantity ?? 0);
+        $pendingReturnQuantity = $onhand->return_status === 'pending'
+            ? (int) $onhand->quantity_dikembalikan
+            : 0;
 
         return [
             'id_product_onhand' => $onhand->id_product_onhand,
             'nama_product' => $onhand->nama_product,
             'quantity' => (int) $onhand->quantity,
-            'quantity_dikembalikan' => (int) $onhand->quantity_dikembalikan,
+            'quantity_dikembalikan' => $approvedReturnQuantity + $pendingReturnQuantity,
             'remaining_quantity' => $state['remaining_quantity'],
             'take_status' => $onhand->take_status,
             'take_status_label' => $this->takeStatusLabel($onhand->take_status),
@@ -263,18 +311,21 @@ class MarketingManagementController extends Controller
             ->where('approval_status', '!=', 'ditolak')
             ->sum('quantity');
 
-        $returned = in_array($onhand->return_status, ['pending', 'disetujui'], true)
+        $approvedReturnQuantity = (int) ($onhand->approved_return_quantity ?? 0);
+        $pendingReturnQuantity = $onhand->return_status === 'pending'
             ? (int) $onhand->quantity_dikembalikan
             : 0;
 
-        $remaining = max((int) $onhand->quantity - $sold - $returned, 0);
+        $remaining = max((int) $onhand->quantity - $sold - $approvedReturnQuantity - $pendingReturnQuantity, 0);
         $soldOut = $sold >= (int) $onhand->quantity;
         $statusLabel = $this->returnStatusLabel($onhand->return_status);
 
         if ($soldOut) {
             $statusLabel = 'Habis Terjual';
-        } elseif ($returned > 0 && $onhand->return_status === 'disetujui') {
+        } elseif ($approvedReturnQuantity > 0 && $remaining === 0) {
             $statusLabel = 'Dikembalikan';
+        } elseif ($approvedReturnQuantity > 0) {
+            $statusLabel = 'Sebagian Dikembalikan';
         }
 
         return [

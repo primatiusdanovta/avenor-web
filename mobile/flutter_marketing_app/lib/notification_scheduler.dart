@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -7,14 +10,14 @@ class NotificationScheduler {
 
   static final NotificationScheduler instance = NotificationScheduler._();
 
-  static const String _channelId = 'avenor_sales_reminder';
-  static const String _channelName = 'Avenor Sales Reminder';
+  static const String _channelId = 'avenor_marketing_updates';
+  static const String _channelName = 'Avenor Marketing Updates';
   static const String _channelDescription =
-      'Reminder jualan pagi, siang, dan sore untuk tim marketing.';
-  static const String _notificationTitle = 'Reminder Avenor Marketing';
-  static const String _notificationBody =
-      'Ayo berjualan, pelanggan sedang menunggu kamu!';
-  static const List<int> _hours = [6, 12, 18];
+      'Notifikasi dari superadmin untuk tim marketing.';
+  static const String _notifiedNotificationIdsKey =
+      'marketing_notified_notification_ids';
+  static const String _readNotificationIdsKey =
+      'marketing_read_notification_ids';
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
@@ -31,7 +34,14 @@ class NotificationScheduler {
 
     const initializationSettings = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
-      iOS: DarwinInitializationSettings(),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+        defaultPresentAlert: true,
+        defaultPresentBadge: true,
+        defaultPresentSound: true,
+      ),
     );
 
     await _plugin.initialize(initializationSettings);
@@ -39,47 +49,122 @@ class NotificationScheduler {
     final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     await androidPlugin?.requestNotificationsPermission();
+    await androidPlugin?.createNotificationChannel(const AndroidNotificationChannel(
+      _channelId,
+      _channelName,
+      description: _channelDescription,
+      importance: Importance.max,
+    ));
 
-    await _scheduleDailyReminders();
     _initialized = true;
   }
 
-  Future<void> _scheduleDailyReminders() async {
-    await _plugin.cancelAll();
+  Future<void> syncServerNotifications(
+      List<Map<String, dynamic>> notifications) async {
+    await initialize();
 
-    for (final hour in _hours) {
-      await _plugin.zonedSchedule(
-        hour,
-        _notificationTitle,
-        _notificationBody,
-        _nextInstanceOfHour(hour),
-        const NotificationDetails(
+    final prefs = await SharedPreferences.getInstance();
+    final notifiedIds = _readIds(prefs, _notifiedNotificationIdsKey);
+    final unseenNotifications = notifications.where((item) {
+      final id = _notificationId(item);
+      return id != null && !notifiedIds.contains(id);
+    }).toList();
+
+    if (unseenNotifications.isEmpty) {
+      return;
+    }
+
+    final unseenCount = unseenNotifications.length;
+
+    for (final item in unseenNotifications) {
+      final id = _notificationId(item);
+      if (id == null) {
+        continue;
+      }
+
+      await _plugin.show(
+        id,
+        item['title']?.toString() ?? 'Notifikasi Baru',
+        item['body']?.toString() ?? item['excerpt']?.toString() ?? '',
+        NotificationDetails(
           android: AndroidNotificationDetails(
             _channelId,
             _channelName,
             channelDescription: _channelDescription,
-            importance: Importance.high,
+            importance: Importance.max,
             priority: Priority.high,
-            playSound: true,
+            category: AndroidNotificationCategory.message,
+            visibility: NotificationVisibility.public,
+            ticker: item['title']?.toString(),
+            number: unseenCount,
           ),
-          iOS: DarwinNotificationDetails(),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
+            badgeNumber: unseenCount,
+            interruptionLevel: InterruptionLevel.active,
+          ),
         ),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation:
-            UILocalNotificationDateInterpretation.absoluteTime,
-        matchDateTimeComponents: DateTimeComponents.time,
+        payload: jsonEncode(item),
       );
     }
+
+    notifiedIds.addAll(unseenNotifications
+        .map(_notificationId)
+        .whereType<int>());
+    await prefs.setStringList(
+      _notifiedNotificationIdsKey,
+      notifiedIds.take(200).map((id) => '$id').toList(),
+    );
   }
 
-  tz.TZDateTime _nextInstanceOfHour(int hour) {
-    final now = tz.TZDateTime.now(tz.local);
-    var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, hour);
+  Future<void> markNotificationsSeen(List<Map<String, dynamic>> notifications) async {
+    await initialize();
 
-    if (!scheduled.isAfter(now)) {
-      scheduled = scheduled.add(const Duration(days: 1));
+    final prefs = await SharedPreferences.getInstance();
+    final readIds = _readIds(prefs, _readNotificationIdsKey);
+
+    for (final item in notifications) {
+      final id = _notificationId(item);
+      if (id != null) {
+        readIds.add(id);
+      }
     }
 
-    return scheduled;
+    await prefs.setStringList(
+      _readNotificationIdsKey,
+      readIds.take(200).map((id) => '$id').toList(),
+    );
+
+    await _plugin.cancelAll();
+  }
+
+  Future<int> countUnreadNotifications(
+      List<Map<String, dynamic>> notifications) async {
+    final prefs = await SharedPreferences.getInstance();
+    final readIds = _readIds(prefs, _readNotificationIdsKey);
+    return notifications.where((item) {
+      final id = _notificationId(item);
+      return id != null && !readIds.contains(id);
+    }).length;
+  }
+
+  Future<void> clearStoredState() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_notifiedNotificationIdsKey);
+    await prefs.remove(_readNotificationIdsKey);
+    await _plugin.cancelAll();
+  }
+
+  Set<int> _readIds(SharedPreferences prefs, String key) {
+    return (prefs.getStringList(key) ?? const [])
+        .map(int.tryParse)
+        .whereType<int>()
+        .toSet();
+  }
+
+  int? _notificationId(Map<String, dynamic> item) {
+    return (item['id'] as num?)?.toInt();
   }
 }

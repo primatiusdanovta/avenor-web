@@ -116,6 +116,7 @@
 <script setup>
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
+import { adminUrl } from '../../utils/admin';
 
 defineOptions({ layout: AppLayout });
 
@@ -141,14 +142,16 @@ const visibilityFields = [
 const visibilityForm = useForm({ hero: props.content.visibility.hero, story: props.content.visibility.story, notes: props.content.visibility.notes, ingredients: props.content.visibility.ingredients });
 const createIngredientForm = useForm({ title: '', description: '', icon: props.iconOptions[0] ?? 'spark', is_active: true });
 const ingredientForms = Object.fromEntries((props.content.ingredients ?? []).map((ingredient) => [ingredient.id, useForm({ title: ingredient.title, description: ingredient.description, icon: ingredient.meta_data?.icon ?? 'spark', is_active: ingredient.is_active })]));
-const submitSection = (form, section) => { form.put(`/landing-page-manager/sections/${section}`, { preserveScroll: true }); };
-const submitVisibility = () => { visibilityForm.put('/landing-page-manager/visibility', { preserveScroll: true }); };
+const submitSection = (form, section) => { form.put(adminUrl(`/landing-page-manager/sections/${section}`), { preserveScroll: true }); };
+const submitVisibility = () => { visibilityForm.put(adminUrl('/landing-page-manager/visibility'), { preserveScroll: true }); };
 const submitIngredientCreate = () => {
-    createIngredientForm.post('/landing-page-manager/ingredients', {
+    createIngredientForm.post(adminUrl('/landing-page-manager/ingredients'), {
         preserveScroll: true,
         onSuccess: () => createIngredientForm.reset('title', 'description'),
     });
 };
-const submitIngredientUpdate = (id) => { ingredientForms[id].put(`/landing-page-manager/ingredients/${id}`, { preserveScroll: true }); };
-const submitIngredientDelete = (id) => { router.delete(`/landing-page-manager/ingredients/${id}`, { preserveScroll: true }); };
+const submitIngredientUpdate = (id) => { ingredientForms[id].put(adminUrl(`/landing-page-manager/ingredients/${id}`), { preserveScroll: true }); };
+const submitIngredientDelete = (id) => { router.delete(adminUrl(`/landing-page-manager/ingredients/${id}`), { preserveScroll: true }); };
 </script>
+
+

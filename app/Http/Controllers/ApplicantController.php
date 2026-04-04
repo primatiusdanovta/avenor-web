@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ApplicantController extends Controller
 {
@@ -107,6 +108,20 @@ class ApplicantController extends Controller
             ->with('success', $message);
     }
 
+    public function showFile(Request $request, CareerApplication $application, string $fileKey): StreamedResponse
+    {
+        $this->authorizeSuperadmin($request);
+
+        $file = collect($application->uploaded_files ?? [])->get($fileKey);
+        $path = (string) data_get($file, 'path', '');
+        $originalName = (string) data_get($file, 'original_name', basename($path));
+
+        abort_if($path === '', 404);
+        abort_unless(Storage::disk('public')->exists($path), 404);
+
+        return Storage::disk('public')->download($path, $originalName);
+    }
+
     private function authorizeSuperadmin(Request $request): void
     {
         abort_unless($request->user()?->role === 'superadmin', 403);
@@ -155,7 +170,10 @@ class ApplicantController extends Controller
                         'key' => $key,
                         'label' => trim((string) data_get($item, 'label', $key)),
                         'original_name' => (string) data_get($item, 'original_name', basename($path)),
-                        'url' => $path !== '' ? Storage::disk('public')->url($path) : null,
+                        'url' => $path !== '' ? route('applicants.files.show', [
+                            'application' => $application,
+                            'fileKey' => $key,
+                        ]) : null,
                     ];
                 })
                 ->values()

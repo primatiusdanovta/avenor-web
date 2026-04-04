@@ -20,6 +20,7 @@ class ProductOnhand extends Model
         'nama_product',
         'quantity',
         'quantity_dikembalikan',
+        'approved_return_quantity',
         'take_status',
         'return_status',
         'approved_by',
@@ -35,6 +36,7 @@ class ProductOnhand extends Model
         return [
             'quantity' => 'integer',
             'quantity_dikembalikan' => 'integer',
+            'approved_return_quantity' => 'integer',
             'assignment_date' => 'date',
             'created_at' => 'datetime',
             'take_requested_at' => 'datetime',

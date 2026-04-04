@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Mobile;
 
 use App\Http\Controllers\Controller;
+use App\Models\Attendance;
 use App\Models\Customer;
 use App\Models\OfflineSale;
 use App\Models\Product;
@@ -109,6 +110,19 @@ class OfflineSaleController extends Controller
     {
         $user = $request->user();
         abort_unless($user?->role === 'marketing', 403);
+
+        $attendance = Attendance::query()
+            ->where('user_id', $user->id_user)
+            ->whereDate('attendance_date', now()->toDateString())
+            ->first();
+
+        if (! $attendance?->check_in) {
+            return response()->json(['message' => 'Marketing wajib check in terlebih dahulu sebelum melakukan penjualan.'], 422);
+        }
+
+        if ($attendance?->check_out) {
+            return response()->json(['message' => 'Marketing yang sudah check out tidak bisa melakukan penjualan lagi hari ini.'], 422);
+        }
 
         $validated = $this->validateTransactionPayload($request);
         [$products, $promo, $lineSubtotals, $onhands, $totalQuantity, $subtotal] = $this->prepareTransactionContext($validated, $user->id_user);
@@ -351,5 +365,4 @@ class OfflineSaleController extends Controller
         return 'TRX-' . now()->format('YmdHis') . '-' . strtoupper(Str::random(8));
     }
 }
-
 

@@ -12,7 +12,7 @@ class ProductKnowledgeController extends Controller
     public function __invoke(): JsonResponse
     {
         $products = Product::query()
-            ->with('fragranceDetails')
+            ->with(['fragranceDetails', 'images'])
             ->orderByDesc('created_at')
             ->orderByDesc('id_product')
             ->get()
@@ -20,6 +20,7 @@ class ProductKnowledgeController extends Controller
                 'id_product' => $product->id_product,
                 'nama_product' => $product->nama_product,
                 'gambar' => $product->public_image_url,
+                'image_url' => $product->public_image_url,
                 'deskripsi' => $product->deskripsi,
                 'created_at' => optional($product->created_at)->format('Y-m-d H:i:s'),
                 'fragrance_details' => $product->fragranceDetails

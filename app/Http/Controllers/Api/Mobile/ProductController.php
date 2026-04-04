@@ -51,6 +51,11 @@ class ProductController extends Controller
             ))
             ->values();
 
+        $historyOnhands = $onhands
+            ->filter(fn (array $onhand) => $onhand['take_status'] === 'disetujui'
+                && ! MarketingMobileSupport::countsAsActiveOnhand($onhand))
+            ->values();
+
         return response()->json([
             'products' => $products,
             'attendance_ready' => $attendanceContext['attendanceReady'],
@@ -58,6 +63,7 @@ class ProductController extends Controller
             'today_attendance' => $attendanceContext['todayAttendance'],
             'onhands' => $onhands,
             'today_return_items' => $todayReturnItems,
+            'history_onhands' => $historyOnhands,
         ]);
     }
 

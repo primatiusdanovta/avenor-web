@@ -15,19 +15,29 @@
             </div>
         </div>
 
-        <div v-if="isMarketing && salesAppDownload?.url" class="row">
+        <div v-if="isMarketing && salesAppDownload" class="row">
             <div class="col-12">
                 <div class="card card-outline card-success">
                     <div class="card-body d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
                         <div>
                             <div class="text-muted small text-uppercase mb-2">Sales App</div>
                             <div class="h5 mb-1">Download aplikasi sales Android terbaru</div>
-                            <div class="text-muted small">{{ salesAppDownload.name || 'APK siap diunduh untuk tim marketing.' }}</div>
+                            <div class="text-muted small">{{ salesAppDownload.name || 'File APK belum diunggah oleh superadmin.' }}</div>
                         </div>
-                        <a :href="salesAppDownload.url" class="btn btn-success btn-lg download-app-button">
+                        <component
+                            :is="salesAppDownload.url ? 'a' : 'button'"
+                            :href="salesAppDownload.url || null"
+                            type="button"
+                            class="btn btn-lg download-app-button"
+                            :class="salesAppDownload.url ? 'btn-success' : 'btn-outline-secondary disabled'"
+                            :disabled="!salesAppDownload.url"
+                            target="_blank"
+                            rel="noopener"
+                            :aria-disabled="!salesAppDownload.url"
+                        >
                             <i class="fab fa-android mr-2"></i>
                             Download App Sales
-                        </a>
+                        </component>
                     </div>
                 </div>
             </div>
@@ -298,7 +308,7 @@
                         <div class="card-body">
                             <p class="mb-1"><strong>Bulan Saat Ini:</strong> {{ dashboardData.target_summary.period_label }}</p>
                             <p class="mb-1"><strong>Target Harian Terpenuhi:</strong> {{ dashboardData.target_summary.daily.achieved_count }} / {{ dashboardData.target_summary.daily.total_periods }} hari</p>
-                            <p class="mb-1 text-muted">Qty target harian {{ dashboardData.target_summary.daily.target_qty }} | Bonus tercapai {{ toCurrency(dashboardData.target_summary.daily.bonus) }}</p>
+                            <p class="mb-1 text-muted">Qty target harian {{ dashboardData.target_summary.daily.target_qty }} | Bonus harian {{ toCurrency(dashboardData.target_summary.daily.bonus) }}</p>
                             <p class="mb-1"><strong>Target Mingguan Terpenuhi:</strong> {{ dashboardData.target_summary.weekly.achieved_count }} / {{ dashboardData.target_summary.weekly.total_periods }} minggu</p>
                             <p class="mb-1 text-muted">Qty target mingguan {{ dashboardData.target_summary.weekly.target_qty }} | Bonus tercapai {{ toCurrency(dashboardData.target_summary.weekly.bonus) }}</p>
                             <p class="mb-1"><strong>Target Bulanan:</strong> {{ dashboardData.target_summary.monthly.met ? 'Terpenuhi' : 'Belum Terpenuhi' }} ({{ dashboardData.target_summary.monthly.total_quantity }}/{{ dashboardData.target_summary.monthly.target_qty }})</p>
@@ -313,7 +323,7 @@
                         <div class="card-header"><h3 class="card-title">History Penjualan {{ dashboardData.previous_target_summary.period_label }}</h3></div>
                         <div class="card-body">
                             <p class="mb-1"><strong>Target Harian Terpenuhi:</strong> {{ dashboardData.previous_target_summary.daily.achieved_count }} / {{ dashboardData.previous_target_summary.daily.total_periods }} hari</p>
-                            <p class="mb-1 text-muted">Qty target harian {{ dashboardData.previous_target_summary.daily.target_qty }} | Bonus tercapai {{ toCurrency(dashboardData.previous_target_summary.daily.bonus) }}</p>
+                            <p class="mb-1 text-muted">Qty target harian {{ dashboardData.previous_target_summary.daily.target_qty }} | Bonus harian {{ toCurrency(dashboardData.previous_target_summary.daily.bonus) }}</p>
                             <p class="mb-1"><strong>Target Mingguan Terpenuhi:</strong> {{ dashboardData.previous_target_summary.weekly.achieved_count }} / {{ dashboardData.previous_target_summary.weekly.total_periods }} minggu</p>
                             <p class="mb-1 text-muted">Qty target mingguan {{ dashboardData.previous_target_summary.weekly.target_qty }} | Bonus tercapai {{ toCurrency(dashboardData.previous_target_summary.weekly.bonus) }}</p>
                             <p class="mb-1"><strong>Target Bulanan:</strong> {{ dashboardData.previous_target_summary.monthly.met ? 'Terpenuhi' : 'Belum Terpenuhi' }} ({{ dashboardData.previous_target_summary.monthly.total_quantity }}/{{ dashboardData.previous_target_summary.monthly.target_qty }})</p>
@@ -445,6 +455,8 @@ const showOnlineManagerContent = computed(() => ['all', 'online'].includes(props
     min-width: 240px;
 }
 </style>
+
+
 
 
 

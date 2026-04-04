@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Mobile;
 
 use App\Http\Controllers\Controller;
+use App\Models\GlobalSetting;
 use App\Models\MobileAccessToken;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -60,6 +61,7 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         $user = $request->user();
+        $socialHub = GlobalSetting::masterSocialHub();
 
         return response()->json([
             'user' => [
@@ -68,6 +70,8 @@ class AuthController extends Controller
                 'role' => $user->role,
                 'status' => $user->status,
                 'require_return_before_checkout' => (bool) $user->require_return_before_checkout,
+                'sales_qr_url' => data_get($socialHub, 'sales_qr_url'),
+                'sales_qr_name' => data_get($socialHub, 'sales_qr_name'),
             ],
         ]);
     }

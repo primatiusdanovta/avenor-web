@@ -559,11 +559,13 @@ class OfflineSaleController extends Controller
             ->where('approval_status', '!=', 'ditolak')
             ->sum('quantity');
 
-        $returnedQty = in_array($onhand->return_status, ['pending', 'disetujui'], true)
+        $returnedQty = $onhand->return_status === 'pending'
             ? (int) $onhand->quantity_dikembalikan
             : 0;
 
-        return max((int) $onhand->quantity - $soldQty - $returnedQty, 0);
+        $approvedReturnQty = (int) ($onhand->approved_return_quantity ?? 0);
+
+        return max((int) $onhand->quantity - $soldQty - $approvedReturnQty - $returnedQty, 0);
     }
 
     private function resolveProductHpp(?Product $product): float

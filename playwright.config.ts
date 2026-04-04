@@ -1,4 +1,4 @@
-﻿import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -16,7 +16,7 @@ export default defineConfig({
   },
   webServer: {
     command: 'powershell -ExecutionPolicy Bypass -File ./tools/e2e-server.ps1',
-    url: 'http://127.0.0.1:8010/login',
+    url: 'http://127.0.0.1:8010/administrator/login',
     reuseExistingServer: false,
     timeout: 180000,
   },

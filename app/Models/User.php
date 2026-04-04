@@ -62,4 +62,14 @@ class User extends Authenticatable
     {
         return $this->hasMany(MobileAccessToken::class, 'user_id', 'id_user');
     }
+
+    public function marketingNotifications(): HasMany
+    {
+        return $this->hasMany(MarketingNotification::class, 'created_by', 'id_user');
+    }
+
+    public function marketingBonusAdjustments(): HasMany
+    {
+        return $this->hasMany(MarketingBonusAdjustment::class, 'user_id', 'id_user');
+    }
 }

@@ -1,7 +1,9 @@
 <?php
 
+use App\Models\MarketingNotification;
 use App\Models\Product;
 use App\Models\ProductImage;
+use App\Services\MarketingPushNotificationService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -102,3 +104,28 @@ Artisan::command('media:audit-product-images {--clean : Bersihkan referensi imag
 
     return self::SUCCESS;
 })->purpose('Audit dan opsional membersihkan referensi image product yang file fisiknya hilang');
+
+Artisan::command('marketing-notifications:dispatch-scheduled', function (MarketingPushNotificationService $pushNotificationService) {
+    $dueNotifications = MarketingNotification::query()
+        ->where('status', 'scheduled')
+        ->whereNotNull('scheduled_at')
+        ->where('scheduled_at', '<=', now())
+        ->get();
+
+    if ($dueNotifications->isEmpty()) {
+        $this->info('Tidak ada notifikasi terjadwal yang perlu dipublikasikan.');
+        return self::SUCCESS;
+    }
+
+    foreach ($dueNotifications as $notification) {
+        $notification->update([
+            'status' => 'published',
+            'published_at' => now(),
+        ]);
+
+        $result = $pushNotificationService->sendPublishedNotification($notification->fresh());
+        $this->line("Notification #{$notification->id} dipublikasikan. Push terkirim: {$result['sent']}");
+    }
+
+    return self::SUCCESS;
+})->purpose('Publikasikan notifikasi marketing terjadwal dan kirim push notification');

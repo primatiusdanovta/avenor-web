@@ -13,6 +13,7 @@ use App\Models\Promo;
 use App\Models\RawMaterial;
 use App\Models\SalesTarget;
 use App\Models\User;
+use App\Support\MarketingBonusSupport;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -401,72 +402,7 @@ class DashboardController extends Controller
 
     private function buildTargetSummary(User $user, Carbon $periodStart, Carbon $periodEnd, ?SalesTarget $target): array
     {
-        $today = now()->startOfDay();
-        $effectiveEnd = $periodEnd->copy()->startOfDay()->gt($today) ? $today->copy() : $periodEnd->copy()->startOfDay();
-
-        $sales = OfflineSale::query()
-            ->where('id_user', $user->id_user)
-            ->where('approval_status', '!=', 'ditolak')
-            ->whereBetween('created_at', [$periodStart->copy()->startOfDay(), $effectiveEnd->copy()->endOfDay()])
-            ->get();
-
-        $dailyTargetQty = (int) ($target?->daily_target_qty ?? 0);
-        $weeklyTargetQty = (int) ($target?->weekly_target_qty ?? 0);
-        $monthlyTargetQty = (int) ($target?->monthly_target_qty ?? 0);
-        $dailyBonus = (float) ($target?->daily_bonus ?? 0);
-        $weeklyBonus = (float) ($target?->weekly_bonus ?? 0);
-        $monthlyBonus = (float) ($target?->monthly_bonus ?? 0);
-
-        $dailyTotals = $sales->groupBy(fn (OfflineSale $sale) => optional($sale->created_at)->toDateString())->map(fn (Collection $items) => (int) $items->sum('quantity'));
-        $periodDayCount = $periodStart->copy()->startOfDay()->gt($effectiveEnd) ? 0 : $periodStart->copy()->startOfDay()->diffInDays($effectiveEnd) + 1;
-        $dailyAchievedCount = $dailyTargetQty > 0 ? $dailyTotals->filter(fn (int $quantity) => $quantity >= $dailyTargetQty)->count() : 0;
-
-        $weeklyPeriods = $this->buildWeeklyPeriods($periodStart, $effectiveEnd);
-        $weeklyAchievedCount = 0;
-
-        foreach ($weeklyPeriods as $period) {
-            $weekQuantity = (int) $sales->filter(fn (OfflineSale $sale) => optional($sale->created_at)?->betweenIncluded($period['start'], $period['end']))->sum('quantity');
-            if ($weeklyTargetQty > 0 && $weekQuantity >= $weeklyTargetQty) {
-                $weeklyAchievedCount++;
-            }
-        }
-
-        $monthlyQuantity = (int) $sales->sum('quantity');
-        $monthlyMet = $monthlyTargetQty > 0 && $monthlyQuantity >= $monthlyTargetQty;
-        $todayQuantity = (int) ($dailyTotals[now()->toDateString()] ?? 0);
-        $isCurrentMonth = $periodStart->isSameMonth(now()) && $periodStart->isSameYear(now());
-        $bonusTotal = ($dailyAchievedCount * $dailyBonus) + ($weeklyAchievedCount * $weeklyBonus) + ($monthlyMet ? $monthlyBonus : 0);
-
-        return [
-            'period_label' => $periodStart->copy()->locale('id')->translatedFormat('F Y'),
-            'daily' => ['target_qty' => $dailyTargetQty, 'achieved_count' => $dailyAchievedCount, 'total_periods' => $periodDayCount, 'bonus' => round($dailyAchievedCount * $dailyBonus, 2)],
-            'weekly' => ['target_qty' => $weeklyTargetQty, 'achieved_count' => $weeklyAchievedCount, 'total_periods' => count($weeklyPeriods), 'bonus' => round($weeklyAchievedCount * $weeklyBonus, 2)],
-            'monthly' => ['target_qty' => $monthlyTargetQty, 'total_quantity' => $monthlyQuantity, 'met' => $monthlyMet, 'bonus' => $monthlyMet ? round($monthlyBonus, 2) : 0],
-            'bonus_total' => round($bonusTotal, 2),
-            'reminder' => $isCurrentMonth && $dailyTargetQty > 0 && $todayQuantity < $dailyTargetQty ? sprintf('Target anda %d/%d, Penuhi Target anda hari ini!', $todayQuantity, $dailyTargetQty) : null,
-        ];
-    }
-
-    private function buildWeeklyPeriods(Carbon $periodStart, Carbon $periodEnd): array
-    {
-        if ($periodStart->copy()->startOfDay()->gt($periodEnd->copy()->startOfDay())) {
-            return [];
-        }
-
-        $periods = [];
-        $cursor = $periodStart->copy()->startOfDay();
-
-        while ($cursor->lte($periodEnd)) {
-            $weekEnd = $cursor->copy()->endOfWeek(Carbon::SUNDAY);
-            if ($weekEnd->gt($periodEnd)) {
-                $weekEnd = $periodEnd->copy()->endOfDay();
-            }
-
-            $periods[] = ['start' => $cursor->copy()->startOfDay(), 'end' => $weekEnd->copy()->endOfDay()];
-            $cursor = $weekEnd->copy()->addDay()->startOfDay();
-        }
-
-        return $periods;
+        return MarketingBonusSupport::buildTargetSummary($user, $periodStart, $periodEnd, $target);
     }
 
     private function buildMarketingKpi(int $userId, Carbon $periodStart, Carbon $periodEnd): array
@@ -556,7 +492,6 @@ class DashboardController extends Controller
         ];
     }
 }
-
 
 
 

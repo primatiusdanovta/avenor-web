@@ -179,6 +179,7 @@ class _MarketingRootState extends State<MarketingRoot> {
   bool _mockMode = kUseMock;
   bool _obscureLoginPassword = true;
   int _navigationIndex = 0;
+  int _unreadNotificationCount = 0;
   String? _token;
   String? _error;
   String? _locationLabel;
@@ -188,6 +189,7 @@ class _MarketingRootState extends State<MarketingRoot> {
   Map<String, dynamic>? _products;
   Map<String, dynamic>? _sales;
   Map<String, dynamic>? _knowledge;
+  Map<String, dynamic>? _notifications;
 
   @override
   void initState() {
@@ -238,6 +240,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     _mockMode = true;
     _token = 'mock-token';
     _hydrateMockData();
+    await _refreshNotificationBadgeState();
     if (mounted) {
       setState(() => _loading = false);
     }
@@ -249,6 +252,8 @@ class _MarketingRootState extends State<MarketingRoot> {
       'nama': 'Alya Pramesti',
       'role': 'marketing',
       'wilayah': 'Jakarta Barat',
+      'sales_qr_url': null,
+      'sales_qr_name': null,
     };
     _attendance = {
       'today_attendance': {
@@ -449,6 +454,28 @@ class _MarketingRootState extends State<MarketingRoot> {
         },
       ],
     };
+    _notifications = {
+      'notifications': [
+        {
+          'id': 1,
+          'title': 'Reminder Briefing Pagi',
+          'excerpt':
+              'Semua marketing wajib hadir briefing pukul 09.00 sebelum mulai aktivitas booth hari ini.',
+          'body':
+              'Semua marketing wajib hadir briefing pukul 09.00 sebelum mulai aktivitas booth hari ini. Mohon datang 10 menit lebih awal dan siapkan laporan stok on hand terakhir.',
+          'published_at': _formatYmdHis(now.subtract(const Duration(minutes: 30))),
+        },
+        {
+          'id': 2,
+          'title': 'Update Promo Booth Central Park',
+          'excerpt':
+              'Promo BOOST25 diperpanjang sampai malam ini untuk transaksi minimal 1 item.',
+          'body':
+              'Promo BOOST25 diperpanjang sampai malam ini untuk transaksi minimal 1 item. Gunakan materi promo terbaru saat closing dan informasikan bonus sample untuk customer repeat order.',
+          'published_at': _formatYmdHis(now.subtract(const Duration(hours: 3))),
+        },
+      ],
+    };
     _syncMockDerivedState();
   }
 
@@ -488,6 +515,10 @@ class _MarketingRootState extends State<MarketingRoot> {
     _products?['today_return_items'] = onhands
         .where(_isCountedAsOnHand)
         .toList();
+    _products?['history_onhands'] = onhands
+        .where((item) =>
+            item['take_status'] == 'disetujui' && !_isCountedAsOnHand(item))
+        .toList();
   }
 
   static bool _isCountedAsOnHand(Map<String, dynamic> item) {
@@ -514,6 +545,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('marketing_token');
     await prefs.remove('marketing_mock_mode');
+    await NotificationScheduler.instance.clearStoredState();
     _token = null;
     _me = null;
     _dashboard = null;
@@ -521,7 +553,22 @@ class _MarketingRootState extends State<MarketingRoot> {
     _products = null;
     _sales = null;
     _knowledge = null;
+    _notifications = null;
+    _unreadNotificationCount = 0;
     _dio.options.headers.remove('Authorization');
+  }
+
+  Future<void> _refreshNotificationBadgeState() async {
+    final notifications = ((_notifications?['notifications'] as List?) ?? [])
+        .cast<Map<String, dynamic>>();
+    final unreadCount = await NotificationScheduler.instance
+        .countUnreadNotifications(notifications);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() => _unreadNotificationCount = unreadCount);
   }
 
   Future<void> _login() async {
@@ -537,6 +584,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         await prefs.setString('marketing_token', 'mock-token');
         _token = 'mock-token';
         _hydrateMockData();
+        await _refreshNotificationBadgeState();
         return;
       }
 
@@ -574,6 +622,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         if (showLoader) _busy = true;
         _syncMockDerivedState();
       });
+      await _refreshNotificationBadgeState();
       await Future<void>.delayed(const Duration(milliseconds: 250));
       if (mounted) {
         setState(() => _busy = false);
@@ -593,6 +642,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         _dio.get('/products'),
         _dio.get('/offline-sales'),
         _dio.get('/product-knowledge'),
+        _dio.get('/notifications'),
       ]);
 
       if (!mounted) return;
@@ -605,7 +655,13 @@ class _MarketingRootState extends State<MarketingRoot> {
         _products = results[3].data as Map<String, dynamic>;
         _sales = results[4].data as Map<String, dynamic>;
         _knowledge = results[5].data as Map<String, dynamic>;
+        _notifications = results[6].data as Map<String, dynamic>;
       });
+      await NotificationScheduler.instance.syncServerNotifications(
+        ((_notifications?['notifications'] as List?) ?? [])
+            .cast<Map<String, dynamic>>(),
+      );
+      await _refreshNotificationBadgeState();
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -774,10 +830,11 @@ class _MarketingRootState extends State<MarketingRoot> {
             .cast<Map<String, dynamic>>()
             .firstWhere((item) => item['id_product_onhand'] == onhandId);
         onhand['quantity_dikembalikan'] = quantity;
+        onhand['pending_return_quantity'] = quantity;
         onhand['return_status'] = 'pending';
         onhand['return_status_label'] = 'Pending retur';
         onhand['status_label'] = 'Menunggu approval retur';
-        onhand['can_checkout'] = true;
+        onhand['can_checkout'] = false;
         _syncMockDerivedState();
       } else {
         await _dio.post('/products/onhand/$onhandId/return', data: {
@@ -981,6 +1038,42 @@ class _MarketingRootState extends State<MarketingRoot> {
     }
   }
 
+  Future<void> _showNotificationsSheet(
+      List<Map<String, dynamic>> notifications) async {
+    await NotificationScheduler.instance.markNotificationsSeen(notifications);
+    if (mounted) {
+      setState(() => _unreadNotificationCount = 0);
+    }
+    if (!mounted) {
+      return;
+    }
+
+    return showMaterialModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _NotificationsSheet(
+        notifications: notifications,
+      ),
+    );
+  }
+
+  Future<void> _showSalesQrSheet() async {
+    final qrUrl = _me?['sales_qr_url']?.toString().trim() ?? '';
+
+    if (!mounted) {
+      return;
+    }
+
+    return showMaterialModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _SalesQrSheet(
+        qrUrl: qrUrl,
+        qrName: _me?['sales_qr_name']?.toString(),
+      ),
+    );
+  }
+
   void _showMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context)
@@ -1035,7 +1128,9 @@ class _MarketingRootState extends State<MarketingRoot> {
         _attendance?['today_attendance'] as Map<String, dynamic>? ?? {};
     final onhands =
         ((_products?['onhands'] as List?) ?? []).cast<Map<String, dynamic>>();
-    final activeOnhands = onhands.where(_isCountedAsOnHand).toList();
+    final historyOnhands =
+        ((_products?['history_onhands'] as List?) ?? [])
+            .cast<Map<String, dynamic>>();
     final availableProducts =
         ((_products?['products'] as List?) ?? []).cast<Map<String, dynamic>>();
     final sales =
@@ -1046,6 +1141,9 @@ class _MarketingRootState extends State<MarketingRoot> {
         ((_sales?['promos'] as List?) ?? []).cast<Map<String, dynamic>>();
     final knowledge =
         ((_knowledge?['products'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final notifications =
+        ((_notifications?['notifications'] as List?) ?? [])
+            .cast<Map<String, dynamic>>();
     final recentAttendances =
         ((_attendance?['recent_attendances'] as List?) ?? [])
             .cast<Map<String, dynamic>>();
@@ -1072,7 +1170,8 @@ class _MarketingRootState extends State<MarketingRoot> {
       ),
       _InventoryPage(
         products: availableProducts,
-        onhands: activeOnhands,
+        onhands: onhands,
+        historyOnhands: historyOnhands,
         attendanceBlockedReason:
             _products?['attendance_blocked_reason']?.toString(),
         busy: _busy,
@@ -1142,6 +1241,9 @@ class _MarketingRootState extends State<MarketingRoot> {
                 icon: _pageIcon(_navigationIndex),
                 compact: true,
                 onRefresh: () => _refreshAll(showLoader: true),
+                onSalesQr: _showSalesQrSheet,
+                onNotifications: () => _showNotificationsSheet(notifications),
+                notificationCount: _unreadNotificationCount,
                 onLogout: _logout,
               ),
               Expanded(
@@ -1414,6 +1516,9 @@ class _TopBanner extends StatelessWidget {
     required this.icon,
     required this.compact,
     required this.onRefresh,
+    required this.onSalesQr,
+    required this.onNotifications,
+    required this.notificationCount,
     required this.onLogout,
   });
 
@@ -1426,6 +1531,9 @@ class _TopBanner extends StatelessWidget {
   final IconData icon;
   final bool compact;
   final VoidCallback onRefresh;
+  final VoidCallback onSalesQr;
+  final VoidCallback onNotifications;
+  final int notificationCount;
   final Future<void> Function() onLogout;
 
   @override
@@ -1434,8 +1542,35 @@ class _TopBanner extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 2),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
           children: [
+            _TopActionButton(
+              tooltip: 'Lihat QR Code',
+              onPressed: onSalesQr,
+              child: const Icon(Icons.qr_code_2_rounded),
+            ),
+            const SizedBox(width: 10),
+            badges.Badge(
+              position: badges.BadgePosition.topEnd(top: -8, end: -8),
+              showBadge: notificationCount > 0,
+              badgeStyle: const badges.BadgeStyle(
+                badgeColor: Color(0xFFC05D3B),
+                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              ),
+              badgeContent: Text(
+                '$notificationCount',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              child: _TopActionButton(
+                tooltip: 'Notifications',
+                onPressed: onNotifications,
+                child: const Icon(Icons.notifications_none_rounded),
+              ),
+            ),
+            const Spacer(),
             _TopActionButton(
               tooltip: busy ? 'Memuat...' : 'Sync Data',
               onPressed: busy ? null : onRefresh,
@@ -1565,6 +1700,309 @@ class _TopBanner extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SalesQrSheet extends StatelessWidget {
+  const _SalesQrSheet({
+    required this.qrUrl,
+    required this.qrName,
+  });
+
+  final String qrUrl;
+  final String? qrName;
+
+  @override
+  Widget build(BuildContext context) {
+    return _AnimatedSheetScaffold(
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFF7F1E8),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _SheetHandle(),
+                const SizedBox(height: 16),
+                const _SheetHeader(
+                  heroTag: 'sales-qr-sheet',
+                  accent: Color(0xFF2C8C82),
+                  icon: Icons.qr_code_2_rounded,
+                  title: 'QR Code Penjualan',
+                  subtitle: 'Tampilkan QR code yang diunggah dari backend untuk kebutuhan closing.',
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: qrUrl.isEmpty
+                      ? const Text(
+                          'QR code belum diunggah oleh superadmin.',
+                          textAlign: TextAlign.center,
+                        )
+                      : Column(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(20),
+                              child: CachedNetworkImage(
+                                imageUrl: qrUrl,
+                                fit: BoxFit.contain,
+                                width: double.infinity,
+                                height: 280,
+                                placeholder: (_, __) => const Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.all(24),
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                ),
+                                errorWidget: (_, __, ___) => const Padding(
+                                  padding: EdgeInsets.all(24),
+                                  child: Text(
+                                    'QR code gagal dimuat. Coba sync data lagi.',
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              qrName ?? 'QR Code Sales',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationsSheet extends StatelessWidget {
+  const _NotificationsSheet({
+    required this.notifications,
+  });
+
+  final List<Map<String, dynamic>> notifications;
+
+  @override
+  Widget build(BuildContext context) {
+    return _AnimatedSheetScaffold(
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFF7F1E8),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _SheetHandle(),
+                const SizedBox(height: 16),
+                const _SheetHeader(
+                  heroTag: 'notifications-sheet',
+                  accent: Color(0xFFC05D3B),
+                  icon: Icons.notifications_active_outlined,
+                  title: 'Notifications',
+                  subtitle: 'Judul dan ringkasan notifikasi terbaru untuk tim marketing.',
+                ),
+                const SizedBox(height: 14),
+                Flexible(
+                  child: notifications.isEmpty
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 24),
+                          child: Text('Belum ada notifikasi untuk ditampilkan.'),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: notifications.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final item = notifications[index];
+                            return Material(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(24),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(24),
+                                onTap: () => showMaterialModalBottomSheet<void>(
+                                  context: context,
+                                  backgroundColor: Colors.transparent,
+                                  builder: (_) =>
+                                      _NotificationDetailSheet(notification: item),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Container(
+                                            width: 42,
+                                            height: 42,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFF6E1D8),
+                                              borderRadius:
+                                                  BorderRadius.circular(14),
+                                            ),
+                                            child: const Icon(
+                                              Icons.notifications_none_rounded,
+                                              color: Color(0xFFC05D3B),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  item['title']?.toString() ?? '-',
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 15,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 6),
+                                                Text(
+                                                  item['excerpt']?.toString() ??
+                                                      item['body']?.toString() ??
+                                                      '-',
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    color: Color(0xFF6F665F),
+                                                    height: 1.4,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(
+                                        item['published_at']?.toString() ?? '-',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Color(0xFF8B7A6C),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationDetailSheet extends StatelessWidget {
+  const _NotificationDetailSheet({
+    required this.notification,
+  });
+
+  final Map<String, dynamic> notification;
+
+  @override
+  Widget build(BuildContext context) {
+    return _AnimatedSheetScaffold(
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFF7F1E8),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const _SheetHandle(),
+                const SizedBox(height: 16),
+                const _SheetHeader(
+                  heroTag: 'notifications-detail-sheet',
+                  accent: Color(0xFFC05D3B),
+                  icon: Icons.mark_email_read_outlined,
+                  title: 'Detail Notifikasi',
+                  subtitle: 'Isi lengkap notifikasi dari superadmin.',
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        notification['title']?.toString() ?? '-',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        notification['published_at']?.toString() ?? '-',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF8B7A6C),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        notification['body']?.toString() ?? '-',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          height: 1.6,
+                          color: Color(0xFF2B2117),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -2182,6 +2620,7 @@ class _InventoryPage extends StatelessWidget {
   const _InventoryPage({
     required this.products,
     required this.onhands,
+    required this.historyOnhands,
     required this.attendanceBlockedReason,
     required this.busy,
     required this.currency,
@@ -2191,6 +2630,7 @@ class _InventoryPage extends StatelessWidget {
 
   final List<Map<String, dynamic>> products;
   final List<Map<String, dynamic>> onhands;
+  final List<Map<String, dynamic>> historyOnhands;
   final String? attendanceBlockedReason;
   final bool busy;
   final NumberFormat currency;
@@ -2221,7 +2661,7 @@ class _InventoryPage extends StatelessWidget {
           title: 'Barang On Hand',
           subtitle: onhands.isEmpty
               ? 'Belum ada barang on hand.'
-              : 'Tap untuk melihat detail barang yang sedang dibawa dan retur.',
+              : 'Tap untuk melihat detail barang yang sedang di tangan saat ini.',
           icon: Icons.inventory_2_rounded,
           accent: const Color(0xFFC18B2F),
           heroTag: 'inventory-onhand',
@@ -2229,6 +2669,18 @@ class _InventoryPage extends StatelessWidget {
           onTap: busy
               ? null
               : () => _openOnhandSheet(context),
+        ),
+        const SizedBox(height: 16),
+        _InventoryLauncherCard(
+          title: 'History Barang',
+          subtitle: historyOnhands.isEmpty
+              ? 'Belum ada riwayat barang terjual atau dikembalikan.'
+              : 'Tap untuk melihat barang on hand yang sudah habis terjual atau sudah dikembalikan.',
+          icon: Icons.history_rounded,
+          accent: const Color(0xFF2C8C82),
+          heroTag: 'inventory-history',
+          badgeLabel: '${historyOnhands.length} item',
+          onTap: busy ? null : () => _openHistorySheet(context),
         ),
       ],
     );
@@ -2259,6 +2711,18 @@ class _InventoryPage extends StatelessWidget {
         busy: busy,
         currency: currency,
         onReturn: onReturn,
+      ),
+    );
+  }
+
+  Future<void> _openHistorySheet(BuildContext context) {
+    return showMaterialModalBottomSheet<void>(
+      context: context,
+      expand: false,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _HistoryOnHandSheet(
+        items: historyOnhands,
+        currency: currency,
       ),
     );
   }
@@ -2835,6 +3299,155 @@ class _OnHandSheetState extends State<_OnHandSheet> {
   }
 }
 
+class _HistoryOnHandSheet extends StatefulWidget {
+  const _HistoryOnHandSheet({
+    required this.items,
+    required this.currency,
+  });
+
+  final List<Map<String, dynamic>> items;
+  final NumberFormat currency;
+
+  @override
+  State<_HistoryOnHandSheet> createState() => _HistoryOnHandSheetState();
+}
+
+class _HistoryOnHandSheetState extends State<_HistoryOnHandSheet> {
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _searchController.text.trim().toLowerCase();
+    final filtered = widget.items.where((item) {
+      final name = item['nama_product']?.toString().toLowerCase() ?? '';
+      final status = item['status_label']?.toString().toLowerCase() ?? '';
+      return query.isEmpty || name.contains(query) || status.contains(query);
+    }).toList();
+
+    return _AnimatedSheetScaffold(
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFF7F1E8),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _SheetHandle(),
+                const SizedBox(height: 16),
+                const _SheetHeader(
+                  heroTag: 'inventory-history',
+                  accent: Color(0xFF2C8C82),
+                  icon: Icons.history_rounded,
+                  title: 'History Barang',
+                  subtitle: 'Riwayat barang on hand yang sudah habis terjual atau sudah dikembalikan.',
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _searchController,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Cari history barang',
+                    prefixIcon: Icon(Icons.search_rounded),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Flexible(
+                  child: filtered.isEmpty
+                      ? const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 28),
+                          child: Text('Belum ada history barang untuk ditampilkan.'),
+                        )
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: filtered.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final item = filtered[index];
+                            return Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(24),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x120F0A05),
+                                    blurRadius: 18,
+                                    offset: Offset(0, 10),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          item['nama_product']?.toString() ?? '-',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      ),
+                                      _StatusChip(
+                                        label: item['status_label']?.toString() ?? '-',
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      _MiniPill(
+                                        label: 'Qty awal ${((item['quantity'] as num?)?.toInt() ?? 0)}',
+                                      ),
+                                      _MiniPill(
+                                        label: 'Terjual ${((item['sold_quantity'] as num?)?.toInt() ?? 0)}',
+                                      ),
+                                      _MiniPill(
+                                        label: 'Dikembalikan ${((item['approved_return_quantity'] as num?)?.toInt() ?? 0)}',
+                                      ),
+                                      _MiniPill(
+                                        label: item['assignment_date']?.toString() ?? '-',
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'Sisa aktif ${((item['remaining_quantity'] as num?)?.toInt() ?? 0)} item',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF6F665F),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _FilterChip extends StatelessWidget {
   const _FilterChip({
     required this.label,
@@ -3203,8 +3816,31 @@ class _SalesPageState extends State<_SalesPage> {
   }
 
   bool get _hasInvalidItems {
+    final seen = <int>{};
+
     for (final item in _items) {
       if (item.productId == null || item.quantity < 1) {
+        return true;
+      }
+
+      if (!seen.add(item.productId!)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  bool get _hasDuplicateProducts {
+    final seen = <int>{};
+
+    for (final item in _items) {
+      final productId = item.productId;
+      if (productId == null) {
+        continue;
+      }
+
+      if (!seen.add(productId)) {
         return true;
       }
     }
@@ -3322,6 +3958,23 @@ class _SalesPageState extends State<_SalesPage> {
       return;
     }
 
+    final selectedByOthers = _items
+        .asMap()
+        .entries
+        .where((entry) => entry.key != index)
+        .map((entry) => entry.value.productId)
+        .whereType<int>()
+        .toSet();
+
+    final selectableProducts = widget.products.where((item) {
+      final productId = (item['id_product'] as num?)?.toInt();
+      return productId == null || !selectedByOthers.contains(productId);
+    }).toList();
+
+    if (selectableProducts.isEmpty) {
+      return;
+    }
+
     final selected = await showMaterialModalBottomSheet<int>(
       context: context,
       backgroundColor: Colors.transparent,
@@ -3333,7 +3986,7 @@ class _SalesPageState extends State<_SalesPage> {
         subtitle: 'Pilih barang yang akan dijual dari stok on hand Anda.',
         searchHint: 'Cari product',
         emptyMessage: 'Belum ada product yang bisa dipilih.',
-        options: widget.products,
+        options: selectableProducts,
         selectedId: _items[index].productId,
         idResolver: (item) => (item['id_product'] as num?)?.toInt(),
         titleResolver: _productLabel,
@@ -3613,11 +4266,24 @@ class _SalesPageState extends State<_SalesPage> {
                 );
               }),
               TextButton.icon(
-                onPressed: () => setState(() =>
-                    _items.add(const _SaleItemDraft(productId: null, quantity: 1))),
+                onPressed: _items.length >= widget.products.length
+                    ? null
+                    : () => setState(() => _items.add(
+                        const _SaleItemDraft(productId: null, quantity: 1))),
                 icon: const Icon(Icons.add_circle_outline),
                 label: const Text('Tambah item'),
               ),
+              if (_hasDuplicateProducts) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'Setiap product hanya boleh dipilih satu kali dalam satu transaksi.',
+                  style: TextStyle(
+                    color: Color(0xFFC05D3B),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
               const SizedBox(height: 8),
               _PickerField(
                 heroTag: 'sales-promo',
@@ -3771,7 +4437,10 @@ class _SalesPageState extends State<_SalesPage> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(
-                  onPressed: widget.busy || widget.products.isEmpty || _hasInvalidItems
+                  onPressed: widget.busy ||
+                          widget.products.isEmpty ||
+                          _hasInvalidItems ||
+                          (!widget.mockMode && _proof == null)
                       ? null
                       : () => widget.onSubmit(
                             customerName: _customerNameController.text.trim(),
@@ -5459,3 +6128,4 @@ class _SaleItemDraft {
     );
   }
 }
+
