@@ -197,7 +197,7 @@
                         </div>
                     </div>
                     <div ref="carriedPanelRef" class="section-panel">
-                        <div class="section-title">Barang Yang Dibawa Hari Ini</div>
+                        <div class="section-title">Barang Yang Dibawa</div>
                         <div v-if="selectedMarketing.carried_items?.length" class="carried-stack">
                             <div v-for="item in selectedMarketing.carried_items" :key="item.id_product_onhand" class="carried-item">
                                 <div class="font-weight-bold">{{ item.nama_product }}</div>
@@ -212,7 +212,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div v-else class="text-muted">Belum ada barang yang dibawa hari ini.</div>
+                        <div v-else class="text-muted">Belum ada barang yang masih dibawa marketing.</div>
                     </div>
                 </div>
             </div>

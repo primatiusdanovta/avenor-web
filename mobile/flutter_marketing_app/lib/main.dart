@@ -837,9 +837,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         onhand['can_checkout'] = false;
         _syncMockDerivedState();
       } else {
-        await _dio.post('/products/onhand/$onhandId/return', data: {
-          'quantity_dikembalikan': quantity,
-        });
+        await _submitReturnRequest(onhandId: onhandId, quantity: quantity);
         await _refreshAll();
       }
       _showMessage('Request pengembalian barang berhasil dikirim.');
@@ -989,24 +987,51 @@ class _MarketingRootState extends State<MarketingRoot> {
     return _picker.pickImage(source: ImageSource.gallery, imageQuality: 82);
   }
 
+  Future<void> _submitReturnRequest({
+    required int onhandId,
+    required int quantity,
+  }) async {
+    final payload = {'quantity_dikembalikan': quantity};
+
+    try {
+      await _dio.post('/products/onhand/$onhandId/return', data: payload);
+      return;
+    } on DioException catch (error) {
+      final statusCode = error.response?.statusCode;
+      final shouldRetryWithPut = statusCode == 404 || statusCode == 405;
+      if (!shouldRetryWithPut) {
+        rethrow;
+      }
+    }
+
+    await _dio.put('/products/onhand/$onhandId/return', data: payload);
+  }
+
   Future<Map<String, dynamic>?> _lookupCustomerByPhone(String phone) async {
-    final normalized = phone.replaceAll(RegExp(r'[^0-9+]'), '').trim();
+    final normalized = _normalizePhone(phone);
     if (normalized.isEmpty) {
       return null;
     }
 
-    if (_mockMode) {
-      final sales = ((_sales?['sales'] as List?) ?? []).cast<Map<String, dynamic>>();
-      for (final sale in sales) {
-        final salePhone = sale['no_telp']?.toString().trim();
-        if (salePhone == normalized) {
-          return {
-            'nama': sale['nama_customer']?.toString(),
-            'no_telp': salePhone,
-            'tiktok_instagram': sale['tiktok_instagram']?.toString(),
-          };
-        }
+    final sales = ((_sales?['sales'] as List?) ?? []).cast<Map<String, dynamic>>();
+    for (final sale in sales) {
+      final salePhone = _normalizePhone(
+        sale['no_telp']?.toString() ??
+            sale['customer_no_telp']?.toString() ??
+            sale['phone']?.toString(),
+      );
+      if (salePhone == normalized) {
+        return _normalizeCustomerPayload({
+          'nama': sale['nama_customer'] ?? sale['customer_nama'] ?? sale['nama'],
+          'no_telp': salePhone,
+          'tiktok_instagram': sale['tiktok_instagram'] ??
+              sale['customer_tiktok_instagram'] ??
+              sale['social_media'],
+        });
       }
+    }
+
+    if (_mockMode) {
       return null;
     }
 
@@ -1014,11 +1039,38 @@ class _MarketingRootState extends State<MarketingRoot> {
       'phone': normalized,
     });
 
-    final customer = response.data is Map<String, dynamic>
-        ? response.data['customer']
+    final responseData = response.data;
+    final customer = responseData is Map<String, dynamic>
+        ? (responseData['customer'] is Map<String, dynamic>
+            ? responseData['customer']
+            : responseData)
         : null;
 
-    return customer is Map<String, dynamic> ? customer : null;
+    return customer is Map<String, dynamic>
+        ? _normalizeCustomerPayload(customer)
+        : null;
+  }
+
+  String _normalizePhone(String? phone) {
+    return (phone ?? '').replaceAll(RegExp(r'[^0-9+]'), '').trim();
+  }
+
+  Map<String, dynamic> _normalizeCustomerPayload(Map<String, dynamic> customer) {
+    return {
+      'nama': customer['nama'] ??
+          customer['nama_customer'] ??
+          customer['customer_nama'],
+      'no_telp': _normalizePhone(
+        customer['no_telp']?.toString() ??
+            customer['customer_no_telp']?.toString() ??
+            customer['phone']?.toString(),
+      ),
+      'tiktok_instagram': customer['tiktok_instagram'] ??
+          customer['customer_tiktok_instagram'] ??
+          customer['social_media'] ??
+          customer['instagram'] ??
+          customer['tiktok'],
+    };
   }
 
   Future<void> _logout() async {
@@ -2641,6 +2693,8 @@ class _InventoryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final displayOnhands = _buildOnHandDisplayItems(onhands);
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
@@ -2659,13 +2713,13 @@ class _InventoryPage extends StatelessWidget {
         const SizedBox(height: 16),
         _InventoryLauncherCard(
           title: 'Barang On Hand',
-          subtitle: onhands.isEmpty
+          subtitle: displayOnhands.isEmpty
               ? 'Belum ada barang on hand.'
               : 'Tap untuk melihat detail barang yang sedang di tangan saat ini.',
           icon: Icons.inventory_2_rounded,
           accent: const Color(0xFFC18B2F),
           heroTag: 'inventory-onhand',
-          badgeLabel: '${onhands.length} item',
+          badgeLabel: '${displayOnhands.length} item',
           onTap: busy
               ? null
               : () => _openOnhandSheet(context),
@@ -2702,12 +2756,14 @@ class _InventoryPage extends StatelessWidget {
   }
 
   Future<void> _openOnhandSheet(BuildContext context) {
+    final displayOnhands = _buildOnHandDisplayItems(onhands);
+
     return showMaterialModalBottomSheet<void>(
       context: context,
       expand: false,
       backgroundColor: Colors.transparent,
       builder: (context) => _OnHandSheet(
-        onhands: onhands,
+        onhands: displayOnhands,
         busy: busy,
         currency: currency,
         onReturn: onReturn,
@@ -2726,6 +2782,86 @@ class _InventoryPage extends StatelessWidget {
       ),
     );
   }
+}
+
+List<Map<String, dynamic>> _buildOnHandDisplayItems(
+    List<Map<String, dynamic>> onhands) {
+  final grouped = <String, List<Map<String, dynamic>>>{};
+  final orderedKeys = <String>[];
+  final passthrough = <Map<String, dynamic>>[];
+
+  for (final rawItem in onhands) {
+    final item = Map<String, dynamic>.from(rawItem);
+    final takeStatus = item['take_status']?.toString();
+
+    if (takeStatus != 'disetujui') {
+      item['source_onhands'] = [Map<String, dynamic>.from(item)];
+      passthrough.add(item);
+      continue;
+    }
+
+    final key =
+        '${item['id_product'] ?? item['nama_product']}|${item['assignment_date'] ?? ''}';
+    if (!grouped.containsKey(key)) {
+      grouped[key] = <Map<String, dynamic>>[];
+      orderedKeys.add(key);
+    }
+    grouped[key]!.add(item);
+  }
+
+  final merged = <Map<String, dynamic>>[
+    for (final key in orderedKeys) _mergeApprovedOnHandItems(grouped[key]!),
+    ...passthrough,
+  ];
+
+  merged.sort((a, b) {
+    final aDate = a['assignment_date']?.toString() ?? '';
+    final bDate = b['assignment_date']?.toString() ?? '';
+    return bDate.compareTo(aDate);
+  });
+
+  return merged;
+}
+
+Map<String, dynamic> _mergeApprovedOnHandItems(
+    List<Map<String, dynamic>> items) {
+  if (items.length == 1) {
+    final single = Map<String, dynamic>.from(items.first);
+    single['source_onhands'] = [Map<String, dynamic>.from(items.first)];
+    return single;
+  }
+
+  int sumField(String key) => items.fold<int>(
+        0,
+        (sum, item) => sum + ((item[key] as num?)?.toInt() ?? 0),
+      );
+
+  final merged = Map<String, dynamic>.from(items.first);
+  final hasPendingReturn =
+      items.any((item) => item['return_status']?.toString() == 'pending');
+
+  merged['quantity'] = sumField('quantity');
+  merged['remaining_quantity'] = sumField('remaining_quantity');
+  merged['sold_quantity'] = sumField('sold_quantity');
+  merged['quantity_dikembalikan'] = sumField('quantity_dikembalikan');
+  merged['pending_return_quantity'] = sumField('pending_return_quantity');
+  merged['approved_return_quantity'] = sumField('approved_return_quantity');
+  merged['max_return'] = items
+      .where((item) => item['return_status']?.toString() != 'pending')
+      .fold<int>(0, (sum, item) => sum + ((item['max_return'] as num?)?.toInt() ?? 0));
+  merged['source_onhands'] =
+      items.map((item) => Map<String, dynamic>.from(item)).toList();
+  merged['is_merged_onhand'] = true;
+  merged['merged_count'] = items.length;
+  merged['status_label'] = hasPendingReturn
+      ? 'Sebagian barang sedang menunggu approval retur.'
+      : 'Belum dikembalikan';
+  merged['return_status'] = hasPendingReturn ? 'pending' : 'belum';
+  merged['return_status_label'] =
+      hasPendingReturn ? 'Sebagian Pending' : 'Belum Dikembalikan';
+  merged['can_request_return'] = (merged['max_return'] as int? ?? 0) > 0;
+
+  return merged;
 }
 
 class _InventoryLauncherCard extends StatelessWidget {
@@ -3535,6 +3671,11 @@ class _OnHandItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sourceOnhands =
+        (item['source_onhands'] as List<dynamic>? ?? const <dynamic>[])
+            .cast<Map<String, dynamic>>();
+    final isMerged = (item['is_merged_onhand'] == true) ||
+        sourceOnhands.length > 1;
     final canReturn = item['take_status'] == 'disetujui' &&
         ((item['max_return'] as num?)?.toInt() ?? 0) > 0;
 
@@ -3576,6 +3717,11 @@ class _OnHandItemCard extends StatelessWidget {
               _MiniPill(label: item['return_status_label']?.toString() ?? '-'),
               if (item['assignment_date'] != null)
                 _MiniPill(label: item['assignment_date']?.toString() ?? '-'),
+              if (isMerged)
+                _MiniPill(
+                  label:
+                      'Gabungan ${item['merged_count'] ?? sourceOnhands.length} approval',
+                ),
             ],
           ),
           const SizedBox(height: 10),
@@ -3586,7 +3732,21 @@ class _OnHandItemCard extends StatelessWidget {
             child: OutlinedButton.icon(
               onPressed: !canReturn || busy
                   ? null
-                  : () => showModalBottomSheet<void>(
+                  : () {
+                      if (isMerged) {
+                        showModalBottomSheet<void>(
+                          context: context,
+                          isScrollControlled: true,
+                          builder: (context) => _MergedOnHandReturnSheet(
+                            item: item,
+                            busy: busy,
+                            onReturn: onReturn,
+                          ),
+                        );
+                        return;
+                      }
+
+                      showModalBottomSheet<void>(
                         context: context,
                         isScrollControlled: true,
                         builder: (context) => _QuantitySheet(
@@ -3599,12 +3759,174 @@ class _OnHandItemCard extends StatelessWidget {
                             quantity: qty,
                           ),
                         ),
-                      ),
+                      );
+                    },
               icon: const Icon(Icons.assignment_return_rounded),
               label: Text(canReturn ? 'Request Retur' : 'Retur Tidak Tersedia'),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MergedOnHandReturnSheet extends StatelessWidget {
+  const _MergedOnHandReturnSheet({
+    required this.item,
+    required this.busy,
+    required this.onReturn,
+  });
+
+  final Map<String, dynamic> item;
+  final bool busy;
+  final Future<void> Function({required int onhandId, required int quantity})
+      onReturn;
+
+  @override
+  Widget build(BuildContext context) {
+    final sourceOnhands =
+        (item['source_onhands'] as List<dynamic>? ?? const <dynamic>[])
+            .cast<Map<String, dynamic>>();
+
+    return _AnimatedSheetScaffold(
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFF7F1E8),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _SheetHandle(),
+                const SizedBox(height: 16),
+                _SheetHeader(
+                  heroTag: 'merged-return-${item['id_product'] ?? item['nama_product']}',
+                  accent: const Color(0xFFC18B2F),
+                  icon: Icons.assignment_return_rounded,
+                  title: item['nama_product']?.toString() ?? 'Barang On Hand',
+                  subtitle:
+                      'Pilih batch approval yang ingin diretur. Tampilan utama sudah digabung, tetapi request retur tetap dikirim per approval.',
+                ),
+                const SizedBox(height: 16),
+                Flexible(
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: sourceOnhands.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final source = sourceOnhands[index];
+                      final canReturn = source['take_status'] == 'disetujui' &&
+                          source['return_status'] != 'pending' &&
+                          ((source['max_return'] as num?)?.toInt() ?? 0) > 0;
+
+                      return Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(22),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x120F0A05),
+                              blurRadius: 18,
+                              offset: Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Approval ${index + 1}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ),
+                                _StatusChip(
+                                  label:
+                                      source['return_status_label']?.toString() ??
+                                          '-',
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                _MiniPill(
+                                  label:
+                                      'Qty ${((source['quantity'] as num?)?.toInt() ?? 0)}',
+                                ),
+                                _MiniPill(
+                                  label:
+                                      'Sisa ${((source['remaining_quantity'] as num?)?.toInt() ?? 0)}',
+                                ),
+                                _MiniPill(
+                                  label:
+                                      'Maks retur ${((source['max_return'] as num?)?.toInt() ?? 0)}',
+                                ),
+                                if (source['assignment_date'] != null)
+                                  _MiniPill(
+                                    label:
+                                        source['assignment_date']?.toString() ??
+                                            '-',
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Text(source['status_label']?.toString() ?? '-'),
+                            const SizedBox(height: 14),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: OutlinedButton.icon(
+                                onPressed: !canReturn || busy
+                                    ? null
+                                    : () => showModalBottomSheet<void>(
+                                          context: context,
+                                          isScrollControlled: true,
+                                          builder: (context) => _QuantitySheet(
+                                            title:
+                                                'Retur ${item['nama_product']}',
+                                            maxQuantity:
+                                                (source['max_return'] as num?)
+                                                        ?.toInt() ??
+                                                    1,
+                                            ctaLabel: 'Kirim Retur',
+                                            onSubmit: (qty) => onReturn(
+                                              onhandId:
+                                                  (source['id_product_onhand']
+                                                          as num)
+                                                      .toInt(),
+                                              quantity: qty,
+                                            ),
+                                          ),
+                                        ),
+                                icon: const Icon(Icons.assignment_return_rounded),
+                                label: Text(canReturn
+                                    ? 'Retur Batch Ini'
+                                    : 'Retur Tidak Tersedia'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

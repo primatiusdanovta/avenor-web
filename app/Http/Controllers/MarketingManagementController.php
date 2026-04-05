@@ -39,11 +39,6 @@ class MarketingManagementController extends Controller
                     ->whereDate('attendance_date', now()->toDateString())
                     ->first();
 
-                $todayOnhands = ProductOnhand::query()
-                    ->where('user_id', $marketing->id_user)
-                    ->whereDate('assignment_date', now()->toDateString())
-                    ->get();
-
                 return [
                     'id_user' => $marketing->id_user,
                     'nama' => $marketing->nama,
@@ -52,9 +47,7 @@ class MarketingManagementController extends Controller
                     'created_at' => optional($marketing->created_at)->format('Y-m-d H:i:s'),
                     'today_status' => $todayAttendance?->status ?? 'belum absen',
                     'kpi' => $this->buildMarketingKpi($marketing->id_user, $periodStart, $periodEnd),
-                    'carried_items' => $todayOnhands->map(function (ProductOnhand $onhand) {
-                        return $this->transformOnhand($onhand);
-                    })->values(),
+                    'carried_items' => $this->activeCarriedItems($marketing->id_user),
                 ];
             })
             ->values();
@@ -73,11 +66,6 @@ class MarketingManagementController extends Controller
                     ->where('user_id', $marketing->id_user)
                     ->latest('recorded_at')
                     ->first();
-                $todayOnhands = ProductOnhand::query()
-                    ->where('user_id', $marketing->id_user)
-                    ->whereDate('assignment_date', now()->toDateString())
-                    ->orderByDesc('id_product_onhand')
-                    ->get();
 
                 $selectedMarketing = [
                     'id_user' => $marketing->id_user,
@@ -105,9 +93,7 @@ class MarketingManagementController extends Controller
                         'source' => $latestLocation->source,
                         'map_url' => $this->mapUrl((float) $latestLocation->latitude, (float) $latestLocation->longitude),
                     ] : null,
-                    'carried_items' => $todayOnhands->map(function (ProductOnhand $onhand) {
-                        return $this->transformOnhand($onhand);
-                    })->values(),
+                    'carried_items' => $this->activeCarriedItems($marketing->id_user),
                 ];
             }
         }
@@ -161,11 +147,6 @@ class MarketingManagementController extends Controller
             ->where('user_id', $user->id_user)
             ->latest('recorded_at')
             ->first();
-        $todayOnhands = ProductOnhand::query()
-            ->where('user_id', $user->id_user)
-            ->whereDate('assignment_date', now()->toDateString())
-            ->orderByDesc('id_product_onhand')
-            ->get();
 
         return response()->json([
             'id_user' => $user->id_user,
@@ -193,7 +174,7 @@ class MarketingManagementController extends Controller
                 'source' => $latestLocation->source,
                 'map_url' => $this->mapUrl((float) $latestLocation->latitude, (float) $latestLocation->longitude),
             ] : null,
-            'carried_items' => $todayOnhands->map(fn (ProductOnhand $onhand) => $this->transformOnhand($onhand))->values(),
+            'carried_items' => $this->activeCarriedItems($user->id_user),
         ]);
     }
 
@@ -295,6 +276,26 @@ class MarketingManagementController extends Controller
             'status_label' => $state['status_label'],
             'assignment_date' => optional($onhand->assignment_date)->format('Y-m-d'),
         ];
+    }
+
+    private function activeCarriedItems(int $userId)
+    {
+        return ProductOnhand::query()
+            ->where('user_id', $userId)
+            ->orderByDesc('assignment_date')
+            ->orderByDesc('id_product_onhand')
+            ->get()
+            ->map(fn (ProductOnhand $onhand) => $this->transformOnhand($onhand))
+            ->filter(function (array $onhand) {
+                if (($onhand['take_status'] ?? null) !== 'disetujui') {
+                    return false;
+                }
+
+                return (int) ($onhand['remaining_quantity'] ?? 0) > 0
+                    || (int) ($onhand['quantity_dikembalikan'] ?? 0) > 0
+                    || ($onhand['return_status'] ?? null) === 'pending';
+            })
+            ->values();
     }
 
     private function stateForOnhand(ProductOnhand $onhand): array
