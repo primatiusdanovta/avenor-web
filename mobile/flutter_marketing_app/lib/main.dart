@@ -992,19 +992,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     required int quantity,
   }) async {
     final payload = {'quantity_dikembalikan': quantity};
-
-    try {
-      await _dio.post('/products/onhand/$onhandId/return', data: payload);
-      return;
-    } on DioException catch (error) {
-      final statusCode = error.response?.statusCode;
-      final shouldRetryWithPut = statusCode == 404 || statusCode == 405;
-      if (!shouldRetryWithPut) {
-        rethrow;
-      }
-    }
-
-    await _dio.put('/products/onhand/$onhandId/return', data: payload);
+    await _dio.post('/products/onhand/$onhandId/return', data: payload);
   }
 
   Future<Map<String, dynamic>?> _lookupCustomerByPhone(String phone) async {
@@ -1807,24 +1795,63 @@ class _SalesQrSheet extends StatelessWidget {
                         )
                       : Column(
                           children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(20),
-                              child: CachedNetworkImage(
-                                imageUrl: qrUrl,
-                                fit: BoxFit.contain,
-                                width: double.infinity,
-                                height: 280,
-                                placeholder: (_, __) => const Center(
-                                  child: Padding(
-                                    padding: EdgeInsets.all(24),
-                                    child: CircularProgressIndicator(),
-                                  ),
+                            GestureDetector(
+                              onTap: () => showGeneralDialog<void>(
+                                context: context,
+                                barrierDismissible: true,
+                                barrierLabel: 'Tutup preview QR',
+                                barrierColor: Colors.black.withValues(alpha: 0.9),
+                                transitionDuration:
+                                    const Duration(milliseconds: 240),
+                                pageBuilder: (_, __, ___) => _QrImagePreviewDialog(
+                                  qrUrl: qrUrl,
+                                  qrName: qrName,
                                 ),
-                                errorWidget: (_, __, ___) => const Padding(
-                                  padding: EdgeInsets.all(24),
-                                  child: Text(
-                                    'QR code gagal dimuat. Coba sync data lagi.',
-                                    textAlign: TextAlign.center,
+                                transitionBuilder:
+                                    (context, animation, secondary, child) {
+                                  final curved = CurvedAnimation(
+                                    parent: animation,
+                                    curve: Curves.easeOutCubic,
+                                    reverseCurve: Curves.easeInCubic,
+                                  );
+
+                                  return FadeTransition(
+                                    opacity: curved,
+                                    child: ScaleTransition(
+                                      scale: Tween<double>(
+                                        begin: 0.96,
+                                        end: 1,
+                                      ).animate(curved),
+                                      child: child,
+                                    ),
+                                  );
+                                },
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(20),
+                                child: Hero(
+                                  tag: 'sales-qr-image-preview',
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: CachedNetworkImage(
+                                      imageUrl: qrUrl,
+                                      fit: BoxFit.contain,
+                                      width: double.infinity,
+                                      height: 280,
+                                      placeholder: (_, __) => const Center(
+                                        child: Padding(
+                                          padding: EdgeInsets.all(24),
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      ),
+                                      errorWidget: (_, __, ___) => const Padding(
+                                        padding: EdgeInsets.all(24),
+                                        child: Text(
+                                          'QR code gagal dimuat. Coba sync data lagi.',
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1837,6 +1864,14 @@ class _SalesQrSheet extends StatelessWidget {
                                 fontSize: 14,
                               ),
                             ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Tap gambar untuk memperbesar.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Color(0xFF6F665F),
+                              ),
+                            ),
                           ],
                         ),
                 ),
@@ -1844,6 +1879,110 @@ class _SalesQrSheet extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _QrImagePreviewDialog extends StatelessWidget {
+  const _QrImagePreviewDialog({
+    required this.qrUrl,
+    required this.qrName,
+  });
+
+  final String qrUrl;
+  final String? qrName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.all(18),
+      child: Stack(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF111111),
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  qrName ?? 'QR Code Sales',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.72,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(22),
+                    child: Hero(
+                      tag: 'sales-qr-image-preview',
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InteractiveViewer(
+                          minScale: 1,
+                          maxScale: 4,
+                          child: CachedNetworkImage(
+                            imageUrl: qrUrl,
+                            fit: BoxFit.contain,
+                            placeholder: (_, __) => const SizedBox(
+                              height: 240,
+                              child: Center(child: CircularProgressIndicator()),
+                            ),
+                            errorWidget: (_, __, ___) => const SizedBox(
+                              height: 240,
+                              child: Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(24),
+                                  child: Text(
+                                    'QR code gagal dimuat.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: Colors.white),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Cubut untuk zoom dan geser gambar.',
+                  style: TextStyle(
+                    color: Color(0xFFD6D6D6),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            top: 8,
+            right: 8,
+            child: IconButton.filled(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.close_rounded),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white.withValues(alpha: 0.14),
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

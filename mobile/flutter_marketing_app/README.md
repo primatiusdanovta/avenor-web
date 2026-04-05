@@ -28,6 +28,27 @@ Untuk production, ganti base URL:
 flutter run -d android --dart-define=AVENOR_API_BASE_URL=https://your-domain.com/api/mobile
 ```
 
+## Build APK Release
+
+Build standar:
+
+```bash
+cd mobile/flutter_marketing_app
+flutter build apk --release --dart-define=AVENOR_API_BASE_URL=https://your-domain.com/api/mobile
+```
+
+Kalau di Windows muncul crash Flutter tool seperti `Could not start thread DartWorker: 22` saat `assembleRelease`, itu bisa berasal dari output animasi CLI ke console, bukan dari Gradle build-nya. Pakai helper ini agar log diarahkan ke file:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\build-marketing-apk.ps1
+```
+
+Alternatif permanen di mesin lokal:
+
+```bash
+flutter config --no-cli-animations
+```
+
 ## Maestro Mobile
 
 Flow Maestro native disiapkan di `.maestro/mobile`:

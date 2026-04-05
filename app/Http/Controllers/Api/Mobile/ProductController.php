@@ -127,9 +127,13 @@ class ProductController extends Controller
         ], 201);
     }
 
-    public function requestReturn(Request $request, ProductOnhand $onhand): JsonResponse
+    public function requestReturn(Request $request, int $onhand): JsonResponse
     {
-        abort_unless($onhand->user_id === $request->user()->id_user, 404);
+        $onhand = ProductOnhand::query()
+            ->with('user')
+            ->where('id_product_onhand', $onhand)
+            ->where('user_id', $request->user()->id_user)
+            ->firstOrFail();
 
         if ($onhand->take_status !== 'disetujui') {
             return response()->json(['message' => 'Barang belum disetujui untuk dibawa.'], 422);
