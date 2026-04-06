@@ -159,6 +159,7 @@ Route::prefix($administratorPrefix)->group(function () {
         Route::get('/product-onhands', [ProductOnhandManagementController::class, 'index'])->name('product-onhands.index');
         Route::post('/product-onhands', [ProductOnhandManagementController::class, 'store'])->name('product-onhands.store');
         Route::put('/product-onhands/{onhand}', [ProductOnhandManagementController::class, 'update'])->name('product-onhands.update');
+        Route::put('/product-onhands/{onhand}/sold-quantity', [ProductOnhandManagementController::class, 'updateSoldQuantity'])->name('product-onhands.sold-quantity.update');
         Route::delete('/product-onhands/{onhand}', [ProductOnhandManagementController::class, 'destroy'])->name('product-onhands.destroy');
         Route::get('/products/{product}/image', [ProductController::class, 'showImage'])->name('products.image');
         Route::get('/product-knowledge', [ProductKnowledgeController::class, 'index'])->name('products.knowledge');
@@ -198,3 +199,5 @@ Route::prefix($administratorPrefix)->group(function () {
         Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
     });
 });
+
+

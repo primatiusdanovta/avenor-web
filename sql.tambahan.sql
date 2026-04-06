@@ -1,24 +1,14 @@
--- SQL tambahan untuk MariaDB
--- Dibuat dari perubahan schema yang ditambahkan di project Avenor Web/mobile.
--- Tanggal: 2026-04-05
---
--- Aman dijalankan berulang untuk sebagian besar bagian karena memakai
--- pengecekan information_schema / IF NOT EXISTS.
+-- SQL tambahan untuk import MariaDB
+-- Tanpa menyebut nama database secara eksplisit.
+-- Tanggal: 2026-04-06
+-- Jalankan setelah memilih database target di client MariaDB Anda.
 
 START TRANSACTION;
 
 -- =========================================================
 -- 1. PRODUCT ONHANDS
--- Tambahan kolom untuk menyimpan total retur yang benar-benar sudah approve.
+-- Tambahan kolom retur approve dan koreksi manual barang terjual.
 -- =========================================================
-
-SET @approved_return_quantity_exists := (
-    SELECT COUNT(*)
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = 'product_onhands'
-      AND COLUMN_NAME = 'approved_return_quantity'
-);
 
 SET @product_onhands_table_exists := (
     SELECT COUNT(*)
@@ -33,6 +23,22 @@ SET @product_onhands_quantity_dikembalikan_exists := (
     WHERE TABLE_SCHEMA = DATABASE()
       AND TABLE_NAME = 'product_onhands'
       AND COLUMN_NAME = 'quantity_dikembalikan'
+);
+
+SET @approved_return_quantity_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'product_onhands'
+      AND COLUMN_NAME = 'approved_return_quantity'
+);
+
+SET @manual_sold_quantity_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'product_onhands'
+      AND COLUMN_NAME = 'manual_sold_quantity'
 );
 
 SET @sql := IF(
@@ -52,9 +58,29 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
+SET @sql := IF(
+    @product_onhands_table_exists = 0,
+    'SELECT ''Table product_onhands does not exist'';',
+    IF(
+        @manual_sold_quantity_exists > 0,
+        'SELECT ''Column manual_sold_quantity already exists'';',
+        IF(
+            @approved_return_quantity_exists > 0,
+            'ALTER TABLE `product_onhands` ADD COLUMN `manual_sold_quantity` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `approved_return_quantity`;',
+            IF(
+                @product_onhands_quantity_dikembalikan_exists > 0,
+                'ALTER TABLE `product_onhands` ADD COLUMN `manual_sold_quantity` INT UNSIGNED NOT NULL DEFAULT 0 AFTER `quantity_dikembalikan`;',
+                'ALTER TABLE `product_onhands` ADD COLUMN `manual_sold_quantity` INT UNSIGNED NOT NULL DEFAULT 0;'
+            )
+        )
+    )
+);
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
 -- =========================================================
 -- 2. MARKETING NOTIFICATIONS
--- Untuk notifikasi manual dan terjadwal dari backend superadmin.
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS `marketing_notifications` (
@@ -72,21 +98,10 @@ CREATE TABLE IF NOT EXISTS `marketing_notifications` (
     KEY `marketing_notifications_created_by_index` (`created_by`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-SELECT 'marketing_notifications foreign key intentionally skipped for MariaDB import safety' AS info;
-
 -- =========================================================
 -- 3. MOBILE ACCESS TOKENS
--- Tambahan kolom push token. Walau sekarang Anda memilih notifikasi manual,
--- kolom ini sudah sempat ditambahkan di codebase.
+-- Tambahan kolom push token.
 -- =========================================================
-
-SET @mobile_push_token_exists := (
-    SELECT COUNT(*)
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = 'mobile_access_tokens'
-      AND COLUMN_NAME = 'push_token'
-);
 
 SET @mobile_access_tokens_table_exists := (
     SELECT COUNT(*)
@@ -101,6 +116,14 @@ SET @mobile_token_column_exists := (
     WHERE TABLE_SCHEMA = DATABASE()
       AND TABLE_NAME = 'mobile_access_tokens'
       AND COLUMN_NAME = 'token'
+);
+
+SET @mobile_push_token_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'mobile_access_tokens'
+      AND COLUMN_NAME = 'push_token'
 );
 
 SET @sql := IF(
@@ -128,7 +151,6 @@ DEALLOCATE PREPARE stmt;
 
 -- =========================================================
 -- 4. MARKETING BONUS ADJUSTMENTS
--- Untuk bonus manual marketing dari superadmin.
 -- =========================================================
 
 CREATE TABLE IF NOT EXISTS `marketing_bonus_adjustments` (
@@ -145,20 +167,10 @@ CREATE TABLE IF NOT EXISTS `marketing_bonus_adjustments` (
     KEY `marketing_bonus_adjustments_created_by_index` (`created_by`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-SELECT 'marketing_bonus_adjustments foreign keys intentionally skipped for MariaDB import safety' AS info;
-
 -- =========================================================
 -- 5. ARTICLES
--- Tambahan kategori dan SEO per article agar sinkron dengan backend.
+-- Tambahan kategori dan SEO article.
 -- =========================================================
-
-SET @article_category_exists := (
-    SELECT COUNT(*)
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = 'articles'
-      AND COLUMN_NAME = 'category'
-);
 
 SET @articles_table_exists := (
     SELECT COUNT(*)
@@ -173,6 +185,30 @@ SET @articles_author_exists := (
     WHERE TABLE_SCHEMA = DATABASE()
       AND TABLE_NAME = 'articles'
       AND COLUMN_NAME = 'author'
+);
+
+SET @articles_image_path_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'articles'
+      AND COLUMN_NAME = 'image_path'
+);
+
+SET @article_category_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'articles'
+      AND COLUMN_NAME = 'category'
+);
+
+SET @article_seo_title_exists := (
+    SELECT COUNT(*)
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'articles'
+      AND COLUMN_NAME = 'seo_title'
 );
 
 SET @sql := IF(
@@ -191,22 +227,6 @@ SET @sql := IF(
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
-
-SET @article_seo_title_exists := (
-    SELECT COUNT(*)
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = 'articles'
-      AND COLUMN_NAME = 'seo_title'
-);
-
-SET @articles_image_path_exists := (
-    SELECT COUNT(*)
-    FROM information_schema.COLUMNS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = 'articles'
-      AND COLUMN_NAME = 'image_path'
-);
 
 SET @sql := IF(
     @articles_table_exists = 0,
@@ -245,15 +265,8 @@ DEALLOCATE PREPARE stmt;
 
 COMMIT;
 
--- =========================================================
--- CATATAN
--- 1. Fitur QR sales tidak butuh kolom baru karena disimpan di JSON
---    tabel global_settings dengan key `master_social_hub`.
--- 2. Jika tabel `global_settings` belum ada, jalankan migration/table
---    bawaan project lebih dulu.
--- 3. File ini hanya merangkum tambahan schema yang dibuat pada perubahan
---    terbaru, supaya bisa di-import langsung di MariaDB.
--- 4. Foreign key baru pada tabel tambahan sengaja tidak dipaksa di file ini
---    agar import dump lama tetap lolos walau tipe kolom/schema existing
---    tidak identik 100%.
--- =========================================================
+-- Catatan:
+-- 1. File ini tidak memakai USE database_tertentu.
+-- 2. Jalankan setelah database target dipilih di client MariaDB.
+-- 3. Foreign key sengaja tidak dipaksa di file ini agar import lebih aman
+--    untuk dump lama yang struktur existing-nya belum sepenuhnya identik.

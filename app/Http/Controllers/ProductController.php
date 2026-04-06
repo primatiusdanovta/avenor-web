@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use App\Support\ProductOnhandStock;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -497,10 +498,8 @@ class ProductController extends Controller
     private function transformOnhand(ProductOnhand $onhand): array
     {
         $state = $this->stateForOnhand($onhand);
-        $approvedReturnQuantity = (int) ($onhand->approved_return_quantity ?? 0);
-        $pendingReturnQuantity = $onhand->return_status === 'pending'
-            ? (int) $onhand->quantity_dikembalikan
-            : 0;
+        $approvedReturnQuantity = ProductOnhandStock::approvedReturnQuantity($onhand);
+        $pendingReturnQuantity = ProductOnhandStock::pendingReturnQuantity($onhand);
 
         return [
             'id_product_onhand' => $onhand->id_product_onhand,
@@ -542,10 +541,8 @@ class ProductController extends Controller
         }
 
         $soldQuantity = $this->soldForOnhand($onhand);
-        $approvedReturnQuantity = (int) ($onhand->approved_return_quantity ?? 0);
-        $pendingReturnQuantity = $onhand->return_status === 'pending'
-            ? (int) $onhand->quantity_dikembalikan
-            : 0;
+        $approvedReturnQuantity = ProductOnhandStock::approvedReturnQuantity($onhand);
+        $pendingReturnQuantity = ProductOnhandStock::pendingReturnQuantity($onhand);
         $soldOut = $soldQuantity >= (int) $onhand->quantity;
         $remainingQuantity = max((int) $onhand->quantity - $soldQuantity - $approvedReturnQuantity - $pendingReturnQuantity, 0);
         $maxReturn = max((int) $onhand->quantity - $soldQuantity - $approvedReturnQuantity, 0);
@@ -641,10 +638,7 @@ class ProductController extends Controller
 
     private function soldForOnhand(ProductOnhand $onhand): int
     {
-        return (int) OfflineSale::query()
-            ->where('id_product_onhand', $onhand->id_product_onhand)
-            ->where('approval_status', '!=', 'ditolak')
-            ->sum('quantity');
+        return ProductOnhandStock::soldQuantity($onhand);
     }
 
     private function takeStatusLabel(string $status): string
@@ -678,3 +672,5 @@ class ProductController extends Controller
         ]);
     }
 }
+
+

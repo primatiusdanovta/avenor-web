@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductOnhand;
 use App\Models\Promo;
 use App\Models\User;
+use App\Support\ProductOnhandStock;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -551,19 +552,7 @@ class OfflineSaleController extends Controller
             return 0;
         }
 
-        $soldQty = (int) OfflineSale::query()
-            ->where('id_product_onhand', $onhand->id_product_onhand)
-            ->when($ignoreSaleId, fn ($query) => $query->where('id_penjualan_offline', '!=', $ignoreSaleId))
-            ->where('approval_status', '!=', 'ditolak')
-            ->sum('quantity');
-
-        $returnedQty = $onhand->return_status === 'pending'
-            ? (int) $onhand->quantity_dikembalikan
-            : 0;
-
-        $approvedReturnQty = (int) ($onhand->approved_return_quantity ?? 0);
-
-        return max((int) $onhand->quantity - $soldQty - $approvedReturnQty - $returnedQty, 0);
+        return ProductOnhandStock::availableQuantity($onhand, $ignoreSaleId);
     }
 
     private function resolveProductHpp(?Product $product): float
@@ -577,3 +566,5 @@ class OfflineSaleController extends Controller
         return round((float) ($product->hppCalculation?->total_hpp ?? $product->harga_modal ?? 0), 2);
     }
 }
+
+

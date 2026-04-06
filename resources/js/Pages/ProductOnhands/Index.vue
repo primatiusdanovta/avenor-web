@@ -73,10 +73,24 @@
                                         Draft dari {{ item.quantity }}
                                     </div>
                                     <div v-if="quantityDelta(item) !== 0" class="small" :class="quantityDelta(item) > 0 ? 'text-success' : 'text-danger'">
-                                        {{ formatQuantityDelta(item) }}
+                                        {{ formatDelta(quantityDelta(item)) }}
                                     </div>
                                 </td>
-                                <td>{{ item.sold_quantity }}</td>
+                                <td>
+                                    {{ displaySoldQuantity(item) }}
+                                    <div v-if="item.actual_sold_quantity > 0" class="small text-muted">
+                                        Penjualan asli {{ item.actual_sold_quantity }}
+                                    </div>
+                                    <div v-if="item.manual_sold_quantity > 0" class="small text-info">
+                                        Koreksi {{ item.manual_sold_quantity }}
+                                    </div>
+                                    <div v-if="hasPendingSoldChange(item)" class="small text-primary">
+                                        Draft dari {{ item.sold_quantity }}
+                                    </div>
+                                    <div v-if="soldDelta(item) !== 0" class="small" :class="soldDelta(item) > 0 ? 'text-success' : 'text-danger'">
+                                        {{ formatDelta(soldDelta(item)) }}
+                                    </div>
+                                </td>
                                 <td>{{ item.take_status === 'disetujui' ? displayRemaining(item) : '-' }}</td>
                                 <td>
                                     <span class="badge status-badge" :class="takeStatusBadgeClass(item.take_status)">
@@ -93,19 +107,35 @@
                                     <div class="action-group">
                                         <button type="button" class="btn btn-xs btn-outline-secondary" :disabled="displayQuantity(item) <= 1" @click="adjustQuantity(item, -1)">
                                             <i class="fas fa-minus mr-1"></i>
-                                            Kurangi 1
+                                            Bawa -1
                                         </button>
                                         <button type="button" class="btn btn-xs btn-outline-primary" @click="adjustQuantity(item, 1)">
                                             <i class="fas fa-plus mr-1"></i>
-                                            Tambah 1
+                                            Bawa +1
+                                        </button>
+                                        <button type="button" class="btn btn-xs btn-outline-secondary" :disabled="!canDecreaseSold(item)" @click="adjustSoldQuantity(item, -1)">
+                                            <i class="fas fa-minus mr-1"></i>
+                                            Jual -1
+                                        </button>
+                                        <button type="button" class="btn btn-xs btn-outline-primary" :disabled="!canIncreaseSold(item)" @click="adjustSoldQuantity(item, 1)">
+                                            <i class="fas fa-plus mr-1"></i>
+                                            Jual +1
                                         </button>
                                         <button type="button" class="btn btn-xs btn-success" :disabled="!hasPendingQuantityChange(item)" @click="saveAdjustedQuantity(item)">
                                             <i class="fas fa-save mr-1"></i>
-                                            Simpan
+                                            Simpan Bawa
+                                        </button>
+                                        <button type="button" class="btn btn-xs btn-success" :disabled="!hasPendingSoldChange(item)" @click="saveAdjustedSoldQuantity(item)">
+                                            <i class="fas fa-save mr-1"></i>
+                                            Simpan Jual
                                         </button>
                                         <button type="button" class="btn btn-xs btn-outline-dark" :disabled="!hasPendingQuantityChange(item)" @click="resetAdjustedQuantity(item)">
                                             <i class="fas fa-undo mr-1"></i>
-                                            Reset
+                                            Reset Bawa
+                                        </button>
+                                        <button type="button" class="btn btn-xs btn-outline-dark" :disabled="!hasPendingSoldChange(item)" @click="resetAdjustedSoldQuantity(item)">
+                                            <i class="fas fa-undo mr-1"></i>
+                                            Reset Jual
                                         </button>
                                         <button type="button" class="btn btn-xs btn-warning" @click="openEditModal(item)">
                                             <i class="fas fa-pen mr-1"></i>
@@ -181,6 +211,8 @@
             </div>
             <div v-if="editingItem" class="alert alert-light mb-0">
                 <div><strong>Terjual:</strong> {{ editingItem.sold_quantity }}</div>
+                <div><strong>Penjualan asli:</strong> {{ editingItem.actual_sold_quantity }}</div>
+                <div><strong>Koreksi manual:</strong> {{ editingItem.manual_sold_quantity }}</div>
                 <div><strong>Return pending:</strong> {{ editingItem.quantity_dikembalikan }}</div>
                 <div><strong>Return disetujui:</strong> {{ editingItem.approved_return_quantity }}</div>
                 <div><strong>Jumlah penjualan terkait:</strong> {{ editingItem.sales_count }}</div>
@@ -259,6 +291,7 @@ const showDeleteModal = ref(false);
 const deleteTarget = ref(null);
 const editingItem = ref(null);
 const draftQuantities = reactive({});
+const draftSoldQuantities = reactive({});
 const saveFeedback = ref('');
 let saveFeedbackTimeoutId = null;
 
@@ -353,35 +386,68 @@ const adjustQuantity = (item, delta) => {
     draftQuantities[item.id_product_onhand] = nextQuantity;
 };
 
+const adjustSoldQuantity = (item, delta) => {
+    clearSaveFeedback();
+    const currentSoldQuantity = Number(draftSoldQuantities[item.id_product_onhand] ?? item.sold_quantity ?? 0);
+    const nextSoldQuantity = currentSoldQuantity + delta;
+    if (nextSoldQuantity < Number(item.minimum_sold_quantity ?? 0)) return;
+    if (nextSoldQuantity > Number(item.maximum_sold_quantity ?? 0)) return;
+
+    draftSoldQuantities[item.id_product_onhand] = nextSoldQuantity;
+};
+
 const hasPendingQuantityChange = (item) =>
     Number(draftQuantities[item.id_product_onhand] ?? item.quantity ?? 0) !== Number(item.quantity ?? 0);
+
+const hasPendingSoldChange = (item) =>
+    Number(draftSoldQuantities[item.id_product_onhand] ?? item.sold_quantity ?? 0) !== Number(item.sold_quantity ?? 0);
 
 const displayQuantity = (item) =>
     Number(draftQuantities[item.id_product_onhand] ?? item.quantity ?? 0);
 
+const displaySoldQuantity = (item) =>
+    Number(draftSoldQuantities[item.id_product_onhand] ?? item.sold_quantity ?? 0);
+
 const quantityDelta = (item) =>
     displayQuantity(item) - Number(item.quantity ?? 0);
 
-const formatQuantityDelta = (item) => {
-    const delta = quantityDelta(item);
+const soldDelta = (item) =>
+    displaySoldQuantity(item) - Number(item.sold_quantity ?? 0);
+
+const formatDelta = (delta) => {
     if (delta === 0) return '';
     return `${delta > 0 ? '+' : ''}${delta}`;
 };
 
 const displayRemaining = (item) => {
     const nextQuantity = displayQuantity(item);
+    const nextSoldQuantity = displaySoldQuantity(item);
+
     return Math.max(
         nextQuantity -
-        Number(item.sold_quantity || 0) -
+        nextSoldQuantity -
         Number(item.approved_return_quantity || 0) -
-        Number(item.quantity_dikembalikan || 0),
+        Number(item.pending_return_quantity || item.quantity_dikembalikan || 0),
         0,
     );
 };
 
+const canDecreaseSold = (item) =>
+    item.take_status === 'disetujui'
+    && displaySoldQuantity(item) > Number(item.minimum_sold_quantity ?? 0);
+
+const canIncreaseSold = (item) =>
+    item.take_status === 'disetujui'
+    && displaySoldQuantity(item) < Number(item.maximum_sold_quantity ?? 0);
+
 const resetAdjustedQuantity = (item) => {
     clearSaveFeedback();
     delete draftQuantities[item.id_product_onhand];
+};
+
+const resetAdjustedSoldQuantity = (item) => {
+    clearSaveFeedback();
+    delete draftSoldQuantities[item.id_product_onhand];
 };
 
 const saveAdjustedQuantity = (item) => {
@@ -403,6 +469,26 @@ const saveAdjustedQuantity = (item) => {
             const delta = nextQuantity - Number(item.quantity ?? 0);
             resetAdjustedQuantity(item);
             showSaveFeedback(`Quantity ${item.nama_product} berhasil diperbarui ${delta > 0 ? `(+${delta})` : `(${delta})`}.`);
+        },
+    });
+};
+
+const saveAdjustedSoldQuantity = (item) => {
+    const nextSoldQuantity = displaySoldQuantity(item);
+    if (!hasPendingSoldChange(item)) return;
+
+    router.put(adminUrl(`/product-onhands/${item.id_product_onhand}/sold-quantity`), {
+        sold_quantity: nextSoldQuantity,
+        search: filterForm.search || '',
+        user_id: filterForm.user_id || '',
+        take_status_filter: filterForm.take_status || '',
+    }, {
+        preserveScroll: true,
+        preserveState: true,
+        onSuccess: () => {
+            const delta = nextSoldQuantity - Number(item.sold_quantity ?? 0);
+            resetAdjustedSoldQuantity(item);
+            showSaveFeedback(`Barang terjual ${item.nama_product} berhasil diperbarui ${delta > 0 ? `(+${delta})` : `(${delta})`}.`);
         },
     });
 };
@@ -449,7 +535,7 @@ const returnStatusBadgeClass = (status) => ({
 }
 
 .action-column {
-    min-width: 180px;
+    min-width: 280px;
 }
 
 .action-group {

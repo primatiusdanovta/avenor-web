@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\OfflineSale;
 use App\Models\Product;
 use App\Models\ProductOnhand;
 use App\Models\User;
+use App\Support\ProductOnhandStock;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -120,6 +120,7 @@ class ProductOnhandManagementController extends Controller
                 'quantity' => (int) $validated['quantity'],
                 'quantity_dikembalikan' => 0,
                 'approved_return_quantity' => 0,
+                'manual_sold_quantity' => 0,
                 'take_status' => $validated['take_status'],
                 'return_status' => 'belum',
                 'approved_by' => null,
@@ -152,10 +153,8 @@ class ProductOnhandManagementController extends Controller
                 ->findOrFail($onhand->id_product_onhand);
 
             $soldQuantity = $this->soldQuantity($onhand);
-            $approvedReturnQuantity = (int) ($onhand->approved_return_quantity ?? 0);
-            $pendingReturnQuantity = $onhand->return_status === 'pending'
-                ? (int) $onhand->quantity_dikembalikan
-                : 0;
+            $approvedReturnQuantity = ProductOnhandStock::approvedReturnQuantity($onhand);
+            $pendingReturnQuantity = ProductOnhandStock::pendingReturnQuantity($onhand);
 
             if ((int) $validated['quantity'] < ($soldQuantity + $approvedReturnQuantity + $pendingReturnQuantity)) {
                 throw ValidationException::withMessages([
@@ -163,7 +162,7 @@ class ProductOnhandManagementController extends Controller
                 ]);
             }
 
-            if ($onhand->offline_sales_count > 0) {
+            if ($soldQuantity > 0) {
                 if ((int) $validated['user_id'] !== (int) $onhand->user_id) {
                     throw ValidationException::withMessages([
                         'user_id' => 'Onhand yang sudah memiliki penjualan tidak bisa dipindahkan ke user lain.',
@@ -230,10 +229,12 @@ class ProductOnhandManagementController extends Controller
                 }
             }
 
+            $productName = Product::query()->findOrFail($validated['id_product'])->nama_product;
+
             $onhand->update([
                 'user_id' => $user->id_user,
                 'id_product' => (int) $validated['id_product'],
-                'nama_product' => Product::query()->findOrFail($validated['id_product'])->nama_product,
+                'nama_product' => $productName,
                 'quantity' => (int) $validated['quantity'],
                 'take_status' => $validated['take_status'],
                 'assignment_date' => $validated['assignment_date'],
@@ -251,6 +252,49 @@ class ProductOnhandManagementController extends Controller
             ->with('success', 'Barang onhand berhasil diperbarui.');
     }
 
+    public function updateSoldQuantity(Request $request, ProductOnhand $onhand): RedirectResponse
+    {
+        abort_unless($request->user()?->role === 'superadmin', 403);
+
+        $validated = $request->validate([
+            'sold_quantity' => ['required', 'integer', 'min:0'],
+        ]);
+
+        DB::transaction(function () use ($validated, $onhand): void {
+            $onhand = ProductOnhand::query()->lockForUpdate()->findOrFail($onhand->id_product_onhand);
+
+            if ($onhand->take_status !== 'disetujui') {
+                throw ValidationException::withMessages([
+                    'sold_quantity' => 'Barang terjual hanya bisa diatur untuk onhand yang sudah disetujui.',
+                ]);
+            }
+
+            $actualSoldQuantity = ProductOnhandStock::actualSoldQuantity($onhand);
+            $maxSoldQuantity = ProductOnhandStock::maxSoldQuantity($onhand);
+            $targetSoldQuantity = (int) $validated['sold_quantity'];
+
+            if ($targetSoldQuantity < $actualSoldQuantity) {
+                throw ValidationException::withMessages([
+                    'sold_quantity' => 'Jumlah terjual tidak boleh lebih kecil dari penjualan offline yang sudah tercatat.',
+                ]);
+            }
+
+            if ($targetSoldQuantity > $maxSoldQuantity) {
+                throw ValidationException::withMessages([
+                    'sold_quantity' => 'Jumlah terjual melebihi quantity onhand yang tersedia setelah retur.',
+                ]);
+            }
+
+            $onhand->update([
+                'manual_sold_quantity' => $targetSoldQuantity - $actualSoldQuantity,
+            ]);
+        });
+
+        return redirect()
+            ->route('product-onhands.index', $this->redirectFilters($request))
+            ->with('success', 'Barang terjual berhasil diperbarui.');
+    }
+
     public function destroy(Request $request, ProductOnhand $onhand): RedirectResponse
     {
         abort_unless($request->user()?->role === 'superadmin', 403);
@@ -261,13 +305,13 @@ class ProductOnhandManagementController extends Controller
                 ->lockForUpdate()
                 ->findOrFail($onhand->id_product_onhand);
 
-            if ($onhand->offline_sales_count > 0) {
+            if ($this->soldQuantity($onhand) > 0) {
                 throw ValidationException::withMessages([
-                    'delete' => 'Onhand yang sudah memiliki penjualan tidak bisa dihapus.',
+                    'delete' => 'Onhand yang sudah memiliki barang terjual tidak bisa dihapus.',
                 ]);
             }
 
-            if ((int) $onhand->quantity_dikembalikan > 0 || (int) ($onhand->approved_return_quantity ?? 0) > 0) {
+            if ((int) $onhand->quantity_dikembalikan > 0 || ProductOnhandStock::approvedReturnQuantity($onhand) > 0) {
                 throw ValidationException::withMessages([
                     'delete' => 'Onhand yang sudah memiliki proses retur tidak bisa dihapus.',
                 ]);
@@ -318,13 +362,13 @@ class ProductOnhandManagementController extends Controller
 
     private function transformOnhand(ProductOnhand $onhand): array
     {
-        $soldQuantity = $this->soldQuantity($onhand);
-        $approvedReturnQuantity = (int) ($onhand->approved_return_quantity ?? 0);
-        $pendingReturnQuantity = $onhand->return_status === 'pending'
-            ? (int) $onhand->quantity_dikembalikan
-            : 0;
+        $actualSoldQuantity = ProductOnhandStock::actualSoldQuantity($onhand);
+        $manualSoldQuantity = ProductOnhandStock::manualSoldQuantity($onhand);
+        $soldQuantity = $actualSoldQuantity + $manualSoldQuantity;
+        $approvedReturnQuantity = ProductOnhandStock::approvedReturnQuantity($onhand);
+        $pendingReturnQuantity = ProductOnhandStock::pendingReturnQuantity($onhand);
         $remainingQuantity = $onhand->take_status === 'disetujui'
-            ? max((int) $onhand->quantity - $soldQuantity - $approvedReturnQuantity - $pendingReturnQuantity, 0)
+            ? ProductOnhandStock::availableQuantity($onhand)
             : 0;
 
         return [
@@ -336,8 +380,13 @@ class ProductOnhandManagementController extends Controller
             'nama_product' => $onhand->nama_product,
             'quantity' => (int) $onhand->quantity,
             'sold_quantity' => $soldQuantity,
+            'actual_sold_quantity' => $actualSoldQuantity,
+            'manual_sold_quantity' => $manualSoldQuantity,
+            'minimum_sold_quantity' => $actualSoldQuantity,
+            'maximum_sold_quantity' => ProductOnhandStock::maxSoldQuantity($onhand),
             'quantity_dikembalikan' => (int) $onhand->quantity_dikembalikan,
             'approved_return_quantity' => $approvedReturnQuantity,
+            'pending_return_quantity' => $pendingReturnQuantity,
             'remaining_quantity' => $remainingQuantity,
             'assignment_date' => optional($onhand->assignment_date)->format('Y-m-d'),
             'take_status' => $onhand->take_status,
@@ -345,7 +394,7 @@ class ProductOnhandManagementController extends Controller
             'return_status' => $onhand->return_status,
             'return_status_label' => $this->returnStatusLabel($onhand->return_status),
             'sales_count' => (int) ($onhand->offline_sales_count ?? 0),
-            'can_delete' => (int) ($onhand->offline_sales_count ?? 0) === 0
+            'can_delete' => $soldQuantity === 0
                 && (int) $onhand->quantity_dikembalikan === 0
                 && $approvedReturnQuantity === 0,
         ];
@@ -353,10 +402,7 @@ class ProductOnhandManagementController extends Controller
 
     private function soldQuantity(ProductOnhand $onhand): int
     {
-        return (int) OfflineSale::query()
-            ->where('id_product_onhand', $onhand->id_product_onhand)
-            ->where('approval_status', '!=', 'ditolak')
-            ->sum('quantity');
+        return ProductOnhandStock::soldQuantity($onhand);
     }
 
     private function lockedStockForTakeStatus(string $takeStatus, int $quantity, int $approvedReturnQuantity): int

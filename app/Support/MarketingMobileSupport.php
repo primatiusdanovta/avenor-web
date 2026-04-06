@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Attendance;
 use App\Models\OfflineSale;
 use App\Models\ProductOnhand;
+use App\Support\ProductOnhandStock;
 use App\Models\SalesTarget;
 use App\Models\User;
 use Carbon\Carbon;
@@ -110,10 +111,8 @@ class MarketingMobileSupport
     public static function transformOnhand(ProductOnhand $onhand): array
     {
         $state = self::stateForOnhand($onhand);
-        $approvedReturnQuantity = (int) ($onhand->approved_return_quantity ?? 0);
-        $pendingReturnQuantity = $onhand->return_status === 'pending'
-            ? (int) $onhand->quantity_dikembalikan
-            : 0;
+        $approvedReturnQuantity = ProductOnhandStock::approvedReturnQuantity($onhand);
+        $pendingReturnQuantity = ProductOnhandStock::pendingReturnQuantity($onhand);
 
         return [
             'id_product_onhand' => $onhand->id_product_onhand,
@@ -162,10 +161,8 @@ class MarketingMobileSupport
         }
 
         $soldQuantity = self::soldForOnhand($onhand);
-        $approvedReturnQuantity = (int) ($onhand->approved_return_quantity ?? 0);
-        $pendingReturnQuantity = $onhand->return_status === 'pending'
-            ? (int) $onhand->quantity_dikembalikan
-            : 0;
+        $approvedReturnQuantity = ProductOnhandStock::approvedReturnQuantity($onhand);
+        $pendingReturnQuantity = ProductOnhandStock::pendingReturnQuantity($onhand);
         $soldOut = $soldQuantity >= (int) $onhand->quantity;
         $remainingQuantity = max((int) $onhand->quantity - $soldQuantity - $approvedReturnQuantity - $pendingReturnQuantity, 0);
         $maxReturn = max((int) $onhand->quantity - $soldQuantity - $approvedReturnQuantity, 0);
@@ -197,10 +194,7 @@ class MarketingMobileSupport
 
     public static function soldForOnhand(ProductOnhand $onhand): int
     {
-        return (int) OfflineSale::query()
-            ->where('id_product_onhand', $onhand->id_product_onhand)
-            ->where('approval_status', '!=', 'ditolak')
-            ->sum('quantity');
+        return ProductOnhandStock::soldQuantity($onhand);
     }
 
     public static function resolveOnhandForSale(int $userId, int $productId): ?ProductOnhand
@@ -223,19 +217,7 @@ class MarketingMobileSupport
             return 0;
         }
 
-        $soldQty = (int) OfflineSale::query()
-            ->where('id_product_onhand', $onhand->id_product_onhand)
-            ->when($ignoreSaleId, fn ($query) => $query->where('id_penjualan_offline', '!=', $ignoreSaleId))
-            ->where('approval_status', '!=', 'ditolak')
-            ->sum('quantity');
-
-        $returnedQty = $onhand->return_status === 'pending'
-            ? (int) $onhand->quantity_dikembalikan
-            : 0;
-
-        $approvedReturnQty = (int) ($onhand->approved_return_quantity ?? 0);
-
-        return max((int) $onhand->quantity - $soldQty - $approvedReturnQty - $returnedQty, 0);
+        return ProductOnhandStock::availableQuantity($onhand, $ignoreSaleId);
     }
 
     public static function normalizePhone(?string $value): ?string
@@ -270,3 +252,4 @@ class MarketingMobileSupport
     }
 
 }
+

@@ -9,6 +9,7 @@ use App\Models\ProductOnhand;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use App\Support\ProductOnhandStock;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -196,10 +197,8 @@ class MarketingAttendanceController extends Controller
     private function transformOnhand(ProductOnhand $onhand): array
     {
         $state = $this->stateForOnhand($onhand);
-        $approvedReturnQuantity = (int) ($onhand->approved_return_quantity ?? 0);
-        $pendingReturnQuantity = $onhand->return_status === 'pending'
-            ? (int) $onhand->quantity_dikembalikan
-            : 0;
+        $approvedReturnQuantity = ProductOnhandStock::approvedReturnQuantity($onhand);
+        $pendingReturnQuantity = ProductOnhandStock::pendingReturnQuantity($onhand);
 
         return [
             'id_product_onhand' => $onhand->id_product_onhand,
@@ -216,16 +215,11 @@ class MarketingAttendanceController extends Controller
 
     private function stateForOnhand(ProductOnhand $onhand): array
     {
-        $soldQuantity = (int) OfflineSale::query()
-            ->where('id_product_onhand', $onhand->id_product_onhand)
-            ->where('approval_status', '!=', 'ditolak')
-            ->sum('quantity');
-        $approvedReturnQuantity = (int) ($onhand->approved_return_quantity ?? 0);
-        $pendingReturnQuantity = $onhand->return_status === 'pending'
-            ? (int) $onhand->quantity_dikembalikan
-            : 0;
+        $soldQuantity = ProductOnhandStock::soldQuantity($onhand);
+        $approvedReturnQuantity = ProductOnhandStock::approvedReturnQuantity($onhand);
+        $pendingReturnQuantity = ProductOnhandStock::pendingReturnQuantity($onhand);
         $soldOut = $soldQuantity >= (int) $onhand->quantity;
-        $remainingQuantity = max((int) $onhand->quantity - $soldQuantity - $approvedReturnQuantity - $pendingReturnQuantity, 0);
+        $remainingQuantity = ProductOnhandStock::availableQuantity($onhand);
         $requiresReturn = (bool) ($onhand->user?->require_return_before_checkout ?? true)
             && ! $soldOut
             && ((int) $onhand->quantity - $soldQuantity - $approvedReturnQuantity) > 0;
@@ -263,3 +257,4 @@ class MarketingAttendanceController extends Controller
         return "https://www.openstreetmap.org/export/embed.html?bbox={$bbox}&layer=mapnik&marker={$latitude},{$longitude}";
     }
 }
+

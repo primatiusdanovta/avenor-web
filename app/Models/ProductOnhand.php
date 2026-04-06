@@ -21,6 +21,7 @@ class ProductOnhand extends Model
         'quantity',
         'quantity_dikembalikan',
         'approved_return_quantity',
+        'manual_sold_quantity',
         'take_status',
         'return_status',
         'approved_by',
@@ -37,6 +38,7 @@ class ProductOnhand extends Model
             'quantity' => 'integer',
             'quantity_dikembalikan' => 'integer',
             'approved_return_quantity' => 'integer',
+            'manual_sold_quantity' => 'integer',
             'assignment_date' => 'date',
             'created_at' => 'datetime',
             'take_requested_at' => 'datetime',
@@ -59,3 +61,4 @@ class ProductOnhand extends Model
         return $this->hasMany(OfflineSale::class, 'id_product_onhand', 'id_product_onhand');
     }
 }
+

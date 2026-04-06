@@ -10,6 +10,7 @@ use App\Models\ProductOnhand;
 use App\Models\SalesTarget;
 use App\Models\User;
 use App\Support\MarketingBonusSupport;
+use App\Support\ProductOnhandStock;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -307,17 +308,12 @@ class MarketingManagementController extends Controller
             ];
         }
 
-        $sold = (int) OfflineSale::query()
-            ->where('id_product_onhand', $onhand->id_product_onhand)
-            ->where('approval_status', '!=', 'ditolak')
-            ->sum('quantity');
+        $sold = ProductOnhandStock::soldQuantity($onhand);
 
-        $approvedReturnQuantity = (int) ($onhand->approved_return_quantity ?? 0);
-        $pendingReturnQuantity = $onhand->return_status === 'pending'
-            ? (int) $onhand->quantity_dikembalikan
-            : 0;
+        $approvedReturnQuantity = ProductOnhandStock::approvedReturnQuantity($onhand);
+        $pendingReturnQuantity = ProductOnhandStock::pendingReturnQuantity($onhand);
 
-        $remaining = max((int) $onhand->quantity - $sold - $approvedReturnQuantity - $pendingReturnQuantity, 0);
+        $remaining = ProductOnhandStock::availableQuantity($onhand);
         $soldOut = $sold >= (int) $onhand->quantity;
         $statusLabel = $this->returnStatusLabel($onhand->return_status);
 
@@ -466,3 +462,4 @@ class MarketingManagementController extends Controller
         ];
     }
 }
+
