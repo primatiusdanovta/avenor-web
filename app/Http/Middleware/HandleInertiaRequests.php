@@ -36,6 +36,7 @@ class HandleInertiaRequests extends Middleware
                 'icon' => 'fas fa-boxes',
                 'children' => array_values(array_filter([
                     ['label' => 'Products', 'href' => route('products.index'), 'icon' => 'far fa-circle nav-icon'],
+                    $user?->role === 'superadmin' ? ['label' => 'Barang Onhand', 'href' => route('product-onhands.index'), 'icon' => 'far fa-circle nav-icon'] : null,
                     $user?->role === 'superadmin' ? ['label' => 'Hpp', 'href' => route('hpp.index'), 'icon' => 'far fa-circle nav-icon'] : null,
                     $user?->role === 'superadmin' ? ['label' => 'Raw Material', 'href' => route('raw-materials.index'), 'icon' => 'far fa-circle nav-icon'] : null,
                 ])),

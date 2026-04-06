@@ -149,8 +149,8 @@ class DashboardController extends Controller
         $revenueTotal = round($offlineGross + $onlineGross, 2);
         $grossProfitTotal = round($offlineGrossProfit + $onlineGrossProfit, 2);
         $netProfitTotal = round($grossProfitTotal - $operationalExpenseTotal, 2);
-        $npmBase = $grossProfitTotal;
-        $npmPercent = $revenueTotal > 0 ? round(($netProfitTotal / $revenueTotal) * 100, 2) : 0;
+        $npmBase = round($revenueTotal - $netProfitTotal, 2);
+        $npmPercent = $revenueTotal > 0 ? round(($npmBase / $revenueTotal) * 100, 2) : 0;
 
         $offlineRevenue = $this->filterEmptySeries(
             $this->buildDailySeries($filteredOfflineSales, $monthStart, $monthEnd, fn ($sale) => (float) $sale->harga)
@@ -390,14 +390,23 @@ class DashboardController extends Controller
 
     private function hppForSale(OfflineSale $sale): float
     {
-        $hpp = (float) ($sale->total_hpp ?? $sale->product?->hppCalculation?->total_hpp ?? $sale->product?->harga_modal ?? 0);
-        return $hpp * (int) $sale->quantity;
+        return $this->resolveOfflineUnitHpp($sale) * (int) $sale->quantity;
     }
 
     private function hppForOnlineItem(OnlineSaleItem $item): float
     {
         $hpp = (float) ($item->product?->hppCalculation?->total_hpp ?? $item->product?->harga_modal ?? 0);
         return $hpp * (int) $item->quantity;
+    }
+
+    private function resolveOfflineUnitHpp(OfflineSale $sale): float
+    {
+        $storedHpp = (float) ($sale->total_hpp ?? 0);
+        if ($storedHpp > 0) {
+            return $storedHpp;
+        }
+
+        return (float) ($sale->product?->hppCalculation?->total_hpp ?? $sale->product?->harga_modal ?? 0);
     }
 
     private function buildTargetSummary(User $user, Carbon $periodStart, Carbon $periodEnd, ?SalesTarget $target): array
@@ -492,7 +501,6 @@ class DashboardController extends Controller
         ];
     }
 }
-
 
 
 

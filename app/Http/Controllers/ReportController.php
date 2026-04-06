@@ -132,7 +132,10 @@ class ReportController extends Controller
 
     private function offlineNet(OfflineSale $sale): float
     {
-        $hpp = (float) ($sale->total_hpp ?? $sale->product?->hppCalculation?->total_hpp ?? $sale->product?->harga_modal ?? 0);
+        $storedHpp = (float) ($sale->total_hpp ?? 0);
+        $hpp = $storedHpp > 0
+            ? $storedHpp
+            : (float) ($sale->product?->hppCalculation?->total_hpp ?? $sale->product?->harga_modal ?? 0);
         return (float) $sale->harga - ($hpp * (int) $sale->quantity);
     }
 
@@ -199,6 +202,5 @@ class ReportController extends Controller
         return str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $value);
     }
 }
-
 
 

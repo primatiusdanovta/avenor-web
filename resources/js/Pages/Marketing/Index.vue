@@ -219,6 +219,13 @@
         </div>
         <div v-else class="text-muted">Data marketing belum tersedia.</div>
         <template #footer>
+            <Link
+                v-if="isSuperadmin && selectedMarketing"
+                :href="adminUrl(`/product-onhands?user_id=${selectedMarketing.id_user}`)"
+                class="btn btn-outline-dark"
+            >
+                Kelola Onhand
+            </Link>
             <Link href="/approvals" class="btn btn-outline-primary">Buka Halaman Approval</Link>
             <button type="button" class="btn btn-secondary" @click="closeDetailModal">Tutup</button>
         </template>

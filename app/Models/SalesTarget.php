@@ -30,4 +30,9 @@ class SalesTarget extends Model
             'monthly_bonus' => 'decimal:2',
         ];
     }
+
+    public function getRouteKeyName(): string
+    {
+        return 'role';
+    }
 }
