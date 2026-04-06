@@ -88,6 +88,10 @@
                 <div class="form-group mb-0"><label>Tiktok / Instagram</label><input v-model="activeForm.customer_tiktok_instagram" type="text" class="form-control"></div>
             </div>
 
+            <div v-if="!canManageAll && !products.length" class="alert alert-warning mb-0">
+                Produk belum bisa dipilih karena belum ada barang on hand yang disetujui dan masih punya sisa stok untuk dijual.
+            </div>
+
             <div v-for="(item, index) in activeForm.items" :key="item.key" class="border rounded p-3 bg-light">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <strong>Product {{ index + 1 }}</strong>

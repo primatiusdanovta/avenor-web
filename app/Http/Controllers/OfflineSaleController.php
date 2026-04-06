@@ -372,7 +372,7 @@ class OfflineSaleController extends Controller
                 $onhand = $this->resolveOnhandForSale($userId, (int) $item['id_product']);
 
                 if (! $onhand) {
-                    throw ValidationException::withMessages(['items' => 'Ada product yang belum diambil untuk hari ini.']);
+                    throw ValidationException::withMessages(['items' => 'Ada product yang belum tersedia di on hand untuk dijual.']);
                 }
 
                 if ($quantity > $this->availableForOnhand($onhand, $ignoreSaleId)) {
@@ -520,7 +520,6 @@ class OfflineSaleController extends Controller
             ->select('products.id_product', 'products.nama_product', 'products.harga')
             ->join('product_onhands', 'product_onhands.id_product', '=', 'products.id_product')
             ->where('product_onhands.user_id', $userId)
-            ->whereDate('product_onhands.assignment_date', today()->toDateString())
             ->where('product_onhands.take_status', 'disetujui')
             ->groupBy('products.id_product', 'products.nama_product', 'products.harga')
             ->get()
@@ -538,7 +537,6 @@ class OfflineSaleController extends Controller
         return ProductOnhand::query()
             ->where('user_id', $userId)
             ->where('id_product', $productId)
-            ->whereDate('assignment_date', today()->toDateString())
             ->where('take_status', 'disetujui')
             ->orderByDesc('id_product_onhand')
             ->get()

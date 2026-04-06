@@ -38,7 +38,6 @@ class OfflineSaleController extends Controller
             ->select('products.id_product', 'products.nama_product', 'products.harga')
             ->join('product_onhands', 'product_onhands.id_product', '=', 'products.id_product')
             ->where('product_onhands.user_id', $user->id_user)
-            ->whereDate('product_onhands.assignment_date', today()->toDateString())
             ->where('product_onhands.take_status', 'disetujui')
             ->groupBy('products.id_product', 'products.nama_product', 'products.harga')
             ->get()
@@ -257,7 +256,7 @@ class OfflineSaleController extends Controller
 
             if (! $onhand) {
                 throw ValidationException::withMessages([
-                    'items' => 'Ada product yang belum diambil untuk hari ini.',
+                    'items' => 'Ada product yang belum tersedia di on hand untuk dijual.',
                 ]);
             }
 
@@ -365,4 +364,3 @@ class OfflineSaleController extends Controller
         return 'TRX-' . now()->format('YmdHis') . '-' . strtoupper(Str::random(8));
     }
 }
-

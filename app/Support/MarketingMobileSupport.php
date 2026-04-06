@@ -209,7 +209,6 @@ class MarketingMobileSupport
             ->with('user')
             ->where('user_id', $userId)
             ->where('id_product', $productId)
-            ->whereDate('assignment_date', today()->toDateString())
             ->where('take_status', 'disetujui')
             ->orderByDesc('id_product_onhand')
             ->get()

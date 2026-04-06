@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -21,8 +22,11 @@ class NotificationScheduler {
 
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
+  final StreamController<Map<String, dynamic>> _tapStreamController =
+      StreamController<Map<String, dynamic>>.broadcast();
 
   bool _initialized = false;
+  Map<String, dynamic>? _pendingLaunchNotification;
 
   Future<void> initialize() async {
     if (_initialized) {
@@ -44,7 +48,20 @@ class NotificationScheduler {
       ),
     );
 
-    await _plugin.initialize(initializationSettings);
+    await _plugin.initialize(
+      initializationSettings,
+      onDidReceiveNotificationResponse: _handleNotificationResponse,
+      onDidReceiveBackgroundNotificationResponse:
+          notificationTapBackgroundHandler,
+    );
+
+    final launchDetails = await _plugin.getNotificationAppLaunchDetails();
+    if (launchDetails?.didNotificationLaunchApp == true) {
+      final payload = _parsePayload(launchDetails?.notificationResponse?.payload);
+      if (payload != null) {
+        _pendingLaunchNotification = payload;
+      }
+    }
 
     final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
@@ -57,6 +74,15 @@ class NotificationScheduler {
     ));
 
     _initialized = true;
+  }
+
+  Stream<Map<String, dynamic>> get onNotificationTap =>
+      _tapStreamController.stream;
+
+  Map<String, dynamic>? consumePendingLaunchNotification() {
+    final payload = _pendingLaunchNotification;
+    _pendingLaunchNotification = null;
+    return payload;
   }
 
   Future<void> syncServerNotifications(
@@ -167,4 +193,35 @@ class NotificationScheduler {
   int? _notificationId(Map<String, dynamic> item) {
     return (item['id'] as num?)?.toInt();
   }
+
+  void _handleNotificationResponse(NotificationResponse response) {
+    final payload = _parsePayload(response.payload);
+    if (payload == null) {
+      return;
+    }
+
+    _tapStreamController.add(payload);
+  }
+
+  Map<String, dynamic>? _parsePayload(String? payload) {
+    if (payload == null || payload.isEmpty) {
+      return null;
+    }
+
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+    } catch (_) {
+      return null;
+    }
+
+    return null;
+  }
+}
+
+@pragma('vm:entry-point')
+void notificationTapBackgroundHandler(NotificationResponse response) {
+  // Foreground/cold-start handling is processed by the main isolate.
 }

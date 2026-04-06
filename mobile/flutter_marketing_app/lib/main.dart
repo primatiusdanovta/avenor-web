@@ -172,6 +172,7 @@ class _MarketingRootState extends State<MarketingRoot> {
 
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  StreamSubscription<Map<String, dynamic>>? _notificationTapSubscription;
 
   bool _loading = true;
   bool _loggingIn = false;
@@ -190,18 +191,73 @@ class _MarketingRootState extends State<MarketingRoot> {
   Map<String, dynamic>? _sales;
   Map<String, dynamic>? _knowledge;
   Map<String, dynamic>? _notifications;
+  Map<String, dynamic>? _pendingOpenedNotification;
 
   @override
   void initState() {
     super.initState();
+    _notificationTapSubscription = NotificationScheduler.instance.onNotificationTap
+        .listen(_handleNotificationTap);
+    unawaited(_restorePendingNotificationLaunch());
     _restoreSession();
   }
 
   @override
   void dispose() {
+    _notificationTapSubscription?.cancel();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _restorePendingNotificationLaunch() async {
+    await NotificationScheduler.instance.initialize();
+    final pending =
+        NotificationScheduler.instance.consumePendingLaunchNotification();
+    if (pending != null) {
+      _handleNotificationTap(pending);
+    }
+  }
+
+  void _handleNotificationTap(Map<String, dynamic> notification) {
+    _pendingOpenedNotification = Map<String, dynamic>.from(notification);
+    unawaited(_tryPresentPendingNotification());
+  }
+
+  Future<void> _tryPresentPendingNotification() async {
+    if (!mounted ||
+        _loading ||
+        _token == null ||
+        _pendingOpenedNotification == null) {
+      return;
+    }
+
+    final notification = Map<String, dynamic>.from(_pendingOpenedNotification!);
+    _pendingOpenedNotification = null;
+
+    await NotificationScheduler.instance.markNotificationsSeen([notification]);
+    await _refreshNotificationBadgeState();
+
+    if (!mounted) {
+      return;
+    }
+
+    if (_navigationIndex != 0) {
+      setState(() => _navigationIndex = 0);
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      final notifications = ((_notifications?['notifications'] as List?) ?? [])
+          .cast<Map<String, dynamic>>();
+      _showNotificationsSheet(
+        notifications,
+        initialNotification: notification,
+      );
+    });
   }
 
   Future<void> _restoreSession() async {
@@ -219,6 +275,7 @@ class _MarketingRootState extends State<MarketingRoot> {
 
     if (token == null || token.isEmpty) {
       setState(() => _loading = false);
+      await _tryPresentPendingNotification();
       return;
     }
 
@@ -232,6 +289,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     if (mounted) {
       setState(() => _loading = false);
     }
+    await _tryPresentPendingNotification();
   }
 
   Future<void> _bootstrapMockSession() async {
@@ -244,6 +302,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     if (mounted) {
       setState(() => _loading = false);
     }
+    await _tryPresentPendingNotification();
   }
 
   void _hydrateMockData() {
@@ -585,6 +644,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         _token = 'mock-token';
         _hydrateMockData();
         await _refreshNotificationBadgeState();
+        await _tryPresentPendingNotification();
         return;
       }
 
@@ -605,6 +665,7 @@ class _MarketingRootState extends State<MarketingRoot> {
       await prefs.setBool('marketing_mock_mode', false);
       await prefs.setString('marketing_token', token);
       await _refreshAll(showLoader: false);
+      await _tryPresentPendingNotification();
     } on DioException catch (error) {
       setState(() => _error = _readError(error));
     } catch (error) {
@@ -623,6 +684,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         _syncMockDerivedState();
       });
       await _refreshNotificationBadgeState();
+      await _tryPresentPendingNotification();
       await Future<void>.delayed(const Duration(milliseconds: 250));
       if (mounted) {
         setState(() => _busy = false);
@@ -662,6 +724,7 @@ class _MarketingRootState extends State<MarketingRoot> {
             .cast<Map<String, dynamic>>(),
       );
       await _refreshNotificationBadgeState();
+      await _tryPresentPendingNotification();
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -1079,7 +1142,9 @@ class _MarketingRootState extends State<MarketingRoot> {
   }
 
   Future<void> _showNotificationsSheet(
-      List<Map<String, dynamic>> notifications) async {
+    List<Map<String, dynamic>> notifications, {
+    Map<String, dynamic>? initialNotification,
+  }) async {
     await NotificationScheduler.instance.markNotificationsSeen(notifications);
     if (mounted) {
       setState(() => _unreadNotificationCount = 0);
@@ -1093,6 +1158,7 @@ class _MarketingRootState extends State<MarketingRoot> {
       backgroundColor: Colors.transparent,
       builder: (_) => _NotificationsSheet(
         notifications: notifications,
+        initialNotification: initialNotification,
       ),
     );
   }
@@ -1988,12 +2054,44 @@ class _QrImagePreviewDialog extends StatelessWidget {
   }
 }
 
-class _NotificationsSheet extends StatelessWidget {
+class _NotificationsSheet extends StatefulWidget {
   const _NotificationsSheet({
     required this.notifications,
+    this.initialNotification,
   });
 
   final List<Map<String, dynamic>> notifications;
+  final Map<String, dynamic>? initialNotification;
+
+  @override
+  State<_NotificationsSheet> createState() => _NotificationsSheetState();
+}
+
+class _NotificationsSheetState extends State<_NotificationsSheet> {
+  bool _openedInitialDetail = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (_openedInitialDetail || widget.initialNotification == null) {
+      return;
+    }
+
+    _openedInitialDetail = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      showMaterialModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        builder: (_) =>
+            _NotificationDetailSheet(notification: widget.initialNotification!),
+      );
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2021,17 +2119,17 @@ class _NotificationsSheet extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 Flexible(
-                  child: notifications.isEmpty
+                  child: widget.notifications.isEmpty
                       ? const Padding(
                           padding: EdgeInsets.symmetric(vertical: 24),
                           child: Text('Belum ada notifikasi untuk ditampilkan.'),
                         )
                       : ListView.separated(
                           shrinkWrap: true,
-                          itemCount: notifications.length,
+                          itemCount: widget.notifications.length,
                           separatorBuilder: (_, __) => const SizedBox(height: 12),
                           itemBuilder: (context, index) {
-                            final item = notifications[index];
+                            final item = widget.notifications[index];
                             return Material(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(24),
@@ -4646,7 +4744,7 @@ class _SalesPageState extends State<_SalesPage> {
                     borderRadius: BorderRadius.circular(18),
                   ),
                   child: const Text(
-                    'Produk belum bisa dipilih karena backend hanya mengirim barang on hand yang sudah disetujui dan masih punya sisa stok hari ini.',
+                    'Produk belum bisa dipilih karena belum ada barang on hand yang disetujui dan masih punya sisa stok untuk dijual.',
                     style: TextStyle(height: 1.4),
                   ),
                 ),
