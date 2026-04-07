@@ -1,4 +1,4 @@
-﻿SET NAMES utf8mb4;
+SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS `mobile_access_tokens`;
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `id_user` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `nama` VARCHAR(255) NOT NULL,
   `status` VARCHAR(255) NOT NULL DEFAULT 'aktif',
-  `role` ENUM('superadmin','admin','marketing','reseller') NOT NULL,
+  `role` ENUM('superadmin','admin','marketing','sales_field_executive') NOT NULL,
   `password` VARCHAR(255) NOT NULL,
   `remember_token` VARCHAR(100) NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -632,7 +632,7 @@ INSERT INTO products (id_product, nama_product, harga, harga_modal, stock, gamba
 INSERT INTO products (id_product, nama_product, harga, harga_modal, stock, gambar, created_at, deskripsi, landing_page_active, seo_title, seo_description, canonical_url, top_notes_text, heart_notes_text, base_notes_text, education_content, faq_data, educational_blocks) VALUES (3, 'Azalea', 75000.00, 0.00, 0, NULL, '2026-03-30 03:48:01', 'Floral sweet perfume dengan kesan lembut.', false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 INSERT INTO products (id_product, nama_product, harga, harga_modal, stock, gambar, created_at, deskripsi, landing_page_active, seo_title, seo_description, canonical_url, top_notes_text, heart_notes_text, base_notes_text, education_content, faq_data, educational_blocks) VALUES (4, 'Athena', 75000.00, 0.00, 0, 'products/nSn3G2y0AhMVMtzAqDh4ARneCtvb6cxDjCEwGnZ1.png', '2026-03-30 03:48:01', 'Fresh floral perfume untuk kesan modern. Fresh floral perfume untuk kesan modern.Fresh floral perfume untuk kesan modern.Fresh floral perfume untuk kesan modern.Fresh floral perfume untuk kesan modern.Fresh floral perfume untuk kesan modern.Fresh floral perfume untuk kesan modern.Fresh floral perfume untuk kesan modern.Fresh floral perfume untuk kesan modern.Fresh floral perfume untuk kesan modern.Fresh floral perfume untuk kesan modern.Fresh floral perfume untuk kesan modern.Fresh floral perfume untuk kesan modern.Fresh floral perfume untuk kesan modern.Fresh floral perfume untuk kesan modern.', false, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 INSERT INTO products (id_product, nama_product, harga, harga_modal, stock, gambar, created_at, deskripsi, landing_page_active, seo_title, seo_description, canonical_url, top_notes_text, heart_notes_text, base_notes_text, education_content, faq_data, educational_blocks) VALUES (1, 'Solair', 75000.00, 0.00, 0, NULL, '2026-03-30 03:48:01', 'Fresh citrus perfume untuk pemakaian harian.', true, NULL, NULL, NULL, NULL, NULL, NULL, '{"title":"Customer Education","body":null,"tips":[]}', '[]', '{"title":"Customer Education","body":null,"tips":[]}');
-INSERT INTO sales_targets (id, role, daily_target_qty, daily_bonus, weekly_target_qty, weekly_bonus, monthly_target_qty, monthly_bonus, created_at, updated_at) VALUES (2, 'reseller', 0, 0.00, 0, 0.00, 0, 0.00, '2026-03-30 03:48:01', '2026-03-30 03:48:01');
+INSERT INTO sales_targets (id, role, daily_target_qty, daily_bonus, weekly_target_qty, weekly_bonus, monthly_target_qty, monthly_bonus, created_at, updated_at) VALUES (2, 'sales_field_executive', 0, 0.00, 0, 0.00, 0, 0.00, '2026-03-30 03:48:01', '2026-03-30 03:48:01');
 INSERT INTO sales_targets (id, role, daily_target_qty, daily_bonus, weekly_target_qty, weekly_bonus, monthly_target_qty, monthly_bonus, created_at, updated_at) VALUES (1, 'marketing', 4, 0.00, 24, 350000.00, 100, 1500000.00, '2026-03-30 03:48:01', '2026-03-30 03:51:17');
 INSERT INTO seo_settings (id, page_key, title, meta_description, meta_keywords, canonical_url, og_title, og_description, og_image, robots, schema_json, is_active, created_at, updated_at) VALUES (1, 'landing', 'Avenor Perfume | Luxury Fragrance Experience', 'Discover Avenor Perfume through a modern dark luxury landing page featuring scent stages, ingredients, and a refined fragrance narrative.', 'avenor perfume, parfum mewah, luxury perfume, fragrance notes, parfum premium', NULL, 'Avenor Perfume | Luxury Fragrance Experience', 'A modern dark luxury fragrance discovery experience with immersive notes and ingredient storytelling.', NULL, 'index,follow', '{
     "@context": "https://schema.org",
@@ -648,7 +648,7 @@ INSERT INTO sessions (id, user_id, ip_address, user_agent, payload, last_activit
 INSERT INTO sessions (id, user_id, ip_address, user_agent, payload, last_activity) VALUES ('WLGDnp4tvk6Rj82SqYDnaRcCUTGD1yZZDz2EeGrl', NULL, '127.0.0.1', 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.7632.6 Mobile Safari/537.36', 'YTozOntzOjY6Il90b2tlbiI7czo0MDoiWDR3cU1aQlhSMnNWNXg4aFEwQ21RRjlweTZlZmJkeUtXdFdBZTEwOCI7czo5OiJfcHJldmlvdXMiO2E6Mjp7czozOiJ1cmwiO3M6NzQ6Imh0dHA6Ly8xMjcuMC4wLjE6ODAxMi9tYXN0ZXItaGVyby12aWRlbz92PTJkZWUyYjgyZjZkNWEwZjljYjZhNDUwMDU1YjFhM2MyIjtzOjU6InJvdXRlIjtzOjMzOiJnbG9iYWwtc2V0dGluZ3MubWFzdGVyLWhlcm8tdmlkZW8iO31zOjY6Il9mbGFzaCI7YToyOntzOjM6Im9sZCI7YTowOnt9czozOiJuZXciO2E6MDp7fX19', 1775042176);
 INSERT INTO sessions (id, user_id, ip_address, user_agent, payload, last_activity) VALUES ('K2GqOL2n0eywJO8Qp7b8cdCfrsXeZLtY9HrAyBK1', 1, '127.0.0.1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36', 'YTo0OntzOjY6Il90b2tlbiI7czo0MDoiWndRcXZtSXJCdmJlSkE0NzNndlJ2ajJwU3NiREdZQ1h0cmx6NmhFTSI7czo1MDoibG9naW5fd2ViXzU5YmEzNmFkZGMyYjJmOTQwMTU4MGYwMTRjN2Y1OGVhNGUzMDk4OWQiO2k6MTtzOjk6Il9wcmV2aW91cyI7YToyOntzOjM6InVybCI7czo3NDoiaHR0cDovLzEyNy4wLjAuMTo4MDAwL21hc3Rlci1oZXJvLXZpZGVvP3Y9MmRlZTJiODJmNmQ1YTBmOWNiNmE0NTAwNTViMWEzYzIiO3M6NToicm91dGUiO3M6MzM6Imdsb2JhbC1zZXR0aW5ncy5tYXN0ZXItaGVyby12aWRlbyI7fXM6NjoiX2ZsYXNoIjthOjI6e3M6Mzoib2xkIjthOjA6e31zOjM6Im5ldyI7YTowOnt9fX0=', 1775051410);
 INSERT INTO users (id_user, nama, status, role, password, remember_token, created_at, require_return_before_checkout) VALUES (2, 'admin', 'aktif', 'admin', '$2y$12$btrQAWjikxBkLtFk0wmHd.tFbAzPa86jVP3mWR3L2IEOByBN1OU9S', NULL, '2026-03-30 03:47:59', true);
-INSERT INTO users (id_user, nama, status, role, password, remember_token, created_at, require_return_before_checkout) VALUES (4, 'reseller', 'aktif', 'reseller', '$2y$12$0AuMbJL/hpAvlTdQi7qoTumAsFDDX4uH3L8HwSUN9Ibn3DEPrTcAe', NULL, '2026-03-30 03:48:00', true);
+INSERT INTO users (id_user, nama, status, role, password, remember_token, created_at, require_return_before_checkout) VALUES (4, 'field executive', 'aktif', 'sales_field_executive', '$2y$12$0AuMbJL/hpAvlTdQi7qoTumAsFDDX4uH3L8HwSUN9Ibn3DEPrTcAe', NULL, '2026-03-30 03:48:00', true);
 INSERT INTO users (id_user, nama, status, role, password, remember_token, created_at, require_return_before_checkout) VALUES (1, 'superadmin', 'aktif', 'superadmin', '$2y$12$qPgNe9Z4mNvXVst8jC1NC.eg0mCR04gdpKpiqix6qjgEaJuYiUzwi', '3Qwk4b56rETDWqKb5RSaswkfCDZ1XjK15y8FdCTTtlomnoNK9DnIGDvw7JRm', '2026-03-30 03:47:58', true);
 INSERT INTO users (id_user, nama, status, role, password, remember_token, created_at, require_return_before_checkout) VALUES (3, 'marketing', 'aktif', 'marketing', '$2y$12$OrtqI5C0brMgFnALF.1Peuaib3DRQxBQjgBfW60AAFcztGA0WPS2K', 'eRrAqCM8qLxjjO02UArilhooKKpYv1DI7DKBZ2CBaseBl80w8WZuuwp9VFMo', '2026-03-30 03:48:00', false);
 
@@ -665,3 +665,5 @@ INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES
 (43, '2026_04_02_000034_add_more_fragrance_details', 5);
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+

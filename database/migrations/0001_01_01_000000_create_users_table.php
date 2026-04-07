@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id('id_user');
             $table->string('nama')->unique();
             $table->string('status')->default('aktif');
-            $table->enum('role', ['superadmin', 'admin', 'marketing', 'reseller']);
+            $table->enum('role', ['superadmin', 'admin', 'marketing', 'reseller', 'sales_field_executive']);
             $table->string('password');
             $table->rememberToken();
             $table->timestamp('created_at')->useCurrent();
@@ -47,3 +47,4 @@ return new class extends Migration
         Schema::dropIfExists('sessions');
     }
 };
+

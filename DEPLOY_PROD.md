@@ -13,6 +13,7 @@
 2. Fill these values before deploy:
    - `APP_KEY`
    - `APP_URL`
+   - `ADMIN_ROUTE_PREFIX`
    - `DB_CONNECTION`
    - `DB_HOST`
    - `DB_PORT`
@@ -28,6 +29,7 @@
 Gunakan MariaDB dengan konfigurasi `.env.prod` berikut:
 
 - `APP_URL=https://avenorperfume.site`
+- `ADMIN_ROUTE_PREFIX=administrator`
 - `DB_CONNECTION=mariadb`
 - `DB_PORT=3306`
 
@@ -35,39 +37,55 @@ Choose one approach:
 
 ### Option A - Laravel migration
 - `php artisan migrate --force`
+- lanjutkan dengan seed master bila dibutuhkan:
+  - `php artisan db:seed --class=DatabaseSeeder --force`
 
 ### Option B - SQL import
-- import file: `import.sql`
+- import schema/data MariaDB dari file yang Anda siapkan sendiri
 - command example:
   - `mysql -u avenor_user -p avenor_web < import.sql`
+- jalankan patch MariaDB tambahan setelah import:
+  - `mysql -u avenor_user -p avenor_web < sql.tambahan.sql`
+
+Catatan:
+- `sql.tambahan.sql` merapikan migrasi role `reseller -> sales_field_executive` dan target field team lama
+- jika server production benar-benar baru, Option A biasanya lebih aman daripada import dump historis
 
 ## 4. Install & Build
 - `composer install --no-dev --optimize-autoloader`
 - `npm install`
 - `npm run build`
+- deploy code ke server via git sesuai flow operasional Anda
 
-## 5. Storage & Optimization
+## 5. Nginx
+- contoh konfigurasi ada di `infra/nginx/avenor-web.conf`
+- langkah install Ubuntu ada di `infra/nginx/INSTALL_UBUNTU.md`
+- pastikan document root mengarah ke folder `public`
+- arahkan PHP ke socket atau host `php-fpm` yang sesuai versi server Anda
+
+## 6. Storage & Optimization
 - `php artisan storage:link`
+- jika memakai session/cache/queue database dan tabel belum ada:
+  - `php artisan session:table`
+  - `php artisan cache:table`
+  - `php artisan queue:table`
+  - `php artisan migrate --force`
 - `php artisan config:cache`
 - `php artisan route:cache`
 - `php artisan view:cache`
 
-## 6. Queue / Scheduler
+## 7. Queue / Scheduler
 If queue is used in production:
 - run worker with supervisor/systemd
 - schedule cron:
   - `* * * * * php /path/to/artisan schedule:run >> /dev/null 2>&1`
 
-## 7. SSH Upload Bundle
-Prepared files are in `deploy/production`:
-- `release-package.zip`
-- `ssh-upload-example.sh`
-- `README.md`
-- `import.sql`
-
 ## 8. Post Deploy Smoke Check
 - login page opens
 - dashboard loads for superadmin
+- `/administrator/field-team` loads
+- role switch `Marketing / Sales Field Executive` works
+- `Kelola Onhand` modal opens from `/administrator/product-onhands`
 - product landing page loads
 - global settings save works
 - landing page builder save works

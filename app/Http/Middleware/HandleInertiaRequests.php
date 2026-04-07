@@ -59,8 +59,7 @@ class HandleInertiaRequests extends Middleware
                 'icon' => 'fas fa-users-cog',
                 'children' => array_values(array_filter([
                     $user?->role === 'superadmin' ? ['label' => 'Users', 'href' => route('users.manage'), 'icon' => 'far fa-circle nav-icon'] : null,
-                    ['label' => 'Marketing', 'href' => route('marketing.index'), 'icon' => 'far fa-circle nav-icon'],
-                    ['label' => 'Sales Field Executive', 'href' => route('users.manage') . '?role=sales_field_executive', 'icon' => 'far fa-circle nav-icon'],
+                    ['label' => 'Field Team', 'href' => route('field-team.index'), 'icon' => 'far fa-circle nav-icon'],
                     ['label' => 'Customers', 'href' => route('customers.index'), 'icon' => 'far fa-circle nav-icon'],
                     ['label' => 'Content Creator', 'href' => route('content-creators.index'), 'icon' => 'far fa-circle nav-icon'],
                     $user?->role === 'superadmin' ? ['label' => 'Applicant', 'href' => route('applicants.index'), 'icon' => 'far fa-circle nav-icon'] : null,
@@ -133,4 +132,7 @@ class HandleInertiaRequests extends Middleware
         ];
     }
 }
+
+
+
 

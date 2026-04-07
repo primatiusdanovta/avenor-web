@@ -42,117 +42,49 @@
     <div class="row">
         <div class="col-12">
             <div class="card card-outline card-info">
-                <div class="card-header"><h3 class="card-title">Daftar Barang Onhand</h3></div>
-                <div class="card-body p-0 table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th>Tanggal</th>
-                                <th>User</th>
-                                <th>Product</th>
-                                <th>Dibawa</th>
-                                <th>Terjual</th>
-                                <th>Sisa</th>
-                                <th>Status Ambil</th>
-                                <th>Status Return</th>
-                                <th>Sales</th>
-                                <th class="action-column">Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="item in onhands" :key="item.id_product_onhand">
-                                <td>{{ item.assignment_date }}</td>
-                                <td>
-                                    <div class="font-weight-bold">{{ item.user_name || '-' }}</div>
-                                    <div class="small text-muted">{{ item.user_role || '-' }}</div>
-                                </td>
-                                <td>{{ item.nama_product }}</td>
-                                <td>
-                                    {{ displayQuantity(item) }}
-                                    <div v-if="hasPendingQuantityChange(item)" class="small text-primary">
-                                        Draft dari {{ item.quantity }}
+                <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h3 class="card-title">Daftar Barang Onhand Per User</h3>
+                    <div class="small text-muted">List utama diringkas per user. Detail dan aksi onhand dibuka lewat modal.</div>
+                </div>
+                <div class="card-body">
+                    <div v-if="groupedOnhands.length" class="grouped-onhand-list">
+                        <div v-for="group in groupedOnhands" :key="group.user_id" class="onhand-user-card">
+                            <div class="onhand-user-card__top">
+                                <div>
+                                    <div class="onhand-user-card__name">{{ group.user_name }}</div>
+                                    <div class="small text-muted">{{ group.user_role }}</div>
+                                </div>
+                                <div class="onhand-user-card__stats">
+                                    <div class="user-stat-pill">
+                                        <span>Batch</span>
+                                        <strong>{{ group.items.length }}</strong>
                                     </div>
-                                    <div v-if="quantityDelta(item) !== 0" class="small" :class="quantityDelta(item) > 0 ? 'text-success' : 'text-danger'">
-                                        {{ formatDelta(quantityDelta(item)) }}
+                                    <div class="user-stat-pill">
+                                        <span>Dibawa</span>
+                                        <strong>{{ group.total_quantity }}</strong>
                                     </div>
-                                </td>
-                                <td>
-                                    {{ displaySoldQuantity(item) }}
-                                    <div v-if="item.actual_sold_quantity > 0" class="small text-muted">
-                                        Penjualan asli {{ item.actual_sold_quantity }}
+                                    <div class="user-stat-pill">
+                                        <span>Terjual</span>
+                                        <strong>{{ group.total_sold }}</strong>
                                     </div>
-                                    <div v-if="item.manual_sold_quantity > 0" class="small text-info">
-                                        Koreksi {{ item.manual_sold_quantity }}
+                                    <div class="user-stat-pill">
+                                        <span>Sisa</span>
+                                        <strong>{{ group.total_remaining }}</strong>
                                     </div>
-                                    <div v-if="hasPendingSoldChange(item)" class="small text-primary">
-                                        Draft dari {{ item.sold_quantity }}
-                                    </div>
-                                    <div v-if="soldDelta(item) !== 0" class="small" :class="soldDelta(item) > 0 ? 'text-success' : 'text-danger'">
-                                        {{ formatDelta(soldDelta(item)) }}
-                                    </div>
-                                </td>
-                                <td>{{ item.take_status === 'disetujui' ? displayRemaining(item) : '-' }}</td>
-                                <td>
-                                    <span class="badge status-badge" :class="takeStatusBadgeClass(item.take_status)">
-                                        {{ item.take_status_label }}
-                                    </span>
-                                </td>
-                                <td>
-                                    <span class="badge status-badge" :class="returnStatusBadgeClass(item.return_status)">
-                                        {{ item.return_status_label }}
-                                    </span>
-                                </td>
-                                <td>{{ item.sales_count }}</td>
-                                <td>
-                                    <div class="action-group">
-                                        <button type="button" class="btn btn-xs btn-outline-secondary" :disabled="displayQuantity(item) <= 1" @click="adjustQuantity(item, -1)">
-                                            <i class="fas fa-minus mr-1"></i>
-                                            Bawa -1
-                                        </button>
-                                        <button type="button" class="btn btn-xs btn-outline-primary" @click="adjustQuantity(item, 1)">
-                                            <i class="fas fa-plus mr-1"></i>
-                                            Bawa +1
-                                        </button>
-                                        <button type="button" class="btn btn-xs btn-outline-secondary" :disabled="!canDecreaseSold(item)" @click="adjustSoldQuantity(item, -1)">
-                                            <i class="fas fa-minus mr-1"></i>
-                                            Jual -1
-                                        </button>
-                                        <button type="button" class="btn btn-xs btn-outline-primary" :disabled="!canIncreaseSold(item)" @click="adjustSoldQuantity(item, 1)">
-                                            <i class="fas fa-plus mr-1"></i>
-                                            Jual +1
-                                        </button>
-                                        <button type="button" class="btn btn-xs btn-success" :disabled="!hasPendingQuantityChange(item)" @click="saveAdjustedQuantity(item)">
-                                            <i class="fas fa-save mr-1"></i>
-                                            Simpan Bawa
-                                        </button>
-                                        <button type="button" class="btn btn-xs btn-success" :disabled="!hasPendingSoldChange(item)" @click="saveAdjustedSoldQuantity(item)">
-                                            <i class="fas fa-save mr-1"></i>
-                                            Simpan Jual
-                                        </button>
-                                        <button type="button" class="btn btn-xs btn-outline-dark" :disabled="!hasPendingQuantityChange(item)" @click="resetAdjustedQuantity(item)">
-                                            <i class="fas fa-undo mr-1"></i>
-                                            Reset Bawa
-                                        </button>
-                                        <button type="button" class="btn btn-xs btn-outline-dark" :disabled="!hasPendingSoldChange(item)" @click="resetAdjustedSoldQuantity(item)">
-                                            <i class="fas fa-undo mr-1"></i>
-                                            Reset Jual
-                                        </button>
-                                        <button type="button" class="btn btn-xs btn-warning" @click="openEditModal(item)">
-                                            <i class="fas fa-pen mr-1"></i>
-                                            Edit
-                                        </button>
-                                        <button type="button" class="btn btn-xs btn-outline-danger" :disabled="!item.can_delete" @click="removeOnhand(item)">
-                                            <i class="fas fa-trash-alt mr-1"></i>
-                                            Hapus
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                            <tr v-if="!onhands.length">
-                                <td colspan="10" class="text-center text-muted py-4">Belum ada barang onhand.</td>
-                            </tr>
-                        </tbody>
-                    </table>
+                                </div>
+                            </div>
+                            <div class="onhand-user-card__bottom">
+                                <div class="small text-muted">
+                                    Batch terbaru {{ group.latest_assignment_date || '-' }}. Pending approval {{ group.pending_count }}. Return pending {{ group.pending_return_count }}.
+                                </div>
+                                <button type="button" class="btn btn-outline-primary" @click="openManageModal(group)">
+                                    <i class="fas fa-layer-group mr-1"></i>
+                                    Kelola Onhand
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else class="text-center text-muted py-4">Belum ada barang onhand.</div>
                 </div>
             </div>
         </div>
@@ -162,7 +94,7 @@
         <div class="crud-modal-body">
             <div class="form-group mb-0">
                 <label>User</label>
-                <Select2Input v-model="createForm.user_id" :options="users" value-key="id_user" label-key="option_label" placeholder="Pilih marketing / reseller" />
+                <Select2Input v-model="createForm.user_id" :options="users" value-key="id_user" label-key="option_label" placeholder="Pilih marketing / sales field executive" />
             </div>
             <div class="form-group mb-0">
                 <label>Product</label>
@@ -191,7 +123,7 @@
         <div class="crud-modal-body">
             <div class="form-group mb-0">
                 <label>User</label>
-                <Select2Input v-model="editForm.user_id" :options="users" value-key="id_user" label-key="option_label" placeholder="Pilih marketing / reseller" />
+                <Select2Input v-model="editForm.user_id" :options="users" value-key="id_user" label-key="option_label" placeholder="Pilih marketing / sales field executive" />
             </div>
             <div class="form-group mb-0">
                 <label>Product</label>
@@ -221,6 +153,74 @@
         <template #footer>
             <button type="button" class="btn btn-secondary" @click="closeEditModal">Batal</button>
             <button type="button" class="btn btn-warning" :disabled="editForm.processing || !editForm.id_product_onhand" @click="submitEdit">Update</button>
+        </template>
+    </BootstrapModal>
+
+    <BootstrapModal :show="showManageModal" :title="manageModalTitle" size="xl" @close="closeManageModal">
+        <div v-if="activeUserGroup" class="manage-onhand-modal">
+            <div class="manage-onhand-summary">
+                <div class="summary-card"><div class="summary-label">Total Batch</div><div class="summary-value">{{ activeUserGroup.items.length }}</div></div>
+                <div class="summary-card"><div class="summary-label">Total Dibawa</div><div class="summary-value">{{ activeUserGroup.total_quantity }}</div></div>
+                <div class="summary-card"><div class="summary-label">Total Terjual</div><div class="summary-value">{{ activeUserGroup.total_sold }}</div></div>
+                <div class="summary-card"><div class="summary-label">Total Sisa</div><div class="summary-value">{{ activeUserGroup.total_remaining }}</div></div>
+            </div>
+
+            <div class="manage-onhand-list">
+                <div v-for="item in activeUserGroup.items" :key="item.id_product_onhand" class="manage-onhand-item">
+                    <div class="manage-onhand-item__header">
+                        <div>
+                            <div class="font-weight-bold">{{ item.nama_product }}</div>
+                            <div class="small text-muted">Tanggal {{ item.assignment_date }} | Batch {{ item.pickup_batch_code || '-' }}</div>
+                        </div>
+                        <div class="manage-onhand-item__badges">
+                            <span class="badge status-badge" :class="takeStatusBadgeClass(item.take_status)">{{ item.take_status_label }}</span>
+                            <span class="badge status-badge" :class="returnStatusBadgeClass(item.return_status)">{{ item.return_status_label }}</span>
+                        </div>
+                    </div>
+
+                    <div class="manage-onhand-item__grid">
+                        <div class="metric-tile">
+                            <span>Dibawa</span>
+                            <strong>{{ displayQuantity(item) }}</strong>
+                            <small v-if="hasPendingQuantityChange(item)" class="text-primary">Draft dari {{ item.quantity }}</small>
+                            <small v-else-if="quantityDelta(item) !== 0" :class="quantityDelta(item) > 0 ? 'text-success' : 'text-danger'">{{ formatDelta(quantityDelta(item)) }}</small>
+                        </div>
+                        <div class="metric-tile">
+                            <span>Terjual</span>
+                            <strong>{{ displaySoldQuantity(item) }}</strong>
+                            <small v-if="hasPendingSoldChange(item)" class="text-primary">Draft dari {{ item.sold_quantity }}</small>
+                            <small v-else-if="item.actual_sold_quantity > 0" class="text-muted">Penjualan asli {{ item.actual_sold_quantity }}</small>
+                            <small v-else-if="item.manual_sold_quantity > 0" class="text-info">Koreksi {{ item.manual_sold_quantity }}</small>
+                        </div>
+                        <div class="metric-tile">
+                            <span>Sisa</span>
+                            <strong>{{ item.take_status === 'disetujui' ? displayRemaining(item) : '-' }}</strong>
+                            <small class="text-muted">Sales {{ item.sales_count }}</small>
+                        </div>
+                        <div class="metric-tile">
+                            <span>Retur</span>
+                            <strong>{{ Number(item.pending_return_quantity || 0) + Number(item.approved_return_quantity || 0) }}</strong>
+                            <small class="text-muted">Pending {{ item.pending_return_quantity }} | Approved {{ item.approved_return_quantity }}</small>
+                        </div>
+                    </div>
+
+                    <div class="action-group">
+                        <button type="button" class="btn btn-xs btn-outline-secondary" :disabled="displayQuantity(item) <= 1" @click="adjustQuantity(item, -1)"><i class="fas fa-minus mr-1"></i>Bawa -1</button>
+                        <button type="button" class="btn btn-xs btn-outline-primary" @click="adjustQuantity(item, 1)"><i class="fas fa-plus mr-1"></i>Bawa +1</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary" :disabled="!canDecreaseSold(item)" @click="adjustSoldQuantity(item, -1)"><i class="fas fa-minus mr-1"></i>Jual -1</button>
+                        <button type="button" class="btn btn-xs btn-outline-primary" :disabled="!canIncreaseSold(item)" @click="adjustSoldQuantity(item, 1)"><i class="fas fa-plus mr-1"></i>Jual +1</button>
+                        <button type="button" class="btn btn-xs btn-success" :disabled="!hasPendingQuantityChange(item)" @click="saveAdjustedQuantity(item)"><i class="fas fa-save mr-1"></i>Simpan Bawa</button>
+                        <button type="button" class="btn btn-xs btn-success" :disabled="!hasPendingSoldChange(item)" @click="saveAdjustedSoldQuantity(item)"><i class="fas fa-save mr-1"></i>Simpan Jual</button>
+                        <button type="button" class="btn btn-xs btn-outline-dark" :disabled="!hasPendingQuantityChange(item)" @click="resetAdjustedQuantity(item)"><i class="fas fa-undo mr-1"></i>Reset Bawa</button>
+                        <button type="button" class="btn btn-xs btn-outline-dark" :disabled="!hasPendingSoldChange(item)" @click="resetAdjustedSoldQuantity(item)"><i class="fas fa-undo mr-1"></i>Reset Jual</button>
+                        <button type="button" class="btn btn-xs btn-warning" @click="openEditModal(item)"><i class="fas fa-pen mr-1"></i>Edit</button>
+                        <button type="button" class="btn btn-xs btn-outline-danger" :disabled="!item.can_delete" @click="removeOnhand(item)"><i class="fas fa-trash-alt mr-1"></i>Hapus</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <template #footer>
+            <button type="button" class="btn btn-secondary" @click="closeManageModal">Tutup</button>
         </template>
     </BootstrapModal>
 
@@ -287,9 +287,11 @@ const editForm = useForm({
 
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
+const showManageModal = ref(false);
 const showDeleteModal = ref(false);
 const deleteTarget = ref(null);
 const editingItem = ref(null);
+const activeUserGroup = ref(null);
 const draftQuantities = reactive({});
 const draftSoldQuantities = reactive({});
 const saveFeedback = ref('');
@@ -305,6 +307,56 @@ const deleteMessage = computed(() => {
     if (!deleteTarget.value) return 'Hapus barang onhand ini?';
     return `Hapus barang onhand ${deleteTarget.value.nama_product} milik ${deleteTarget.value.user_name}?`;
 });
+
+const displayQuantity = (item) => Number(draftQuantities[item.id_product_onhand] ?? item.quantity ?? 0);
+const displaySoldQuantity = (item) => Number(draftSoldQuantities[item.id_product_onhand] ?? item.sold_quantity ?? 0);
+const displayRemaining = (item) => {
+    const nextQuantity = displayQuantity(item);
+    const nextSoldQuantity = displaySoldQuantity(item);
+
+    return Math.max(
+        nextQuantity - nextSoldQuantity - Number(item.approved_return_quantity || 0) - Number(item.pending_return_quantity || item.quantity_dikembalikan || 0),
+        0,
+    );
+};
+
+const groupedOnhands = computed(() => {
+    const groups = new Map();
+
+    props.onhands.forEach((item) => {
+        const key = String(item.user_id ?? 'unknown');
+        if (!groups.has(key)) {
+            groups.set(key, {
+                user_id: item.user_id,
+                user_name: item.user_name || '-',
+                user_role: item.user_role || '-',
+                latest_assignment_date: item.assignment_date || null,
+                total_quantity: 0,
+                total_sold: 0,
+                total_remaining: 0,
+                pending_count: 0,
+                pending_return_count: 0,
+                items: [],
+            });
+        }
+
+        const group = groups.get(key);
+        group.items.push(item);
+        group.total_quantity += Number(item.quantity ?? 0);
+        group.total_sold += Number(item.sold_quantity ?? 0);
+        group.total_remaining += item.take_status === 'disetujui' ? displayRemaining(item) : 0;
+        group.pending_count += item.take_status === 'pending' ? 1 : 0;
+        group.pending_return_count += item.return_status === 'pending' ? 1 : 0;
+
+        if ((item.assignment_date || '') > (group.latest_assignment_date || '')) {
+            group.latest_assignment_date = item.assignment_date;
+        }
+    });
+
+    return Array.from(groups.values());
+});
+
+const manageModalTitle = computed(() => activeUserGroup.value ? `Kelola Onhand ${activeUserGroup.value.user_name}` : 'Kelola Onhand');
 
 const submitFilters = () => router.get(adminUrl('/product-onhands'), buildFilterParams(), {
     preserveScroll: true,
@@ -354,6 +406,16 @@ const closeEditModal = () => {
     editForm.id_product_onhand = null;
 };
 
+const openManageModal = (group) => {
+    activeUserGroup.value = group;
+    showManageModal.value = true;
+};
+
+const closeManageModal = () => {
+    showManageModal.value = false;
+    activeUserGroup.value = null;
+};
+
 const submitEdit = () => editForm.put(adminUrl(`/product-onhands/${editForm.id_product_onhand}`), {
     preserveScroll: true,
     onSuccess: () => closeEditModal(),
@@ -396,49 +458,13 @@ const adjustSoldQuantity = (item, delta) => {
     draftSoldQuantities[item.id_product_onhand] = nextSoldQuantity;
 };
 
-const hasPendingQuantityChange = (item) =>
-    Number(draftQuantities[item.id_product_onhand] ?? item.quantity ?? 0) !== Number(item.quantity ?? 0);
-
-const hasPendingSoldChange = (item) =>
-    Number(draftSoldQuantities[item.id_product_onhand] ?? item.sold_quantity ?? 0) !== Number(item.sold_quantity ?? 0);
-
-const displayQuantity = (item) =>
-    Number(draftQuantities[item.id_product_onhand] ?? item.quantity ?? 0);
-
-const displaySoldQuantity = (item) =>
-    Number(draftSoldQuantities[item.id_product_onhand] ?? item.sold_quantity ?? 0);
-
-const quantityDelta = (item) =>
-    displayQuantity(item) - Number(item.quantity ?? 0);
-
-const soldDelta = (item) =>
-    displaySoldQuantity(item) - Number(item.sold_quantity ?? 0);
-
-const formatDelta = (delta) => {
-    if (delta === 0) return '';
-    return `${delta > 0 ? '+' : ''}${delta}`;
-};
-
-const displayRemaining = (item) => {
-    const nextQuantity = displayQuantity(item);
-    const nextSoldQuantity = displaySoldQuantity(item);
-
-    return Math.max(
-        nextQuantity -
-        nextSoldQuantity -
-        Number(item.approved_return_quantity || 0) -
-        Number(item.pending_return_quantity || item.quantity_dikembalikan || 0),
-        0,
-    );
-};
-
-const canDecreaseSold = (item) =>
-    item.take_status === 'disetujui'
-    && displaySoldQuantity(item) > Number(item.minimum_sold_quantity ?? 0);
-
-const canIncreaseSold = (item) =>
-    item.take_status === 'disetujui'
-    && displaySoldQuantity(item) < Number(item.maximum_sold_quantity ?? 0);
+const hasPendingQuantityChange = (item) => Number(draftQuantities[item.id_product_onhand] ?? item.quantity ?? 0) !== Number(item.quantity ?? 0);
+const hasPendingSoldChange = (item) => Number(draftSoldQuantities[item.id_product_onhand] ?? item.sold_quantity ?? 0) !== Number(item.sold_quantity ?? 0);
+const quantityDelta = (item) => displayQuantity(item) - Number(item.quantity ?? 0);
+const soldDelta = (item) => displaySoldQuantity(item) - Number(item.sold_quantity ?? 0);
+const formatDelta = (delta) => delta === 0 ? '' : `${delta > 0 ? '+' : ''}${delta}`;
+const canDecreaseSold = (item) => item.take_status === 'disetujui' && displaySoldQuantity(item) > Number(item.minimum_sold_quantity ?? 0);
+const canIncreaseSold = (item) => item.take_status === 'disetujui' && displaySoldQuantity(item) < Number(item.maximum_sold_quantity ?? 0);
 
 const resetAdjustedQuantity = (item) => {
     clearSaveFeedback();
@@ -529,13 +555,106 @@ const returnStatusBadgeClass = (status) => ({
 </script>
 
 <style scoped>
-.crud-modal-body {
+.crud-modal-body,
+.manage-onhand-list,
+.grouped-onhand-list {
     display: grid;
     gap: 1rem;
 }
 
-.action-column {
-    min-width: 280px;
+.manage-onhand-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.summary-card,
+.metric-tile,
+.onhand-user-card,
+.manage-onhand-item {
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    background: #fff;
+}
+
+.summary-card,
+.metric-tile {
+    padding: 0.9rem 1rem;
+}
+
+.summary-label,
+.metric-tile span,
+.user-stat-pill span {
+    display: block;
+    font-size: 0.78rem;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.summary-value,
+.metric-tile strong,
+.user-stat-pill strong {
+    display: block;
+    margin-top: 0.3rem;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+.metric-tile small {
+    display: block;
+    margin-top: 0.35rem;
+}
+
+.onhand-user-card {
+    padding: 1rem 1.1rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.onhand-user-card__top,
+.onhand-user-card__bottom,
+.manage-onhand-item__header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.onhand-user-card__bottom {
+    margin-top: 1rem;
+    align-items: center;
+}
+
+.onhand-user-card__name {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #111827;
+}
+
+.onhand-user-card__stats,
+.manage-onhand-item__badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.user-stat-pill {
+    min-width: 88px;
+    padding: 0.75rem 0.9rem;
+    border-radius: 14px;
+    background: #eef6ff;
+}
+
+.manage-onhand-item {
+    padding: 1rem;
+}
+
+.manage-onhand-item__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin: 1rem 0;
 }
 
 .action-group {
@@ -559,9 +678,25 @@ const returnStatusBadgeClass = (status) => ({
 .badge-danger-soft { background: #f8d7da; }
 .badge-secondary-soft { background: #e2e3e5; }
 
+@media (max-width: 991.98px) {
+    .manage-onhand-summary,
+    .manage-onhand-item__grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .onhand-user-card__top,
+    .onhand-user-card__bottom,
+    .manage-onhand-item__header {
+        flex-direction: column;
+    }
+}
+
 @media (max-width: 576px) {
+    .manage-onhand-summary,
+    .manage-onhand-item__grid,
     .action-group {
         grid-template-columns: 1fr;
     }
 }
 </style>
+

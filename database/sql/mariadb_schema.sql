@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `id_user` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `nama` VARCHAR(255) NOT NULL,
   `status` VARCHAR(255) NOT NULL DEFAULT 'aktif',
-  `role` ENUM('superadmin','admin','marketing','reseller') NOT NULL,
+  `role` ENUM('superadmin','admin','marketing','sales_field_executive') NOT NULL,
   `password` VARCHAR(255) NOT NULL,
   `remember_token` VARCHAR(100) NULL,
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -285,3 +285,4 @@ CREATE TABLE IF NOT EXISTS `offline_sales` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;
+

@@ -4,8 +4,10 @@ namespace Database\Seeders;
 
 use App\Models\FragranceDetail;
 use App\Models\GlobalSetting;
+use App\Models\MarketingLocation;
 use App\Models\OfflineSale;
 use App\Models\Product;
+use App\Models\ProductOnhand;
 use App\Models\SalesTarget;
 use App\Models\User;
 use Carbon\Carbon;
@@ -22,7 +24,7 @@ class DatabaseSeeder extends Seeder
             ['nama' => 'superadmin', 'status' => 'aktif', 'role' => 'superadmin', 'password' => 'Superadmin123!'],
             ['nama' => 'admin', 'status' => 'aktif', 'role' => 'admin', 'password' => 'Admin123!'],
             ['nama' => 'marketing', 'status' => 'aktif', 'role' => 'marketing', 'password' => 'Marketing123!'],
-            ['nama' => 'reseller', 'status' => 'aktif', 'role' => 'reseller', 'password' => 'Reseller123!'],
+            ['nama' => 'field executive', 'status' => 'aktif', 'role' => 'sales_field_executive', 'password' => 'FieldExecutive123!'],
         ];
 
         foreach ($users as $user) {
@@ -37,7 +39,7 @@ class DatabaseSeeder extends Seeder
             );
         }
 
-        foreach (['marketing', 'reseller'] as $role) {
+        foreach (['marketing', 'sales_field_executive'] as $role) {
             SalesTarget::query()->updateOrCreate(
                 ['role' => $role],
                 [
@@ -68,6 +70,7 @@ class DatabaseSeeder extends Seeder
 
         if (app()->environment('e2e')) {
             $this->seedE2eLandingContent();
+            $this->seedE2eFieldTeamData();
         }
 
         if (! app()->runningUnitTests() && ! app()->environment('e2e')) {
@@ -342,6 +345,88 @@ class DatabaseSeeder extends Seeder
         }
     }
 
+    private function seedE2eFieldTeamData(): void
+    {
+        $marketing = User::query()->where('nama', 'marketing')->first();
+        $fieldExecutive = User::query()->where('role', 'sales_field_executive')->first();
+
+        if (! $marketing || ! $fieldExecutive) {
+            return;
+        }
+
+        $products = Product::query()
+            ->whereIn('nama_product', ['Solair', 'Sevon'])
+            ->get()
+            ->keyBy('nama_product');
+
+        $solair = $products->get('Solair');
+        $sevon = $products->get('Sevon');
+
+        if (! $solair || ! $sevon) {
+            return;
+        }
+
+        $solair->update(['stock' => max((int) $solair->stock, 12)]);
+        $sevon->update(['stock' => max((int) $sevon->stock, 10)]);
+
+        MarketingLocation::query()->whereIn('user_id', [$marketing->id_user, $fieldExecutive->id_user])->delete();
+        ProductOnhand::query()->whereIn('user_id', [$marketing->id_user, $fieldExecutive->id_user])->delete();
+
+        MarketingLocation::query()->create([
+            'user_id' => $marketing->id_user,
+            'latitude' => -6.2088,
+            'longitude' => 106.8456,
+            'source' => 'gps',
+            'recorded_at' => now()->subMinutes(8),
+        ]);
+
+        MarketingLocation::query()->create([
+            'user_id' => $fieldExecutive->id_user,
+            'latitude' => -6.2,
+            'longitude' => 106.8166,
+            'source' => 'gps',
+            'recorded_at' => now()->subMinutes(5),
+        ]);
+
+        ProductOnhand::query()->create([
+            'user_id' => $marketing->id_user,
+            'id_product' => $solair->id_product,
+            'nama_product' => $solair->nama_product,
+            'quantity' => 4,
+            'quantity_dikembalikan' => 0,
+            'approved_return_quantity' => 0,
+            'manual_sold_quantity' => 1,
+            'pickup_batch_code' => 'E2E-MKT-SOLAIR-01',
+            'take_status' => 'disetujui',
+            'return_status' => 'belum',
+            'approved_by' => null,
+            'take_approved_by' => null,
+            'assignment_date' => now()->toDateString(),
+            'created_at' => now()->subHours(4),
+            'take_requested_at' => now()->subHours(4),
+            'take_reviewed_at' => now()->subHours(4),
+        ]);
+
+        ProductOnhand::query()->create([
+            'user_id' => $fieldExecutive->id_user,
+            'id_product' => $sevon->id_product,
+            'nama_product' => $sevon->nama_product,
+            'quantity' => 3,
+            'quantity_dikembalikan' => 0,
+            'approved_return_quantity' => 0,
+            'manual_sold_quantity' => 1,
+            'pickup_batch_code' => 'E2E-SFE-SEVON-01',
+            'take_status' => 'disetujui',
+            'return_status' => 'belum',
+            'approved_by' => null,
+            'take_approved_by' => null,
+            'assignment_date' => now()->toDateString(),
+            'created_at' => now()->subHours(3),
+            'take_requested_at' => now()->subHours(3),
+            'take_reviewed_at' => now()->subHours(3),
+        ]);
+    }
+
     private function splitQuantityIntoSales(int $quantity): array
     {
         $chunks = [];
@@ -378,4 +463,3 @@ class DatabaseSeeder extends Seeder
         return array_key_first($weights);
     }
 }
-

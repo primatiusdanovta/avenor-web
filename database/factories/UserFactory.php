@@ -27,10 +27,11 @@ class UserFactory extends Factory
         return [
             'nama' => fake()->unique()->userName(),
             'status' => fake()->randomElement(['aktif', 'nonaktif']),
-            'role' => fake()->randomElement(['superadmin', 'admin', 'marketing', 'reseller']),
+            'role' => fake()->randomElement(['superadmin', 'admin', 'marketing', 'sales_field_executive']),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
             'created_at' => now(),
         ];
     }
 }
+

@@ -31,7 +31,7 @@ class DashboardController extends Controller
 
         if ($user->role === 'superadmin') {
             $quickActions[] = ['label' => 'Kelola User', 'href' => route('users.manage')];
-            $quickActions[] = ['label' => 'Monitoring Marketing', 'href' => route('marketing.index')];
+            $quickActions[] = ['label' => 'Monitoring Field Team', 'href' => route('field-team.index')];
             $quickActions[] = ['label' => 'Approvals', 'href' => route('approvals.index')];
             $quickActions[] = ['label' => 'Raw Material', 'href' => route('raw-materials.index')];
             $quickActions[] = ['label' => 'HPP', 'href' => route('hpp.index')];
@@ -47,7 +47,7 @@ class DashboardController extends Controller
             $quickActions[] = ['label' => 'Report', 'href' => route('reports.index')];
             $roleHighlights = [
                 ['title' => 'Kontrol Master Data', 'description' => 'Superadmin mengelola user, raw material, HPP product, promo, penjualan offline, penjualan online, target penjualan, report, serta approval pengambilan dan pengembalian barang.'],
-                ['title' => 'Monitoring Marketing', 'description' => 'Pantau performa penjualan, profit, kehadiran, dan aktivitas on duty marketing secara real-time.'],
+                ['title' => 'Monitoring Field Team', 'description' => 'Pantau performa penjualan, profit, kehadiran, dan aktivitas tim lapangan secara real-time.'],
             ];
         } elseif ($user->role === 'marketing') {
             $quickActions[] = ['label' => 'Absensi', 'href' => route('marketing.attendance.index')];
@@ -58,7 +58,7 @@ class DashboardController extends Controller
                 ['title' => 'Monitoring Performa', 'description' => 'Dashboard menampilkan target penjualan, bonus berjalan, jam kerja, dan produk terlaris Anda.'],
             ];
         } elseif ($user->role === 'admin') {
-            $quickActions[] = ['label' => 'Monitoring Marketing', 'href' => route('marketing.index')];
+            $quickActions[] = ['label' => 'Monitoring Field Team', 'href' => route('field-team.index')];
             $quickActions[] = ['label' => 'Approvals', 'href' => route('approvals.index')];
             $quickActions[] = ['label' => 'Products', 'href' => route('products.index')];
             $quickActions[] = ['label' => 'Promos', 'href' => route('promos.index')];
@@ -68,7 +68,7 @@ class DashboardController extends Controller
             $quickActions[] = ['label' => 'Pengeluaran', 'href' => route('expenses.index')];
             $quickActions[] = ['label' => 'Report', 'href' => route('reports.index')];
             $roleHighlights = [
-                ['title' => 'Approval Operasional', 'description' => 'Admin menyetujui penjualan offline, pengambilan barang, dan pengembalian barang dari marketing dan reseller.'],
+                ['title' => 'Approval Operasional', 'description' => 'Admin menyetujui penjualan offline, pengambilan barang, dan pengembalian barang dari field team.'],
                 ['title' => 'Profit Dashboard', 'description' => 'Admin melihat gross profit, net profit, ranking penjualan, serta produk terlaris bulan berjalan.'],
             ];
         } else {
@@ -501,6 +501,8 @@ class DashboardController extends Controller
         ];
     }
 }
+
+
 
 
 

@@ -23,7 +23,7 @@ class SalesTargetController extends Controller
     {
         $this->authorizeSuperadmin($request);
 
-        abort_unless(in_array($role, ['marketing', 'reseller'], true), 404);
+        abort_unless(in_array($role, ['marketing', 'sales_field_executive'], true), 404);
 
         $validated = $request->validate([
             'daily_target_qty' => ['required', 'integer', 'min:0'],
@@ -67,4 +67,8 @@ class SalesTargetController extends Controller
             ->values();
     }
 }
+
+
+
+
 

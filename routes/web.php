@@ -21,7 +21,7 @@ use App\Http\Controllers\MasterGatewayController;
 use App\Http\Controllers\LandingPageBuilderController;
 use App\Http\Controllers\LandingPageManagerController;
 use App\Http\Controllers\MarketingAttendanceController;
-use App\Http\Controllers\MarketingManagementController;
+use App\Http\Controllers\FieldTeamManagementController;
 use App\Http\Controllers\MarketingNotificationController;
 use App\Http\Controllers\OfflineSaleController;
 use App\Http\Controllers\OnlineSaleController;
@@ -89,13 +89,21 @@ Route::prefix($administratorPrefix)->group(function () {
         Route::put('/users/{user}', [SuperAdminUserController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}', [SuperAdminUserController::class, 'destroy'])->name('users.destroy');
 
-        Route::get('/marketing', [MarketingManagementController::class, 'index'])->name('marketing.index');
-        Route::get('/marketing/{user}/detail', [MarketingManagementController::class, 'show'])->name('marketing.show');
-        Route::post('/marketing', [MarketingManagementController::class, 'store'])->name('marketing.store');
-        Route::put('/marketing/{user}', [MarketingManagementController::class, 'update'])->name('marketing.update');
-        Route::put('/marketing/{user}/return-policy', [MarketingManagementController::class, 'updateReturnPolicy'])->name('marketing.return-policy.update');
-        Route::delete('/marketing/{user}', [MarketingManagementController::class, 'destroy'])->name('marketing.destroy');
-        Route::post('/marketing/{user}/manual-bonuses', [MarketingManagementController::class, 'storeManualBonus'])->name('marketing.manual-bonuses.store');
+        Route::get('/field-team', [FieldTeamManagementController::class, 'index'])->name('field-team.index');
+        Route::get('/field-team/{user}/detail', [FieldTeamManagementController::class, 'show'])->name('field-team.show');
+        Route::post('/field-team', [FieldTeamManagementController::class, 'store'])->name('field-team.store');
+        Route::put('/field-team/{user}', [FieldTeamManagementController::class, 'update'])->name('field-team.update');
+        Route::put('/field-team/{user}/return-policy', [FieldTeamManagementController::class, 'updateReturnPolicy'])->name('field-team.return-policy.update');
+        Route::delete('/field-team/{user}', [FieldTeamManagementController::class, 'destroy'])->name('field-team.destroy');
+        Route::post('/field-team/{user}/manual-bonuses', [FieldTeamManagementController::class, 'storeManualBonus'])->name('field-team.manual-bonuses.store');
+
+        Route::get('/marketing', [FieldTeamManagementController::class, 'index'])->name('marketing.index');
+        Route::get('/marketing/{user}/detail', [FieldTeamManagementController::class, 'show'])->name('marketing.show');
+        Route::post('/marketing', [FieldTeamManagementController::class, 'store'])->name('marketing.store');
+        Route::put('/marketing/{user}', [FieldTeamManagementController::class, 'update'])->name('marketing.update');
+        Route::put('/marketing/{user}/return-policy', [FieldTeamManagementController::class, 'updateReturnPolicy'])->name('marketing.return-policy.update');
+        Route::delete('/marketing/{user}', [FieldTeamManagementController::class, 'destroy'])->name('marketing.destroy');
+        Route::post('/marketing/{user}/manual-bonuses', [FieldTeamManagementController::class, 'storeManualBonus'])->name('marketing.manual-bonuses.store');
 
         Route::middleware('superadmin')->group(function () {
             Route::get('/landing-page-manager', [LandingPageManagerController::class, 'index'])->name('landing-page-manager.index');
@@ -204,5 +212,8 @@ Route::prefix($administratorPrefix)->group(function () {
         Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
     });
 });
+
+
+
 
 
