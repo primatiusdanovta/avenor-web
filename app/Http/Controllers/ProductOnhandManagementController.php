@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\ProductOnhand;
+use App\Models\User;
 use App\Support\ProductOnhandStock;
 use App\Support\ProductOnhandBatchSupport;
 use Illuminate\Http\RedirectResponse;

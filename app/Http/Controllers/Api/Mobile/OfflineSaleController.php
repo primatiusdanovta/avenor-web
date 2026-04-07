@@ -121,7 +121,7 @@ class OfflineSaleController extends Controller
         }
 
         if ($attendance?->check_out) {
-            return response()->json(['message' => 'User yang sudah check out tidak bisa melakukan penjualan lagi hari ini.'], 422);
+            return response()->json(['message' => 'Marketing yang sudah check out tidak bisa melakukan penjualan lagi hari ini.'], 422);
         }
 
         $validated = $this->validateTransactionPayload($request);

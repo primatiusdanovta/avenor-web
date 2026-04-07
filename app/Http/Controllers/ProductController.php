@@ -9,6 +9,7 @@ use App\Models\OfflineSale;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductOnhand;
+use App\Models\RawMaterial;
 use App\Support\RawMaterialUsage;
 use App\Support\ProductOnhandBatchSupport;
 use App\Support\SalesRole;
