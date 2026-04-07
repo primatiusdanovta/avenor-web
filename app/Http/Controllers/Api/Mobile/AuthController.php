@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\GlobalSetting;
 use App\Models\MobileAccessToken;
 use App\Models\User;
+use App\Support\SalesRole;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -24,7 +25,7 @@ class AuthController extends Controller
 
         $user = User::query()
             ->where('nama', $validated['nama'])
-            ->where('role', 'marketing')
+            ->whereIn('role', SalesRole::mobileRoles())
             ->where('status', 'aktif')
             ->first();
 
@@ -39,7 +40,7 @@ class AuthController extends Controller
 
         MobileAccessToken::query()->create([
             'user_id' => $user->id_user,
-            'name' => $validated['device_name'] ?? 'Marketing App',
+            'name' => $validated['device_name'] ?? 'Sales Lapangan App',
             'token' => hash('sha256', $plainTextToken),
             'expires_at' => $expiresAt,
             'last_used_at' => now(),

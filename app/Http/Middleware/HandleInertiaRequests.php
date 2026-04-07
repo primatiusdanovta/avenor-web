@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Product;
 use App\Models\RawMaterial;
+use App\Support\SalesRole;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -28,6 +29,7 @@ class HandleInertiaRequests extends Middleware
                 'children' => array_values(array_filter([
                     ['label' => 'Approvals', 'href' => route('approvals.index'), 'icon' => 'far fa-circle nav-icon'],
                     $user?->role === 'superadmin' ? ['label' => 'Target Penjualan', 'href' => route('sales-targets.index'), 'icon' => 'far fa-circle nav-icon'] : null,
+                    ['label' => 'Consign', 'href' => route('consignments.index'), 'icon' => 'far fa-circle nav-icon'],
                     ['label' => 'Promos', 'href' => route('promos.index'), 'icon' => 'far fa-circle nav-icon'],
                 ])),
             ];
@@ -48,6 +50,7 @@ class HandleInertiaRequests extends Middleware
                     ['label' => 'Pengeluaran', 'href' => route('expenses.index'), 'icon' => 'far fa-circle nav-icon'],
                     ['label' => 'Penjualan Offline', 'href' => route('offline-sales.index'), 'icon' => 'far fa-circle nav-icon'],
                     $user?->role === 'superadmin' ? ['label' => 'Penjualan Online', 'href' => route('online-sales.index'), 'icon' => 'far fa-circle nav-icon'] : null,
+                    ['label' => 'Account Receiveables', 'href' => route('account-receivables.index'), 'icon' => 'far fa-circle nav-icon'],
                     ['label' => 'Account Payables', 'href' => route('account-payables.index'), 'icon' => 'far fa-circle nav-icon'],
                 ])),
             ];
@@ -57,6 +60,7 @@ class HandleInertiaRequests extends Middleware
                 'children' => array_values(array_filter([
                     $user?->role === 'superadmin' ? ['label' => 'Users', 'href' => route('users.manage'), 'icon' => 'far fa-circle nav-icon'] : null,
                     ['label' => 'Marketing', 'href' => route('marketing.index'), 'icon' => 'far fa-circle nav-icon'],
+                    ['label' => 'Sales Field Executive', 'href' => route('users.manage') . '?role=sales_field_executive', 'icon' => 'far fa-circle nav-icon'],
                     ['label' => 'Customers', 'href' => route('customers.index'), 'icon' => 'far fa-circle nav-icon'],
                     ['label' => 'Content Creator', 'href' => route('content-creators.index'), 'icon' => 'far fa-circle nav-icon'],
                     $user?->role === 'superadmin' ? ['label' => 'Applicant', 'href' => route('applicants.index'), 'icon' => 'far fa-circle nav-icon'] : null,
@@ -72,17 +76,14 @@ class HandleInertiaRequests extends Middleware
             $navigation[] = ['label' => 'Product Knowledge', 'href' => route('products.knowledge'), 'icon' => 'fas fa-book-open'];
         }
 
-        if ($user?->role === 'marketing') {
+        if (SalesRole::isFieldRole($user?->role)) {
             $navigation[] = ['label' => 'Absensi', 'href' => route('marketing.attendance.index'), 'icon' => 'fas fa-user-check'];
             $navigation[] = ['label' => 'Products', 'href' => route('products.index'), 'icon' => 'fas fa-box-open'];
             $navigation[] = ['label' => 'Product Knowledge', 'href' => route('products.knowledge'), 'icon' => 'fas fa-book-open'];
             $navigation[] = ['label' => 'Penjualan Offline', 'href' => route('offline-sales.index'), 'icon' => 'fas fa-shopping-bag'];
-        }
-
-        if ($user?->role === 'reseller') {
-            $navigation[] = ['label' => 'Products', 'href' => route('products.index'), 'icon' => 'fas fa-box-open'];
-            $navigation[] = ['label' => 'Product Knowledge', 'href' => route('products.knowledge'), 'icon' => 'fas fa-book-open'];
-            $navigation[] = ['label' => 'Penjualan Offline', 'href' => route('offline-sales.index'), 'icon' => 'fas fa-shopping-bag'];
+            if ($user?->role === SalesRole::SALES_FIELD_EXECUTIVE) {
+                $navigation[] = ['label' => 'Consign', 'href' => route('consignments.index'), 'icon' => 'fas fa-store'];
+            }
         }
 
         return [
@@ -132,10 +133,4 @@ class HandleInertiaRequests extends Middleware
         ];
     }
 }
-
-
-
-
-
-
 

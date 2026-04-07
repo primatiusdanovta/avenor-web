@@ -11,6 +11,7 @@ use App\Models\SalesTarget;
 use App\Models\User;
 use App\Support\MarketingBonusSupport;
 use App\Support\ProductOnhandStock;
+use App\Support\SalesRole;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,15 +26,16 @@ class MarketingManagementController extends Controller
     {
         abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
 
+        $managedRole = $this->managedRole($request);
         $search = trim((string) $request->string('search'));
         $selectedId = (int) $request->integer('selected');
         [$periodStart, $periodEnd, $periodFilters] = $this->resolvePeriod($request);
 
         $marketers = User::query()
-            ->where('role', 'marketing')
+            ->where('role', $managedRole)
             ->when($search !== '', fn ($query) => $query->where('nama', 'like', "%{$search}%"))
             ->orderBy('nama')
-            ->get(['id_user', 'nama', 'status', 'created_at'])
+            ->get(['id_user', 'nama', 'status', 'created_at', 'role'])
             ->map(function (User $marketing) use ($periodStart, $periodEnd) {
                 $todayAttendance = Attendance::query()
                     ->where('user_id', $marketing->id_user)
@@ -44,11 +46,13 @@ class MarketingManagementController extends Controller
                     'id_user' => $marketing->id_user,
                     'nama' => $marketing->nama,
                     'status' => $marketing->status,
+                    'role' => $marketing->role,
                     'require_return_before_checkout' => (bool) $marketing->require_return_before_checkout,
                     'created_at' => optional($marketing->created_at)->format('Y-m-d H:i:s'),
                     'today_status' => $todayAttendance?->status ?? 'belum absen',
-                    'kpi' => $this->buildMarketingKpi($marketing->id_user, $periodStart, $periodEnd),
+                    'kpi' => $this->buildMarketingKpi($marketing->id_user, $periodStart, $periodEnd, $marketing->role),
                     'carried_items' => $this->activeCarriedItems($marketing->id_user),
+                    'movement_status' => $this->movementStatus($marketing->id_user),
                 ];
             })
             ->values();
@@ -56,7 +60,7 @@ class MarketingManagementController extends Controller
         $selectedMarketing = null;
 
         if ($selectedId > 0) {
-            $marketing = User::query()->where('role', 'marketing')->find($selectedId);
+            $marketing = User::query()->where('role', $managedRole)->find($selectedId);
 
             if ($marketing) {
                 $todayAttendance = Attendance::query()
@@ -72,21 +76,23 @@ class MarketingManagementController extends Controller
                     'id_user' => $marketing->id_user,
                     'nama' => $marketing->nama,
                     'status' => $marketing->status,
+                    'role' => $marketing->role,
                     'require_return_before_checkout' => (bool) $marketing->require_return_before_checkout,
+                    'movement_status' => $this->movementStatus($marketing->id_user),
                     'today_attendance' => $todayAttendance ? [
                         'status' => $todayAttendance->status,
                         'check_in' => $todayAttendance->check_in,
                         'check_out' => $todayAttendance->check_out,
                         'notes' => $todayAttendance->notes,
                     ] : null,
-                    'current_kpi' => $this->buildMarketingKpi($marketing->id_user, $periodStart, $periodEnd),
+                    'current_kpi' => $this->buildMarketingKpi($marketing->id_user, $periodStart, $periodEnd, $marketing->role),
                     'bonus_summary' => MarketingBonusSupport::buildTargetSummary(
                         $marketing,
                         $periodStart,
                         $periodEnd,
-                        SalesTarget::query()->firstWhere('role', 'marketing')
+                        SalesTarget::query()->firstWhere('role', $marketing->role)
                     ),
-                    'kpi_history' => $this->buildKpiHistory($marketing->id_user, $periodStart),
+                    'kpi_history' => $this->buildKpiHistory($marketing->id_user, $periodStart, $marketing->role),
                     'latest_location' => $latestLocation ? [
                         'latitude' => $latestLocation->latitude,
                         'longitude' => $latestLocation->longitude,
@@ -105,11 +111,15 @@ class MarketingManagementController extends Controller
                 'selected' => $selectedId ?: null,
                 'month' => $periodFilters['month'],
                 'year' => $periodFilters['year'],
+                'role' => $managedRole,
             ],
             'marketers' => $marketers,
             'selectedMarketing' => $selectedMarketing,
             'statuses' => ['aktif', 'nonaktif'],
             'periodFilters' => $periodFilters,
+            'entityLabel' => SalesRole::label($managedRole),
+            'entityLabelPlural' => SalesRole::label($managedRole),
+            'entityRole' => $managedRole,
         ]);
     }
 
@@ -117,6 +127,7 @@ class MarketingManagementController extends Controller
     {
         abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
 
+        $managedRole = $this->managedRole($request);
         $validated = $request->validate([
             'nama' => ['required', 'string', 'max:255', 'unique:users,nama'],
             'status' => ['required', Rule::in(['aktif', 'nonaktif'])],
@@ -126,18 +137,19 @@ class MarketingManagementController extends Controller
         User::create([
             'nama' => $validated['nama'],
             'status' => $validated['status'],
-            'role' => 'marketing',
+            'role' => $managedRole,
             'password' => $validated['password'],
+            'require_return_before_checkout' => SalesRole::defaultRequireReturnBeforeCheckout($managedRole),
             'created_at' => now(),
         ]);
 
-        return redirect()->route('marketing.index')->with('success', 'Akun marketing berhasil ditambahkan.');
+        return redirect()->route('marketing.index', ['role' => $managedRole])->with('success', SalesRole::label($managedRole) . ' berhasil ditambahkan.');
     }
 
     public function show(Request $request, User $user): JsonResponse
     {
         abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
-        abort_unless($user->role === 'marketing', 404);
+        abort_unless(SalesRole::isFieldRole($user->role), 404);
 
         [$periodStart] = $this->resolvePeriod($request);
         $todayAttendance = Attendance::query()
@@ -153,21 +165,23 @@ class MarketingManagementController extends Controller
             'id_user' => $user->id_user,
             'nama' => $user->nama,
             'status' => $user->status,
+            'role' => $user->role,
             'require_return_before_checkout' => (bool) $user->require_return_before_checkout,
+            'movement_status' => $this->movementStatus($user->id_user),
             'today_attendance' => $todayAttendance ? [
                 'status' => $todayAttendance->status,
                 'check_in' => $todayAttendance->check_in,
                 'check_out' => $todayAttendance->check_out,
                 'notes' => $todayAttendance->notes,
             ] : null,
-            'current_kpi' => $this->buildMarketingKpi($user->id_user, $periodStart, $periodStart->copy()->endOfMonth()),
+            'current_kpi' => $this->buildMarketingKpi($user->id_user, $periodStart, $periodStart->copy()->endOfMonth(), $user->role),
             'bonus_summary' => MarketingBonusSupport::buildTargetSummary(
                 $user,
                 $periodStart,
                 $periodStart->copy()->endOfMonth(),
-                SalesTarget::query()->firstWhere('role', 'marketing')
+                SalesTarget::query()->firstWhere('role', $user->role)
             ),
-            'kpi_history' => $this->buildKpiHistory($user->id_user, $periodStart),
+            'kpi_history' => $this->buildKpiHistory($user->id_user, $periodStart, $user->role),
             'latest_location' => $latestLocation ? [
                 'latitude' => $latestLocation->latitude,
                 'longitude' => $latestLocation->longitude,
@@ -182,7 +196,7 @@ class MarketingManagementController extends Controller
     public function update(Request $request, User $user): RedirectResponse
     {
         abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
-        abort_unless($user->role === 'marketing', 404);
+        abort_unless(SalesRole::isFieldRole($user->role), 404);
 
         $validated = $request->validate([
             'nama' => ['required', 'string', 'max:255', Rule::unique('users', 'nama')->ignore($user->id_user, 'id_user')],
@@ -196,23 +210,24 @@ class MarketingManagementController extends Controller
 
         $user->update($validated);
 
-        return redirect()->route('marketing.index', ['selected' => $user->id_user])->with('success', 'Akun marketing berhasil diperbarui.');
+        return redirect()->route('marketing.index', ['selected' => $user->id_user, 'role' => $user->role])->with('success', SalesRole::label($user->role) . ' berhasil diperbarui.');
     }
 
     public function destroy(Request $request, User $user): RedirectResponse
     {
         abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
-        abort_unless($user->role === 'marketing', 404);
+        abort_unless(SalesRole::isFieldRole($user->role), 404);
 
+        $role = $user->role;
         $user->delete();
 
-        return redirect()->route('marketing.index')->with('success', 'Akun marketing berhasil dihapus.');
+        return redirect()->route('marketing.index', ['role' => $role])->with('success', SalesRole::label($role) . ' berhasil dihapus.');
     }
 
     public function updateReturnPolicy(Request $request, User $user): RedirectResponse
     {
         abort_unless($request->user()->role === 'superadmin', 403);
-        abort_unless($user->role === 'marketing', 404);
+        abort_unless(SalesRole::isFieldRole($user->role), 404);
 
         $validated = $request->validate([
             'require_return_before_checkout' => ['required', 'boolean'],
@@ -223,14 +238,14 @@ class MarketingManagementController extends Controller
         ]);
 
         return redirect()
-            ->route('marketing.index', ['selected' => $user->id_user])
-            ->with('success', 'Pengaturan pengembalian barang marketing berhasil diperbarui.');
+            ->route('marketing.index', ['selected' => $user->id_user, 'role' => $user->role])
+            ->with('success', 'Pengaturan pengembalian barang berhasil diperbarui.');
     }
 
     public function storeManualBonus(Request $request, User $user): RedirectResponse
     {
         abort_unless($request->user()->role === 'superadmin', 403);
-        abort_unless($user->role === 'marketing', 404);
+        abort_unless(SalesRole::isFieldRole($user->role), 404);
 
         $validated = $request->validate([
             'bonus_month' => ['required', 'date_format:Y-m'],
@@ -253,8 +268,33 @@ class MarketingManagementController extends Controller
                 'selected' => $user->id_user,
                 'month' => $bonusMonth->month,
                 'year' => $bonusMonth->year,
+                'role' => $user->role,
             ])
-            ->with('success', 'Bonus manual marketing berhasil ditambahkan.');
+            ->with('success', 'Bonus manual berhasil ditambahkan.');
+    }
+
+    private function movementStatus(int $userId): array
+    {
+        $locations = MarketingLocation::query()
+            ->where('user_id', $userId)
+            ->where('recorded_at', '>=', now()->subMinutes(30))
+            ->orderBy('recorded_at')
+            ->get();
+
+        $latest = $locations->last();
+        $first = $locations->first();
+        $moving = false;
+
+        if ($latest && $first) {
+            $moving = abs((float) $latest->latitude - (float) $first->latitude) > 0.0003
+                || abs((float) $latest->longitude - (float) $first->longitude) > 0.0003;
+        }
+
+        return [
+            'label' => $moving ? 'Bergerak' : 'Tidak Bergerak',
+            'recorded_at' => optional($latest?->recorded_at)->format('Y-m-d H:i:s'),
+            'samples' => $locations->count(),
+        ];
     }
 
     private function transformOnhand(ProductOnhand $onhand): array
@@ -268,6 +308,7 @@ class MarketingManagementController extends Controller
         return [
             'id_product_onhand' => $onhand->id_product_onhand,
             'nama_product' => $onhand->nama_product,
+            'pickup_batch_code' => $onhand->pickup_batch_code,
             'quantity' => (int) $onhand->quantity,
             'quantity_dikembalikan' => $approvedReturnQuantity + $pendingReturnQuantity,
             'remaining_quantity' => $state['remaining_quantity'],
@@ -363,7 +404,7 @@ class MarketingManagementController extends Controller
         return "https://www.openstreetmap.org/export/embed.html?bbox={$bbox}&layer=mapnik&marker={$latitude},{$longitude}";
     }
 
-    private function buildMarketingKpi(int $userId, Carbon $periodStart, Carbon $periodEnd): array
+    private function buildMarketingKpi(int $userId, Carbon $periodStart, Carbon $periodEnd, string $role): array
     {
         $salesQuantity = (int) OfflineSale::query()
             ->where('id_user', $userId)
@@ -393,7 +434,7 @@ class MarketingManagementController extends Controller
             return max(($checkOut - $checkIn) / 3600, 0);
         }), 2);
 
-        $salesTarget = (int) (SalesTarget::query()->firstWhere('role', 'marketing')?->monthly_target_qty ?? 100);
+        $salesTarget = (int) (SalesTarget::query()->firstWhere('role', $role)?->monthly_target_qty ?? 100);
         $attendanceTarget = 24;
         $hoursTarget = 8;
         $averageHoursPerDay = $attendanceDays > 0 ? round($totalHours / $attendanceDays, 2) : 0.0;
@@ -416,13 +457,13 @@ class MarketingManagementController extends Controller
         ];
     }
 
-    private function buildKpiHistory(int $userId, Carbon $referenceMonth): array
+    private function buildKpiHistory(int $userId, Carbon $referenceMonth, string $role): array
     {
         return collect(range(0, 5))
-            ->map(function (int $offset) use ($userId, $referenceMonth) {
+            ->map(function (int $offset) use ($userId, $referenceMonth, $role) {
                 $monthStart = $referenceMonth->copy()->subMonths($offset)->startOfMonth();
                 $monthEnd = $monthStart->copy()->endOfMonth();
-                $kpi = $this->buildMarketingKpi($userId, $monthStart, $monthEnd);
+                $kpi = $this->buildMarketingKpi($userId, $monthStart, $monthEnd, $role);
 
                 return [
                     'period_label' => $monthStart->copy()->locale('id')->translatedFormat('F Y'),
@@ -461,5 +502,13 @@ class MarketingManagementController extends Controller
             ],
         ];
     }
-}
 
+    private function managedRole(Request $request): string
+    {
+        $role = trim((string) $request->string('role')) ?: SalesRole::MARKETING;
+
+        abort_unless(in_array($role, SalesRole::managedRoles(), true), 404);
+
+        return $role;
+    }
+}

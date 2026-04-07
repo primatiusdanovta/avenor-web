@@ -15,6 +15,7 @@
                 <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h3 class="card-title mb-0">Daftar User</h3>
                     <div class="d-flex align-items-center flex-wrap gap-2">
+                        <Select2Input v-model="searchForm.role" :options="roleOptions" value-key="value" label-key="label" placeholder="Semua role" />
                         <input v-model="searchForm.search" type="text" class="form-control form-control-sm user-search" placeholder="Cari username">
                         <button type="button" class="btn btn-sm btn-outline-primary" @click="submitSearch">Cari</button>
                     </div>
@@ -28,7 +29,7 @@
                                 <td>
                                     <button type="button" class="btn btn-link p-0 font-weight-bold text-left" @click="openEditModal(user)">{{ user.nama }}</button>
                                 </td>
-                                <td><span class="text-dark text-capitalize font-weight-bold">{{ user.role }}</span></td>
+                                <td><span class="text-dark font-weight-bold">{{ user.role_label || user.role }}</span></td>
                                 <td><span class="text-dark font-weight-bold">{{ user.status }}</span></td>
                                 <td>{{ user.created_at }}</td>
                                 <td>
@@ -55,7 +56,7 @@
             </div>
             <div class="form-group">
                 <label>Role</label>
-                <Select2Input v-model="createForm.role" :options="roles" placeholder="Pilih role" />
+                <Select2Input v-model="createForm.role" :options="roleOptions" value-key="value" label-key="label" placeholder="Pilih role" />
             </div>
             <div class="form-group">
                 <label>Status</label>
@@ -87,7 +88,7 @@
             </div>
             <div class="form-group">
                 <label>Role</label>
-                <Select2Input v-model="editForm.role" :options="roles" placeholder="Pilih role" />
+                <Select2Input v-model="editForm.role" :options="roleOptions" value-key="value" label-key="label" placeholder="Pilih role" />
             </div>
             <div class="form-group">
                 <label>Status</label>
@@ -127,8 +128,8 @@ import Select2Input from '../../Components/Select2Input.vue';
 import BootstrapModal from '../../Components/BootstrapModal.vue';
 import { adminUrl } from '../../utils/admin';
 
-const props = defineProps({ filters: Object, users: Array, roles: Array, statuses: Array });
-const searchForm = useForm({ search: props.filters.search ?? '' });
+const props = defineProps({ filters: Object, users: Array, roles: Array, roleOptions: Array, statuses: Array });
+const searchForm = useForm({ search: props.filters.search ?? '', role: props.filters.role ?? null });
 const createForm = useForm({ nama: '', role: 'admin', status: 'aktif', password: '', password_confirmation: '' });
 const editForm = useForm({ id_user: null, nama: '', role: 'admin', status: 'aktif', password: '', password_confirmation: '' });
 const showCreateModal = ref(false);
@@ -139,6 +140,7 @@ const deleteTarget = ref(null);
 const submitSearch = () => searchForm.get(adminUrl('/users'), { preserveState: true, preserveScroll: true, replace: true });
 const openCreateModal = () => {
     createForm.reset();
+    createForm.role = 'admin';
     showCreateModal.value = true;
 };
 const closeCreateModal = () => {
@@ -219,6 +221,3 @@ const confirmDelete = () => {
     }
 }
 </style>
-
-
-

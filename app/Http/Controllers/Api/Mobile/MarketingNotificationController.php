@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Mobile;
 use App\Http\Controllers\Controller;
 use App\Models\MarketingNotification;
 use App\Support\MarketingNotificationSupport;
+use App\Support\SalesRole;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -13,7 +14,7 @@ class MarketingNotificationController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user?->role === 'marketing', 403);
+        abort_unless(SalesRole::isFieldRole($user?->role), 403);
 
         MarketingNotificationSupport::publishDueNotifications();
 
@@ -43,7 +44,7 @@ class MarketingNotificationController extends Controller
     public function registerToken(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user?->role === 'marketing', 403);
+        abort_unless(SalesRole::isFieldRole($user?->role), 403);
 
         $validated = $request->validate([
             'push_token' => ['required', 'string', 'max:2048'],

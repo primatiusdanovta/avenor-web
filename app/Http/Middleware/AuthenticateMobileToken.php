@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\MobileAccessToken;
+use App\Support\SalesRole;
 use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,8 +31,8 @@ class AuthenticateMobileToken
             return $this->unauthorized('Token tidak valid.');
         }
 
-        if ($user->status !== 'aktif' || $user->role !== 'marketing') {
-            return $this->unauthorized('Akun tidak diizinkan mengakses aplikasi marketing.');
+        if ($user->status !== 'aktif' || ! SalesRole::isFieldRole($user->role)) {
+            return $this->unauthorized('Akun tidak diizinkan mengakses aplikasi sales lapangan.');
         }
 
         if ($accessToken->expires_at && $accessToken->expires_at->isPast()) {

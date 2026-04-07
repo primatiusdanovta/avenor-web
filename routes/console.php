@@ -1,9 +1,11 @@
 <?php
 
+use App\Models\Consignment;
 use App\Models\MarketingNotification;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Services\MarketingPushNotificationService;
+use App\Support\AccountReceivableSupport;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -129,3 +131,43 @@ Artisan::command('marketing-notifications:dispatch-scheduled', function (Marketi
 
     return self::SUCCESS;
 })->purpose('Publikasikan notifikasi marketing terjadwal dan kirim push notification');
+
+Artisan::command('account-receivables:backfill {--chunk=100 : Jumlah consignments yang diproses per batch}', function () {
+    if (! Schema::hasTable('consignments') || ! Schema::hasTable('consignment_items') || ! Schema::hasTable('account_receivables')) {
+        $this->error('Table consignments, consignment_items, atau account_receivables belum tersedia.');
+        return self::FAILURE;
+    }
+
+    $chunkSize = max((int) $this->option('chunk'), 1);
+    $processed = 0;
+    $createdOrUpdated = 0;
+    $skipped = 0;
+
+    Consignment::query()
+        ->with('items')
+        ->orderBy('id')
+        ->chunk($chunkSize, function ($consignments) use (&$processed, &$createdOrUpdated, &$skipped) {
+            foreach ($consignments as $consignment) {
+                $processed++;
+
+                if ($consignment->items->isEmpty()) {
+                    $skipped++;
+                    continue;
+                }
+
+                $receivable = AccountReceivableSupport::syncFromConsignment($consignment);
+                if ($receivable) {
+                    $createdOrUpdated++;
+                } else {
+                    $skipped++;
+                }
+            }
+        });
+
+    $this->info('Backfill account receivables selesai.');
+    $this->line('Consign diproses: ' . $processed);
+    $this->line('AR dibuat/diperbarui: ' . $createdOrUpdated);
+    $this->line('Dilewati: ' . $skipped);
+
+    return self::SUCCESS;
+})->purpose('Backfill atau sinkron ulang account receivables dari seluruh data consign');

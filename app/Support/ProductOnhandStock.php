@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\ConsignmentItem;
 use App\Models\OfflineSale;
 use App\Models\ProductOnhand;
 
@@ -23,7 +24,9 @@ class ProductOnhandStock
 
     public static function soldQuantity(ProductOnhand $onhand, ?int $ignoreSaleId = null): int
     {
-        return self::actualSoldQuantity($onhand, $ignoreSaleId) + self::manualSoldQuantity($onhand);
+        return self::actualSoldQuantity($onhand, $ignoreSaleId)
+            + self::manualSoldQuantity($onhand)
+            + self::consignmentSoldQuantity($onhand);
     }
 
     public static function pendingReturnQuantity(ProductOnhand $onhand): int
@@ -53,7 +56,25 @@ class ProductOnhandStock
                 - self::soldQuantity($onhand, $ignoreSaleId)
                 - self::approvedReturnQuantity($onhand)
                 - self::pendingReturnQuantity($onhand),
+                - self::consignmentActiveQuantity($onhand),
             0,
         );
+    }
+
+    public static function consignmentSoldQuantity(ProductOnhand $onhand): int
+    {
+        return (int) ConsignmentItem::query()
+            ->where('product_onhand_id', $onhand->id_product_onhand)
+            ->sum('sold_quantity');
+    }
+
+    public static function consignmentActiveQuantity(ProductOnhand $onhand): int
+    {
+        return (int) ConsignmentItem::query()
+            ->where('product_onhand_id', $onhand->id_product_onhand)
+            ->get()
+            ->sum(function (ConsignmentItem $item) {
+                return max((int) $item->quantity - (int) $item->sold_quantity - (int) $item->returned_quantity, 0);
+            });
     }
 }

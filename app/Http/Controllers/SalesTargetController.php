@@ -49,7 +49,7 @@ class SalesTargetController extends Controller
 
     private function targetsForView()
     {
-        return collect(['marketing', 'reseller'])
+        return collect(['marketing', 'sales_field_executive'])
             ->map(function (string $role) {
                 $target = SalesTarget::query()->firstWhere('role', $role);
 
@@ -67,3 +67,4 @@ class SalesTargetController extends Controller
             ->values();
     }
 }
+

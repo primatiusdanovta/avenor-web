@@ -7,6 +7,7 @@ use App\Models\Attendance;
 use App\Models\MarketingLocation;
 use App\Models\ProductOnhand;
 use App\Support\MarketingMobileSupport;
+use App\Support\SalesRole;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -15,7 +16,7 @@ class AttendanceController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user?->role === 'marketing', 403);
+        abort_unless(SalesRole::isFieldRole($user?->role), 403);
 
         $context = MarketingMobileSupport::attendanceContext($user);
         $recentAttendances = Attendance::query()
@@ -70,14 +71,16 @@ class AttendanceController extends Controller
 
     public function checkOut(Request $request): JsonResponse
     {
-        $blockingItems = ProductOnhand::query()
-            ->with('user')
-            ->where('user_id', $request->user()->id_user)
-            ->whereDate('assignment_date', now()->toDateString())
-            ->where('take_status', 'disetujui')
-            ->get()
-            ->filter(fn (ProductOnhand $onhand) => ! MarketingMobileSupport::stateForOnhand($onhand)['can_checkout'])
-            ->values();
+        $blockingItems = SalesRole::defaultRequireReturnBeforeCheckout($request->user()->role)
+            ? ProductOnhand::query()
+                ->with('user')
+                ->where('user_id', $request->user()->id_user)
+                ->whereDate('assignment_date', now()->toDateString())
+                ->where('take_status', 'disetujui')
+                ->get()
+                ->filter(fn (ProductOnhand $onhand) => ! MarketingMobileSupport::stateForOnhand($onhand)['can_checkout'])
+                ->values()
+            : collect();
 
         if ($blockingItems->isNotEmpty()) {
             return response()->json([

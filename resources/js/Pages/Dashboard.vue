@@ -21,7 +21,7 @@
                     <div class="card-body d-flex flex-column flex-lg-row align-items-lg-center justify-content-between gap-3">
                         <div>
                             <div class="text-muted small text-uppercase mb-2">Sales App</div>
-                            <div class="h5 mb-1">Download aplikasi sales Android terbaru</div>
+                            <div class="h5 mb-1">Download aplikasi sales lapangan Android terbaru</div>
                             <div class="text-muted small">{{ salesAppDownload.name || 'File APK belum diunggah oleh superadmin.' }}</div>
                         </div>
                         <component
@@ -145,7 +145,7 @@
                     <div class="card-body">
                         <p class="mb-1"><strong>Periode:</strong> {{ dashboardData.period_label }}</p>
                         <p class="mb-1"><strong>Total Marketing:</strong> {{ dashboardData.kpis.marketing_count }}</p>
-                        <p class="mb-1"><strong>Total Seller:</strong> {{ dashboardData.kpis.seller_count }}</p>
+                        <p class="mb-1"><strong>Total Sales Field Executive:</strong> {{ dashboardData.kpis.seller_count }}</p>
                         <p class="mb-1"><strong>Marketing On Duty:</strong> {{ dashboardData.kpis.on_duty_marketing }}</p>
                         <p class="mb-1"><strong>Net Profit Offline Selling:</strong> {{ toCurrency(dashboardData.kpis.net_profit_offline_total) }}</p>
                         <p class="mb-0"><strong>Net Profit Online Selling:</strong> {{ toCurrency(dashboardData.kpis.net_profit_online_total) }}</p>
@@ -273,13 +273,13 @@
                 </div>
                 <div v-if="showOnlineManagerContent" class="col-md-12 col-lg-6">
                     <div class="card card-outline card-warning">
-                        <div class="card-header"><h3 class="card-title">Top 10 Seller</h3></div>
+                        <div class="card-header"><h3 class="card-title">Top 10 Sales Field Executive</h3></div>
                         <div class="card-body p-0 table-responsive">
                             <table class="table table-striped mb-0">
                                 <thead><tr><th>Nama</th><th>Qty</th><th>Revenue</th></tr></thead>
                                 <tbody>
                                     <tr v-for="item in dashboardData.top_resellers" :key="item.name"><td>{{ item.name }}</td><td>{{ item.quantity }}</td><td>{{ toCurrency(item.revenue) }}</td></tr>
-                                    <tr v-if="!dashboardData.top_resellers.length"><td colspan="3" class="text-center text-muted">Belum ada data seller.</td></tr>
+                                    <tr v-if="!dashboardData.top_resellers.length"><td colspan="3" class="text-center text-muted">Belum ada data sales field executive.</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -455,6 +455,7 @@ const showOnlineManagerContent = computed(() => ['all', 'online'].includes(props
     min-width: 240px;
 }
 </style>
+
 
 
 

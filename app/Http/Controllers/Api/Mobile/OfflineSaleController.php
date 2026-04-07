@@ -9,6 +9,7 @@ use App\Models\OfflineSale;
 use App\Models\Product;
 use App\Models\Promo;
 use App\Support\MarketingMobileSupport;
+use App\Support\SalesRole;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,7 +24,7 @@ class OfflineSaleController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user?->role === 'marketing', 403);
+        abort_unless(SalesRole::isFieldRole($user?->role), 403);
 
         $sales = OfflineSale::query()
             ->with('customer')
@@ -82,7 +83,7 @@ class OfflineSaleController extends Controller
     public function findCustomer(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user?->role === 'marketing', 403);
+        abort_unless(SalesRole::isFieldRole($user?->role), 403);
 
         $phone = MarketingMobileSupport::normalizePhone($request->query('phone'));
 
@@ -108,7 +109,7 @@ class OfflineSaleController extends Controller
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user?->role === 'marketing', 403);
+        abort_unless(SalesRole::isFieldRole($user?->role), 403);
 
         $attendance = Attendance::query()
             ->where('user_id', $user->id_user)
@@ -116,11 +117,11 @@ class OfflineSaleController extends Controller
             ->first();
 
         if (! $attendance?->check_in) {
-            return response()->json(['message' => 'Marketing wajib check in terlebih dahulu sebelum melakukan penjualan.'], 422);
+            return response()->json(['message' => 'Sales lapangan wajib check in terlebih dahulu sebelum melakukan penjualan.'], 422);
         }
 
         if ($attendance?->check_out) {
-            return response()->json(['message' => 'Marketing yang sudah check out tidak bisa melakukan penjualan lagi hari ini.'], 422);
+            return response()->json(['message' => 'User yang sudah check out tidak bisa melakukan penjualan lagi hari ini.'], 422);
         }
 
         $validated = $this->validateTransactionPayload($request);

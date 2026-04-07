@@ -309,7 +309,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     final now = DateTime.now();
     _me = {
       'nama': 'Alya Pramesti',
-      'role': 'marketing',
+      'role': 'sales_field_executive',
       'wilayah': 'Jakarta Barat',
       'sales_qr_url': null,
       'sales_qr_name': null,
@@ -476,6 +476,39 @@ class _MarketingRootState extends State<MarketingRoot> {
           'minimal_belanja': 500000.0,
           'option_label': 'Bundle 2 Item | DUO40',
         },
+      ],
+    };
+    _consignments = {
+      'products': [
+        {
+          'id_product_onhand': 91,
+          'id_product': 1,
+          'nama_product': 'Avenor Velvet Bloom',
+          'pickup_batch_code': 'PICK-20260408-U4-O91',
+          'available_quantity': 3,
+          'option_label': 'Avenor Velvet Bloom | batch PICK-20260408-U4-O91 | sisa 3',
+        },
+      ],
+      'consignments': [
+        {
+          'id': 11,
+          'place_name': 'Toko Melati',
+          'address': 'Jl. Melati No. 8, Jakarta Barat',
+          'consignment_date': _formatYmd(now),
+          'submitted_at': _formatYmdHis(now.subtract(const Duration(minutes: 20))),
+          'handover_proof_photo_url': null,
+          'items': [
+            {
+              'id': 91,
+              'product_name': 'Avenor Velvet Bloom',
+              'pickup_batch_code': 'PICK-20260408-U4-O91',
+              'quantity': 2,
+              'sold_quantity': 0,
+              'returned_quantity': 0,
+              'status': 'dititipkan',
+            }
+          ],
+        }
       ],
     };
     _knowledge = {
@@ -697,25 +730,39 @@ class _MarketingRootState extends State<MarketingRoot> {
     }
 
     try {
-      final results = await Future.wait([
-        _dio.get('/auth/me'),
+      final meResponse = await _dio.get('/auth/me');
+      final me = (meResponse.data as Map<String, dynamic>)['user']
+              as Map<String, dynamic>? ??
+          {};
+      final role = me['role']?.toString() ?? '';
+
+      final futures = <Future<Response<dynamic>>>[
         _dio.get('/dashboard'),
         _dio.get('/attendance'),
         _dio.get('/products'),
         _dio.get('/offline-sales'),
+        role == 'sales_field_executive'
+            ? _dio.get('/consignments')
+            : Future.value(Response(
+                requestOptions: RequestOptions(path: '/consignments'),
+                data: <String, dynamic>{
+                  'products': <Map<String, dynamic>>[],
+                  'consignments': <Map<String, dynamic>>[],
+                },
+              )),
         _dio.get('/product-knowledge'),
         _dio.get('/notifications'),
-      ]);
+      ];
+      final results = await Future.wait(futures);
 
       if (!mounted) return;
       setState(() {
-        _me = (results[0].data as Map<String, dynamic>)['user']
-                as Map<String, dynamic>? ??
-            {};
-        _dashboard = results[1].data as Map<String, dynamic>;
-        _attendance = results[2].data as Map<String, dynamic>;
-        _products = results[3].data as Map<String, dynamic>;
-        _sales = results[4].data as Map<String, dynamic>;
+        _me = me;
+        _dashboard = results[0].data as Map<String, dynamic>;
+        _attendance = results[1].data as Map<String, dynamic>;
+        _products = results[2].data as Map<String, dynamic>;
+        _sales = results[3].data as Map<String, dynamic>;
+        _consignments = results[4].data as Map<String, dynamic>;
         _knowledge = results[5].data as Map<String, dynamic>;
         _notifications = results[6].data as Map<String, dynamic>;
       });
@@ -1050,6 +1097,74 @@ class _MarketingRootState extends State<MarketingRoot> {
     return _picker.pickImage(source: ImageSource.gallery, imageQuality: 82);
   }
 
+  Future<XFile?> _pickConsignmentProof() async {
+    if (_mockMode) {
+      return XFile('mock-consignment-proof.jpg', name: 'mock-consignment-proof.jpg');
+    }
+    return _picker.pickImage(source: ImageSource.camera, imageQuality: 82);
+  }
+
+  Future<void> _submitConsignment({
+    required String placeName,
+    required String address,
+    required DateTime consignmentDate,
+    required List<Map<String, dynamic>> items,
+    required XFile proofPhoto,
+  }) async {
+    setState(() => _busy = true);
+    try {
+      final position = await _resolveLocation();
+      if (_mockMode) {
+        final list = ((_consignments?['consignments'] as List?) ?? [])
+            .cast<Map<String, dynamic>>();
+        list.insert(0, {
+          'id': DateTime.now().millisecondsSinceEpoch,
+          'place_name': placeName,
+          'address': address,
+          'consignment_date': _formatYmd(consignmentDate),
+          'submitted_at': _formatYmdHis(DateTime.now()),
+          'handover_proof_photo_url': null,
+          'items': items.map((item) => {
+            'id': item['product_onhand_id'],
+            'product_name': item['product_name'],
+            'pickup_batch_code': item['pickup_batch_code'],
+            'quantity': item['quantity'],
+            'sold_quantity': 0,
+            'returned_quantity': 0,
+            'status': 'dititipkan',
+          }).toList(),
+        });
+      } else {
+        final form = FormData();
+        form.fields
+          ..add(MapEntry('place_name', placeName))
+          ..add(MapEntry('address', address))
+          ..add(MapEntry('consignment_date', _formatYmd(consignmentDate)))
+          ..add(MapEntry('latitude', '${position.latitude}'))
+          ..add(MapEntry('longitude', '${position.longitude}'));
+        for (var index = 0; index < items.length; index++) {
+          form.fields.add(MapEntry('items[$index][product_onhand_id]', '${items[index]['product_onhand_id']}'));
+          form.fields.add(MapEntry('items[$index][quantity]', '${items[index]['quantity']}'));
+        }
+        form.files.add(MapEntry(
+          'handover_proof_photo',
+          await MultipartFile.fromFile(proofPhoto.path, filename: proofPhoto.name),
+        ));
+        await _dio.post('/consignments', data: form);
+      }
+      await _refreshAll();
+      _showMessage('Consign berhasil disimpan.');
+    } on DioException catch (error) {
+      _showMessage(_readError(error));
+    } catch (error) {
+      _showMessage(error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
   Future<void> _submitReturnRequest({
     required int onhandId,
     required int quantity,
@@ -1247,12 +1362,19 @@ class _MarketingRootState extends State<MarketingRoot> {
         ((_sales?['promos'] as List?) ?? []).cast<Map<String, dynamic>>();
     final knowledge =
         ((_knowledge?['products'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final consignProducts =
+        ((_consignments?['products'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final consignments =
+        ((_consignments?['consignments'] as List?) ?? []).cast<Map<String, dynamic>>();
     final notifications =
         ((_notifications?['notifications'] as List?) ?? [])
             .cast<Map<String, dynamic>>();
     final recentAttendances =
         ((_attendance?['recent_attendances'] as List?) ?? [])
             .cast<Map<String, dynamic>>();
+
+    final isSalesFieldExecutive =
+        (_me?['role']?.toString() ?? '') == 'sales_field_executive';
 
     final pages = <Widget>[
       _DashboardPage(
@@ -1297,29 +1419,42 @@ class _MarketingRootState extends State<MarketingRoot> {
         onLookupCustomer: _lookupCustomerByPhone,
         mockMode: _mockMode,
       ),
+      if (isSalesFieldExecutive)
+        _ConsignmentPage(
+          products: consignProducts,
+          consignments: consignments,
+          busy: _busy,
+          onPickProof: _pickConsignmentProof,
+          onSubmit: _submitConsignment,
+        ),
       _KnowledgePage(
         products: knowledge,
         loading: _knowledge == null && _busy,
       ),
     ];
-    final destinations = const [
-      NavigationDestination(
+    final destinations = <NavigationDestination>[
+      const NavigationDestination(
           icon: Icon(Icons.dashboard_outlined),
           selectedIcon: Icon(Icons.dashboard),
           label: 'Dashboard'),
-      NavigationDestination(
+      const NavigationDestination(
           icon: Icon(Icons.fingerprint_outlined),
           selectedIcon: Icon(Icons.fingerprint),
           label: 'Absensi'),
-      NavigationDestination(
+      const NavigationDestination(
           icon: Icon(Icons.inventory_2_outlined),
           selectedIcon: Icon(Icons.inventory_2),
           label: 'Inventory'),
-      NavigationDestination(
+      const NavigationDestination(
           icon: Icon(Icons.receipt_long_outlined),
           selectedIcon: Icon(Icons.receipt_long),
           label: 'Sales'),
-      NavigationDestination(
+      if (isSalesFieldExecutive)
+        const NavigationDestination(
+            icon: Icon(Icons.storefront_outlined),
+            selectedIcon: Icon(Icons.storefront),
+            label: 'Consign'),
+      const NavigationDestination(
           icon: Icon(Icons.auto_stories_outlined),
           selectedIcon: Icon(Icons.auto_stories),
           label: 'Knowledge'),
@@ -1407,63 +1542,61 @@ class _MarketingRootState extends State<MarketingRoot> {
   }
 
   String _pageTitle(int index) {
-    switch (index) {
-      case 1:
-        return 'Absensi Lapangan';
-      case 2:
-        return 'Inventory Harian';
-      case 3:
-        return 'Penjualan Offline';
-      case 4:
-        return 'Product Knowledge';
-      default:
-        return 'Dashboard Marketing';
+    final isSalesFieldExecutive =
+        (_me?['role']?.toString() ?? '') == 'sales_field_executive';
+    if (index == 1) return 'Absensi Lapangan';
+    if (index == 2) return 'Inventory Harian';
+    if (index == 3) return 'Penjualan Offline';
+    if (isSalesFieldExecutive && index == 4) return 'Consign';
+    if ((!isSalesFieldExecutive && index == 4) ||
+        (isSalesFieldExecutive && index == 5)) {
+      return 'Product Knowledge';
     }
+    return 'Dashboard Marketing';
   }
 
   String _pageSubtitle(int index) {
-    switch (index) {
-      case 1:
-        return 'Check in, check out, dan kirim lokasi dengan cepat.';
-      case 2:
-        return 'Ambil barang, pantau on hand, lalu kirim retur tanpa pindah aplikasi.';
-      case 3:
-        return 'Input customer, item, promo, dan bukti pembelian dalam satu flow native.';
-      case 4:
-        return 'Bahan presentasi singkat untuk bantu closing di booth dan lapangan.';
-      default:
-        return 'Ringkasan target, aktivitas, dan performa lapangan hari ini.';
+    final isSalesFieldExecutive =
+        (_me?['role']?.toString() ?? '') == 'sales_field_executive';
+    if (index == 1) return 'Check in, check out, dan kirim lokasi dengan cepat.';
+    if (index == 2) return 'Ambil barang, pantau on hand, lalu kirim retur tanpa pindah aplikasi.';
+    if (index == 3) return 'Input customer, item, promo, dan bukti pembelian dalam satu flow native.';
+    if (isSalesFieldExecutive && index == 4) {
+      return 'Titip barang per tempat, lampirkan foto serah terima, dan pantau statusnya.';
     }
+    if ((!isSalesFieldExecutive && index == 4) ||
+        (isSalesFieldExecutive && index == 5)) {
+      return 'Bahan presentasi singkat untuk bantu closing di booth dan lapangan.';
+    }
+    return 'Ringkasan target, aktivitas, dan performa lapangan hari ini.';
   }
 
   Color _pageAccent(int index) {
-    switch (index) {
-      case 1:
-        return const Color(0xFFC05D3B);
-      case 2:
-        return const Color(0xFF6E8B3D);
-      case 3:
-        return const Color(0xFF8E5BD9);
-      case 4:
-        return const Color(0xFF2C8C82);
-      default:
-        return const Color(0xFFC18B2F);
+    final isSalesFieldExecutive =
+        (_me?['role']?.toString() ?? '') == 'sales_field_executive';
+    if (index == 1) return const Color(0xFFC05D3B);
+    if (index == 2) return const Color(0xFF6E8B3D);
+    if (index == 3) return const Color(0xFF8E5BD9);
+    if (isSalesFieldExecutive && index == 4) return const Color(0xFF8C6A2C);
+    if ((!isSalesFieldExecutive && index == 4) ||
+        (isSalesFieldExecutive && index == 5)) {
+      return const Color(0xFF2C8C82);
     }
+    return const Color(0xFFC18B2F);
   }
 
   IconData _pageIcon(int index) {
-    switch (index) {
-      case 1:
-        return Icons.fingerprint_rounded;
-      case 2:
-        return Icons.inventory_2_rounded;
-      case 3:
-        return Icons.receipt_long_rounded;
-      case 4:
-        return Icons.auto_stories_rounded;
-      default:
-        return Icons.dashboard_rounded;
+    final isSalesFieldExecutive =
+        (_me?['role']?.toString() ?? '') == 'sales_field_executive';
+    if (index == 1) return Icons.fingerprint_rounded;
+    if (index == 2) return Icons.inventory_2_rounded;
+    if (index == 3) return Icons.receipt_long_rounded;
+    if (isSalesFieldExecutive && index == 4) return Icons.storefront_rounded;
+    if ((!isSalesFieldExecutive && index == 4) ||
+        (isSalesFieldExecutive && index == 5)) {
+      return Icons.auto_stories_rounded;
     }
+    return Icons.dashboard_rounded;
   }
 }
 
@@ -5562,6 +5695,329 @@ class _SelectionTile extends StatelessWidget {
   }
 }
 
+class _ConsignmentPage extends StatefulWidget {
+  const _ConsignmentPage({
+    required this.products,
+    required this.consignments,
+    required this.busy,
+    required this.onPickProof,
+    required this.onSubmit,
+  });
+
+  final List<Map<String, dynamic>> products;
+  final List<Map<String, dynamic>> consignments;
+  final bool busy;
+  final Future<XFile?> Function() onPickProof;
+  final Future<void> Function({
+    required String placeName,
+    required String address,
+    required DateTime consignmentDate,
+    required List<Map<String, dynamic>> items,
+    required XFile proofPhoto,
+  }) onSubmit;
+
+  @override
+  State<_ConsignmentPage> createState() => _ConsignmentPageState();
+}
+
+class _ConsignmentPageState extends State<_ConsignmentPage> {
+  final TextEditingController _placeController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _quantityController =
+      TextEditingController(text: '1');
+  final List<Map<String, dynamic>> _items = [];
+  DateTime _date = DateTime.now();
+  XFile? _proof;
+  int? _selectedProductOnhandId;
+
+  @override
+  void dispose() {
+    _placeController.dispose();
+    _addressController.dispose();
+    _quantityController.dispose();
+    super.dispose();
+  }
+
+  void _addSelectedProduct() {
+    if (_selectedProductOnhandId == null) {
+      return;
+    }
+    final quantity = int.tryParse(_quantityController.text.trim()) ?? 0;
+    if (quantity <= 0) {
+      return;
+    }
+
+    final product = widget.products.firstWhere(
+      (item) => item['id_product_onhand'] == _selectedProductOnhandId,
+    );
+    final existingIndex = _items.indexWhere(
+      (item) => item['product_onhand_id'] == _selectedProductOnhandId,
+    );
+    final availableQuantity =
+        (product['available_quantity'] as num?)?.toInt() ?? 0;
+
+    setState(() {
+      if (existingIndex >= 0) {
+        final currentQuantity =
+            (_items[existingIndex]['quantity'] as num?)?.toInt() ?? 0;
+        _items[existingIndex]['quantity'] =
+            (currentQuantity + quantity).clamp(1, availableQuantity);
+      } else {
+        _items.add({
+          'product_onhand_id': product['id_product_onhand'],
+          'product_name': product['nama_product'],
+          'pickup_batch_code': product['pickup_batch_code'],
+          'available_quantity': availableQuantity,
+          'quantity': quantity.clamp(1, availableQuantity),
+        });
+      }
+      _quantityController.text = '1';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final availableProducts = widget.products.where((product) {
+      final productOnhandId = product['id_product_onhand'];
+      final selectedItem = _items.cast<Map<String, dynamic>>().firstWhere(
+            (item) => item['product_onhand_id'] == productOnhandId,
+            orElse: () => <String, dynamic>{},
+          );
+      final selectedQuantity =
+          (selectedItem['quantity'] as num?)?.toInt() ?? 0;
+      final availableQuantity =
+          (product['available_quantity'] as num?)?.toInt() ?? 0;
+      return selectedQuantity < availableQuantity;
+    }).toList();
+
+    if (availableProducts.isEmpty) {
+      _selectedProductOnhandId = null;
+    } else if (_selectedProductOnhandId == null ||
+        !availableProducts.any(
+          (product) =>
+              product['id_product_onhand'] == _selectedProductOnhandId,
+        )) {
+      _selectedProductOnhandId =
+          availableProducts.first['id_product_onhand'] as int;
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      children: [
+        _BlockCard(
+          title: 'Form Consign',
+          subtitle: 'Foto bukti penyerahan diambil langsung dari kamera.',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _placeController,
+                decoration: const InputDecoration(labelText: 'Nama tempat'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _addressController,
+                minLines: 2,
+                maxLines: 3,
+                decoration: const InputDecoration(labelText: 'Alamat'),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int>(
+                value: _selectedProductOnhandId,
+                decoration: const InputDecoration(labelText: 'Product batch'),
+                items: availableProducts
+                    .map(
+                      (product) => DropdownMenuItem<int>(
+                        value: product['id_product_onhand'] as int,
+                        child: Text(product['option_label']?.toString() ?? '-'),
+                      ),
+                    )
+                    .toList(),
+                onChanged: widget.busy
+                    ? null
+                    : (value) {
+                        setState(() => _selectedProductOnhandId = value);
+                      },
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _quantityController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Quantity'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton.tonalIcon(
+                    onPressed: widget.busy || availableProducts.isEmpty
+                        ? null
+                        : _addSelectedProduct,
+                    icon: const Icon(Icons.add_box_outlined),
+                    label: const Text('Tambah'),
+                  ),
+                ],
+              ),
+              if (widget.products.isEmpty) ...[
+                const SizedBox(height: 8),
+                const Text(
+                  'Belum ada stok batch yang bisa dititipkan.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ],
+              const SizedBox(height: 12),
+              ..._items.asMap().entries.map((entry) {
+                final index = entry.key;
+                final item = entry.value;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${item['product_name']} | batch ${item['pickup_batch_code'] ?? '-'}',
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              'Maks ${item['available_quantity'] ?? 0}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: 88,
+                        child: TextFormField(
+                          initialValue: '${item['quantity']}',
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Qty'),
+                          onChanged: (value) {
+                            final parsed = int.tryParse(value) ?? 1;
+                            final maxQuantity =
+                                (item['available_quantity'] as num?)?.toInt() ??
+                                    parsed;
+                            _items[index]['quantity'] =
+                                parsed.clamp(1, maxQuantity);
+                          },
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: widget.busy
+                            ? null
+                            : () {
+                                setState(() => _items.removeAt(index));
+                              },
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: widget.busy
+                        ? null
+                        : () async {
+                            final file = await widget.onPickProof();
+                            if (!mounted || file == null) return;
+                            setState(() => _proof = file);
+                          },
+                    icon: const Icon(Icons.camera_alt_outlined),
+                    label: Text(_proof == null ? 'Ambil foto bukti' : _proof!.name),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: widget.busy
+                        ? null
+                        : () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate: _date,
+                              firstDate: DateTime(2024),
+                              lastDate: DateTime(2100),
+                            );
+                            if (picked != null) {
+                              setState(() => _date = picked);
+                            }
+                          },
+                    icon: const Icon(Icons.calendar_month_outlined),
+                    label: Text(DateFormat('dd MMM yyyy', 'id_ID').format(_date)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: widget.busy ||
+                          _proof == null ||
+                          _items.isEmpty ||
+                          _placeController.text.trim().isEmpty ||
+                          _addressController.text.trim().isEmpty
+                      ? null
+                      : () => widget.onSubmit(
+                            placeName: _placeController.text.trim(),
+                            address: _addressController.text.trim(),
+                            consignmentDate: _date,
+                            items: _items,
+                            proofPhoto: _proof!,
+                          ),
+                  child: Text(widget.busy ? 'Menyimpan...' : 'Simpan consign'),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        _BlockCard(
+          title: 'Riwayat Consign',
+          child: widget.consignments.isEmpty
+              ? const Text('Belum ada consign tersimpan.')
+              : Column(
+                  children: widget.consignments.map((consignment) {
+                    final items = ((consignment['items'] as List?) ?? [])
+                        .cast<Map<String, dynamic>>();
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFCF8F1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            consignment['place_name']?.toString() ?? '-',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(consignment['address']?.toString() ?? '-'),
+                          const SizedBox(height: 8),
+                          ...items.map((item) => Text(
+                              '${item['product_name']} x${item['quantity']} | ${item['status']}')),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+        ),
+      ],
+    );
+  }
+}
+
 class _KnowledgePage extends StatefulWidget {
   const _KnowledgePage({required this.products, required this.loading});
 
@@ -6687,4 +7143,17 @@ class _SaleItemDraft {
     );
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 

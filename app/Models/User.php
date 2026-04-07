@@ -72,4 +72,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(MarketingBonusAdjustment::class, 'user_id', 'id_user');
     }
+
+    public function consignments(): HasMany
+    {
+        return $this->hasMany(Consignment::class, 'user_id', 'id_user');
+    }
 }

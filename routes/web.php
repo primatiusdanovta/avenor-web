@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ApprovalController;
 use App\Http\Controllers\AccountPayableController;
+use App\Http\Controllers\AccountReceivableController;
 use App\Http\Controllers\ArticleController;
 use App\Http\Controllers\ArticleLandingController;
 use App\Http\Controllers\ArticlesLandingController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\CareerApplicationController;
 use App\Http\Controllers\CarrersController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\ContentCreatorController;
+use App\Http\Controllers\ConsignmentController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseController;
@@ -149,6 +151,7 @@ Route::prefix($administratorPrefix)->group(function () {
         Route::post('/account-payables', [AccountPayableController::class, 'store'])->name('account-payables.store');
         Route::put('/account-payables/{accountPayable}', [AccountPayableController::class, 'update'])->name('account-payables.update');
         Route::delete('/account-payables/{accountPayable}', [AccountPayableController::class, 'destroy'])->name('account-payables.destroy');
+        Route::get('/account-receivables', [AccountReceivableController::class, 'index'])->name('account-receivables.index');
 
         Route::get('/marketing/attendance', [MarketingAttendanceController::class, 'index'])->name('marketing.attendance.index');
         Route::post('/marketing/attendance/check-in', [MarketingAttendanceController::class, 'checkIn'])->name('marketing.attendance.check-in');
@@ -156,6 +159,8 @@ Route::prefix($administratorPrefix)->group(function () {
         Route::post('/marketing/location', [MarketingAttendanceController::class, 'storeLocation'])->name('marketing.location.store');
 
         Route::get('/products', [ProductController::class, 'index'])->name('products.index');
+        Route::get('/consignments', [ConsignmentController::class, 'index'])->name('consignments.index');
+        Route::put('/consignment-items/{item}', [ConsignmentController::class, 'updateItem'])->name('consignment-items.update');
         Route::get('/product-onhands', [ProductOnhandManagementController::class, 'index'])->name('product-onhands.index');
         Route::post('/product-onhands', [ProductOnhandManagementController::class, 'store'])->name('product-onhands.store');
         Route::put('/product-onhands/{onhand}', [ProductOnhandManagementController::class, 'update'])->name('product-onhands.update');

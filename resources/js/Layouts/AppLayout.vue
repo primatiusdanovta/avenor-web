@@ -236,7 +236,7 @@ watch(() => page.url, () => {
 });
 
 const sendMarketingLocation = (source = 'heartbeat') => {
-    if (user.value?.role !== 'marketing' || !navigator.geolocation) return;
+    if (!['marketing', 'sales_field_executive'].includes(user.value?.role) || !navigator.geolocation) return;
 
     navigator.geolocation.getCurrentPosition((position) => {
         window.axios.post(adminUrl('/marketing/location'), {
@@ -254,9 +254,9 @@ onMounted(() => {
     syncOpenMenusWithRoute();
     syncPageHeading();
 
-    if (user.value?.role === 'marketing') {
+    if (['marketing', 'sales_field_executive'].includes(user.value?.role)) {
         sendMarketingLocation();
-        locationInterval = window.setInterval(() => sendMarketingLocation(), 3600000);
+        locationInterval = window.setInterval(() => sendMarketingLocation(), 1800000);
     }
 });
 
@@ -265,6 +265,7 @@ onBeforeUnmount(() => {
     closeMobileSidebar();
 });
 </script>
+
 
 
 

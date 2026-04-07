@@ -4,8 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Product;
 use App\Models\ProductOnhand;
-use App\Models\User;
 use App\Support\ProductOnhandStock;
+use App\Support\ProductOnhandBatchSupport;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,7 +27,7 @@ class ProductOnhandManagementController extends Controller
         ];
 
         $users = User::query()
-            ->whereIn('role', ['marketing', 'reseller'])
+            ->whereIn('role', ['marketing', 'sales_field_executive'])
             ->orderBy('nama')
             ->get(['id_user', 'nama', 'role'])
             ->map(fn (User $user) => [
@@ -113,7 +113,7 @@ class ProductOnhandManagementController extends Controller
                 $product->decrement('stock', $lockedStock);
             }
 
-            ProductOnhand::query()->create([
+            $onhand = ProductOnhand::query()->create([
                 'user_id' => $user->id_user,
                 'id_product' => $product->id_product,
                 'nama_product' => $product->nama_product,
@@ -121,6 +121,7 @@ class ProductOnhandManagementController extends Controller
                 'quantity_dikembalikan' => 0,
                 'approved_return_quantity' => 0,
                 'manual_sold_quantity' => 0,
+                'pickup_batch_code' => null,
                 'take_status' => $validated['take_status'],
                 'return_status' => 'belum',
                 'approved_by' => null,
@@ -132,6 +133,8 @@ class ProductOnhandManagementController extends Controller
                 'take_requested_at' => now(),
                 'take_reviewed_at' => $validated['take_status'] === 'pending' ? null : now(),
             ]);
+
+            $onhand->update(['pickup_batch_code' => ProductOnhandBatchSupport::generate($onhand)]);
         });
 
         return redirect()
@@ -351,9 +354,9 @@ class ProductOnhandManagementController extends Controller
     {
         $user = User::query()->findOrFail($userId);
 
-        if (! in_array($user->role, ['marketing', 'reseller'], true)) {
+        if (! in_array($user->role, ['marketing', 'sales_field_executive'], true)) {
             throw ValidationException::withMessages([
-                'user_id' => 'User onhand harus marketing atau reseller.',
+                'user_id' => 'User onhand harus marketing atau sales field executive.',
             ]);
         }
 
@@ -378,6 +381,7 @@ class ProductOnhandManagementController extends Controller
             'user_role' => $onhand->user?->role,
             'id_product' => $onhand->id_product,
             'nama_product' => $onhand->nama_product,
+            'pickup_batch_code' => $onhand->pickup_batch_code,
             'quantity' => (int) $onhand->quantity,
             'sold_quantity' => $soldQuantity,
             'actual_sold_quantity' => $actualSoldQuantity,
@@ -442,3 +446,10 @@ class ProductOnhandManagementController extends Controller
         ], fn ($value) => $value !== null && $value !== '');
     }
 }
+
+
+
+
+
+
+

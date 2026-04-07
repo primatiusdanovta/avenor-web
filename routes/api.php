@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\MasterGatewayContentController;
 use App\Http\Controllers\Api\Mobile\AttendanceController as MobileAttendanceController;
 use App\Http\Controllers\Api\Mobile\AuthController as MobileAuthController;
+use App\Http\Controllers\Api\Mobile\ConsignmentController as MobileConsignmentController;
 use App\Http\Controllers\Api\Mobile\DashboardController as MobileDashboardController;
 use App\Http\Controllers\Api\Mobile\MarketingNotificationController as MobileMarketingNotificationController;
 use App\Http\Controllers\Api\Mobile\OfflineSaleController as MobileOfflineSaleController;
@@ -31,6 +32,8 @@ Route::prefix('mobile')->name('api.mobile.')->group(function () {
         Route::post('/products/take', [MobileProductController::class, 'take'])->name('products.take');
         Route::post('/products/onhand/{onhand}/return', [MobileProductController::class, 'requestReturn'])->name('products.onhand.return');
         Route::get('/product-knowledge', MobileProductKnowledgeController::class)->name('product-knowledge.index');
+        Route::get('/consignments', [MobileConsignmentController::class, 'index'])->name('consignments.index');
+        Route::post('/consignments', [MobileConsignmentController::class, 'store'])->name('consignments.store');
         Route::get('/offline-sales', [MobileOfflineSaleController::class, 'index'])->name('offline-sales.index');
         Route::get('/offline-sales/customer', [MobileOfflineSaleController::class, 'findCustomer'])->name('offline-sales.customer');
         Route::post('/offline-sales', [MobileOfflineSaleController::class, 'store'])->name('offline-sales.store');

@@ -5,9 +5,9 @@ namespace App\Support;
 use App\Models\Attendance;
 use App\Models\OfflineSale;
 use App\Models\ProductOnhand;
-use App\Support\ProductOnhandStock;
 use App\Models\SalesTarget;
 use App\Models\User;
+use App\Support\ProductOnhandStock;
 use Carbon\Carbon;
 
 class MarketingMobileSupport
@@ -23,9 +23,9 @@ class MarketingMobileSupport
         $attendanceBlockedReason = null;
 
         if (! $todayAttendance?->check_in) {
-            $attendanceBlockedReason = 'Marketing wajib check in terlebih dahulu sebelum mengambil barang.';
+            $attendanceBlockedReason = 'Sales lapangan wajib check in terlebih dahulu sebelum mengambil barang.';
         } elseif ($todayAttendance?->check_out) {
-            $attendanceBlockedReason = 'Marketing yang sudah check out tidak bisa request barang lagi hari ini.';
+            $attendanceBlockedReason = 'User yang sudah check out tidak bisa request barang lagi hari ini.';
         }
 
         return [
@@ -75,7 +75,7 @@ class MarketingMobileSupport
             return max(($checkOut - $checkIn) / 3600, 0);
         }), 2);
 
-        $salesTarget = (int) (SalesTarget::query()->firstWhere('role', 'marketing')?->monthly_target_qty ?? 100);
+        $salesTarget = (int) (SalesTarget::query()->firstWhere('role', User::query()->find($userId)?->role ?? 'marketing')?->monthly_target_qty ?? 100);
         $attendanceTarget = 24;
         $hoursTarget = 8;
         $averageHoursPerDay = $attendanceDays > 0 ? round($totalHours / $attendanceDays, 2) : 0.0;
@@ -104,7 +104,7 @@ class MarketingMobileSupport
             $user,
             $periodStart,
             $periodEnd,
-            SalesTarget::query()->firstWhere('role', 'marketing')
+            SalesTarget::query()->firstWhere('role', $user->role)
         );
     }
 
@@ -118,6 +118,7 @@ class MarketingMobileSupport
             'id_product_onhand' => $onhand->id_product_onhand,
             'id_product' => $onhand->id_product,
             'nama_product' => $onhand->nama_product,
+            'pickup_batch_code' => $onhand->pickup_batch_code,
             'quantity' => (int) $onhand->quantity,
             'quantity_dikembalikan' => $approvedReturnQuantity + $pendingReturnQuantity,
             'approved_return_quantity' => $approvedReturnQuantity,

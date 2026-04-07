@@ -22,6 +22,7 @@ class ProductOnhand extends Model
         'quantity_dikembalikan',
         'approved_return_quantity',
         'manual_sold_quantity',
+        'pickup_batch_code',
         'take_status',
         'return_status',
         'approved_by',
@@ -59,6 +60,11 @@ class ProductOnhand extends Model
     public function offlineSales(): HasMany
     {
         return $this->hasMany(OfflineSale::class, 'id_product_onhand', 'id_product_onhand');
+    }
+
+    public function consignmentItems(): HasMany
+    {
+        return $this->hasMany(ConsignmentItem::class, 'product_onhand_id', 'id_product_onhand');
     }
 }
 

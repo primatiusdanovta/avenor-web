@@ -56,7 +56,7 @@ class ApprovalController extends Controller
         $selectedMarketing = null;
         if ($selectedId > 0) {
             $marketing = User::query()->find($selectedId);
-            if ($marketing && in_array($marketing->role, ['marketing', 'reseller'], true)) {
+            if ($marketing && in_array($marketing->role, ['marketing', 'sales_field_executive'], true)) {
                 $selectedMarketing = [
                     'id_user' => $marketing->id_user,
                     'nama' => $marketing->nama,
@@ -72,3 +72,4 @@ class ApprovalController extends Controller
         ]);
     }
 }
+

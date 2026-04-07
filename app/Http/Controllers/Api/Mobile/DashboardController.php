@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\OfflineSale;
 use App\Models\ProductOnhand;
 use App\Support\MarketingMobileSupport;
+use App\Support\SalesRole;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,7 @@ class DashboardController extends Controller
     public function __invoke(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user?->role === 'marketing', 403);
+        abort_unless(SalesRole::isFieldRole($user?->role), 403);
 
         $monthStart = Carbon::now()->startOfMonth();
         $monthEnd = Carbon::now()->endOfMonth();

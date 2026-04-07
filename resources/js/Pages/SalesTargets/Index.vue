@@ -5,7 +5,7 @@
         <div class="col-12">
             <div class="card card-outline card-primary">
                 <div class="card-header">
-                    <h3 class="card-title">Target Penjualan Marketing dan Reseller</h3>
+                    <h3 class="card-title">Target Penjualan Marketing dan Sales Field Executive</h3>
                 </div>
                 <div class="card-body p-0 table-responsive">
                     <table class="table table-hover mb-0 align-middle">
@@ -38,7 +38,7 @@
                     </table>
                 </div>
                 <div class="card-footer text-muted">
-                    Target dan bonus diatur terpisah untuk marketing dan reseller. Dashboard seller akan menghitung pencapaian harian, mingguan, dan bulanan berdasarkan quantity penjualan.
+                    Target dan bonus diatur terpisah untuk Marketing dan Sales Field Executive. Dashboard seller akan menghitung pencapaian harian, mingguan, dan bulanan berdasarkan quantity penjualan.
                 </div>
             </div>
         </div>
@@ -75,3 +75,4 @@ const submit = (form) => {
     });
 };
 </script>
+

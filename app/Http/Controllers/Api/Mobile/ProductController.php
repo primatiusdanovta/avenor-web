@@ -7,6 +7,8 @@ use App\Models\Attendance;
 use App\Models\Product;
 use App\Models\ProductOnhand;
 use App\Support\MarketingMobileSupport;
+use App\Support\ProductOnhandBatchSupport;
+use App\Support\SalesRole;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -15,7 +17,7 @@ class ProductController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless($user?->role === 'marketing', 403);
+        abort_unless(SalesRole::isFieldRole($user?->role), 403);
 
         $attendanceContext = MarketingMobileSupport::attendanceContext($user);
 
@@ -75,11 +77,11 @@ class ProductController extends Controller
             ->first();
 
         if (! $attendance?->check_in) {
-            return response()->json(['message' => 'Marketing wajib check in terlebih dahulu sebelum mengambil barang.'], 422);
+            return response()->json(['message' => 'Sales lapangan wajib check in terlebih dahulu sebelum mengambil barang.'], 422);
         }
 
         if ($attendance?->check_out) {
-            return response()->json(['message' => 'Marketing yang sudah check out tidak bisa request barang lagi hari ini.'], 422);
+            return response()->json(['message' => 'User yang sudah check out tidak bisa request barang lagi hari ini.'], 422);
         }
 
         $validated = $request->validate([
@@ -119,6 +121,10 @@ class ProductController extends Controller
             'assignment_date' => now()->toDateString(),
             'created_at' => now(),
             'take_requested_at' => now(),
+        ]);
+
+        $onhand->update([
+            'pickup_batch_code' => ProductOnhandBatchSupport::generate($onhand),
         ]);
 
         return response()->json([

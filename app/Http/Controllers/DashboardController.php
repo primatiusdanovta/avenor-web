@@ -75,7 +75,7 @@ class DashboardController extends Controller
             $quickActions[] = ['label' => 'Products', 'href' => route('products.index')];
             $quickActions[] = ['label' => 'Penjualan Offline', 'href' => route('offline-sales.index')];
             $roleHighlights = [
-                ['title' => 'Stock On Hand', 'description' => 'Reseller melihat barang yang dibawa, menginput penjualan, dan mengirim request pengembalian jika ada sisa.'],
+                ['title' => 'Stock On Hand', 'description' => 'Sales field executive melihat barang yang dibawa, menginput penjualan, melakukan consign, dan melanjutkan checkout tanpa wajib retur harian.'],
                 ['title' => 'Ringkasan Performa', 'description' => 'Dashboard menampilkan target penjualan, bonus berjalan, grafik penjualan, dan produk terlaris Anda.'],
             ];
         }
@@ -114,7 +114,7 @@ class DashboardController extends Controller
             ->with(['user', 'product.hppCalculation'])
             ->whereBetween('created_at', [$monthStart, $monthEnd])
             ->where('approval_status', '!=', 'ditolak')
-            ->when(in_array($user->role, ['marketing', 'reseller'], true), fn ($query) => $query->where('id_user', $user->id_user))
+            ->when(in_array($user->role, ['marketing', 'sales_field_executive'], true), fn ($query) => $query->where('id_user', $user->id_user))
             ->get();
 
         if (in_array($user->role, ['superadmin', 'admin'], true)) {
@@ -167,7 +167,7 @@ class DashboardController extends Controller
         $offlineTopProducts = $this->buildTopProducts($filteredOfflineSales);
         $onlineTopProducts = $this->buildTopProducts($filteredOnlineSaleItems, 'nama_product', 'quantity', 'harga');
         $topMarketing = $this->buildTopSellers($filteredOfflineSales, 'marketing');
-        $topResellers = $this->buildTopSellers($filteredOfflineSales, 'reseller');
+        $topResellers = $this->buildTopSellers($filteredOfflineSales, 'sales_field_executive');
         $onDutyCount = Attendance::query()
             ->whereDate('attendance_date', now()->toDateString())
             ->whereNotNull('check_in')
@@ -181,7 +181,7 @@ class DashboardController extends Controller
             'active_filter_type' => $salesType,
             'kpis' => [
                 'marketing_count' => User::query()->where('role', 'marketing')->count(),
-                'seller_count' => User::query()->where('role', 'reseller')->count(),
+                'seller_count' => User::query()->where('role', 'sales_field_executive')->count(),
                 'on_duty_marketing' => $onDutyCount,
                 'product_sold_total' => (int) $filteredOfflineSales->sum('quantity') + (int) $filteredOnlineSaleItems->sum('quantity'),
                 'product_sold_offline' => (int) $filteredOfflineSales->sum('quantity'),
@@ -501,6 +501,7 @@ class DashboardController extends Controller
         ];
     }
 }
+
 
 
 

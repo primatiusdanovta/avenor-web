@@ -9,8 +9,9 @@ use App\Models\OfflineSale;
 use App\Models\Product;
 use App\Models\ProductImage;
 use App\Models\ProductOnhand;
-use App\Models\RawMaterial;
 use App\Support\RawMaterialUsage;
+use App\Support\ProductOnhandBatchSupport;
+use App\Support\SalesRole;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -81,7 +82,7 @@ class ProductController extends Controller
             ]);
         }
 
-        abort_unless(in_array($user->role, ['marketing', 'reseller'], true), 403);
+        abort_unless(in_array($user->role, ['marketing', 'sales_field_executive'], true), 403);
 
         $todayAttendance = null;
         $attendanceReady = true;
@@ -96,9 +97,9 @@ class ProductController extends Controller
             $attendanceReady = (bool) $todayAttendance?->check_in && ! $todayAttendance?->check_out;
 
             if (! $todayAttendance?->check_in) {
-                $attendanceBlockedReason = 'Marketing wajib check in terlebih dahulu sebelum mengambil barang.';
+                $attendanceBlockedReason = 'Sales lapangan wajib check in terlebih dahulu sebelum mengambil barang.';
             } elseif ($todayAttendance?->check_out) {
-                $attendanceBlockedReason = 'Marketing yang sudah check out tidak bisa request barang lagi hari ini.';
+                $attendanceBlockedReason = 'User yang sudah check out tidak bisa request barang lagi hari ini.';
             }
         }
 
@@ -320,20 +321,20 @@ class ProductController extends Controller
 
     public function take(Request $request): RedirectResponse
     {
-        abort_unless(in_array($request->user()->role, ['marketing', 'reseller'], true), 403);
+        abort_unless(in_array($request->user()->role, ['marketing', 'sales_field_executive'], true), 403);
 
-        if ($request->user()->role === 'marketing') {
+        if (SalesRole::requiresAttendanceToSell($request->user()->role)) {
             $attendance = Attendance::query()
                 ->where('user_id', $request->user()->id_user)
                 ->whereDate('attendance_date', now()->toDateString())
                 ->first();
 
             if (! $attendance?->check_in) {
-                return back()->withErrors(['request_product' => 'Marketing wajib check in terlebih dahulu sebelum mengambil barang.']);
+                return back()->withErrors(['request_product' => 'Sales lapangan wajib check in terlebih dahulu sebelum mengambil barang.']);
             }
 
             if ($attendance?->check_out) {
-                return back()->withErrors(['request_product' => 'Marketing yang sudah check out tidak bisa request barang lagi hari ini.']);
+                return back()->withErrors(['request_product' => 'User yang sudah check out tidak bisa request barang lagi hari ini.']);
             }
         }
 
@@ -363,7 +364,7 @@ class ProductController extends Controller
             return back()->withErrors(['quantity' => 'Stock product tidak mencukupi.']);
         }
 
-        ProductOnhand::query()->create([
+        $onhand = ProductOnhand::query()->create([
             'user_id' => $request->user()->id_user,
             'id_product' => $product->id_product,
             'nama_product' => $product->nama_product,
@@ -376,12 +377,14 @@ class ProductController extends Controller
             'take_requested_at' => now(),
         ]);
 
+        $onhand->update(['pickup_batch_code' => ProductOnhandBatchSupport::generate($onhand)]);
+
         return redirect()->route('products.index')->with('success', 'Request pengambilan barang berhasil dikirim.');
     }
 
     public function requestReturn(Request $request, ProductOnhand $onhand): RedirectResponse
     {
-        abort_unless(in_array($request->user()->role, ['marketing', 'reseller'], true), 403);
+        abort_unless(in_array($request->user()->role, ['marketing', 'sales_field_executive'], true), 403);
         abort_unless($onhand->user_id === $request->user()->id_user, 404);
 
         if ($onhand->take_status !== 'disetujui') {
@@ -672,5 +675,12 @@ class ProductController extends Controller
         ]);
     }
 }
+
+
+
+
+
+
+
 
 
