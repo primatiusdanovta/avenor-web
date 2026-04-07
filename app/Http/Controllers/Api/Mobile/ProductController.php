@@ -22,6 +22,7 @@ class ProductController extends Controller
         $attendanceContext = MarketingMobileSupport::attendanceContext($user);
 
         $products = Product::query()
+            ->with(['fragranceDetails', 'images'])
             ->where('stock', '>', 0)
             ->orderBy('nama_product')
             ->get(['id_product', 'nama_product', 'stock', 'harga', 'gambar', 'deskripsi'])
@@ -32,6 +33,12 @@ class ProductController extends Controller
                 'harga' => (float) $product->harga,
                 'deskripsi' => $product->deskripsi,
                 'image_url' => $product->public_image_url,
+                'badge_labels' => $product->fragranceDetails
+                    ->pluck('detail')
+                    ->filter()
+                    ->map(fn ($detail) => (string) $detail)
+                    ->unique()
+                    ->values(),
                 'option_label' => $product->nama_product . ' | stock ' . (int) $product->stock,
             ])
             ->values();

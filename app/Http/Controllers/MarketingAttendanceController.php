@@ -6,6 +6,7 @@ use App\Models\Attendance;
 use App\Models\MarketingLocation;
 use App\Models\OfflineSale;
 use App\Models\ProductOnhand;
+use App\Support\SalesRole;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -17,7 +18,7 @@ class MarketingAttendanceController extends Controller
 {
     public function index(Request $request): Response
     {
-        abort_unless($request->user()->role === 'marketing', 403);
+        abort_unless(SalesRole::isFieldRole($request->user()->role), 403);
 
         $user = $request->user();
         $start = Carbon::now()->startOfMonth()->toDateString();
@@ -92,7 +93,7 @@ class MarketingAttendanceController extends Controller
 
     public function checkOut(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->role === 'marketing', 403);
+        abort_unless(SalesRole::isFieldRole($request->user()->role), 403);
 
         $blockingItems = ProductOnhand::query()
             ->with('user')
@@ -112,7 +113,7 @@ class MarketingAttendanceController extends Controller
 
     public function storeLocation(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->role === 'marketing', 403);
+        abort_unless(SalesRole::isFieldRole($request->user()->role), 403);
 
         $validated = $request->validate([
             'latitude' => ['required', 'numeric', 'between:-90,90'],
@@ -133,7 +134,7 @@ class MarketingAttendanceController extends Controller
 
     private function storeAttendanceEvent(Request $request, string $event): RedirectResponse
     {
-        abort_unless($request->user()->role === 'marketing', 403);
+        abort_unless(SalesRole::isFieldRole($request->user()->role), 403);
 
         $validated = $request->validate([
             'status' => ['required', 'in:hadir,terlambat,izin,sakit'],

@@ -18,21 +18,32 @@ class ConsignmentController extends Controller
 {
     public function index(Request $request): Response
     {
-        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
+        abort_unless(
+            in_array($request->user()->role, ['superadmin', 'admin', SalesRole::SALES_FIELD_EXECUTIVE], true),
+            403
+        );
 
-        $selectedUserId = $request->integer('user_id') ?: null;
+        $selectedUserId = $request->user()->role === SalesRole::SALES_FIELD_EXECUTIVE
+            ? $request->user()->id_user
+            : ($request->integer('user_id') ?: null);
         $search = trim((string) $request->string('search'));
 
-        $users = User::query()
-            ->where('role', SalesRole::SALES_FIELD_EXECUTIVE)
-            ->orderBy('nama')
-            ->get(['id_user', 'nama'])
-            ->map(fn (User $user) => [
-                'id_user' => $user->id_user,
-                'nama' => $user->nama,
-                'option_label' => $user->nama,
-            ])
-            ->values();
+        $users = $request->user()->role === SalesRole::SALES_FIELD_EXECUTIVE
+            ? collect([[
+                'id_user' => $request->user()->id_user,
+                'nama' => $request->user()->nama,
+                'option_label' => $request->user()->nama,
+            ]])
+            : User::query()
+                ->where('role', SalesRole::SALES_FIELD_EXECUTIVE)
+                ->orderBy('nama')
+                ->get(['id_user', 'nama'])
+                ->map(fn (User $user) => [
+                    'id_user' => $user->id_user,
+                    'nama' => $user->nama,
+                    'option_label' => $user->nama,
+                ])
+                ->values();
 
         $consignments = Consignment::query()
             ->with(['user:id_user,nama', 'items'])

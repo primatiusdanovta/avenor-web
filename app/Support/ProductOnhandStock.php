@@ -55,7 +55,7 @@ class ProductOnhandStock
             (int) $onhand->quantity
                 - self::soldQuantity($onhand, $ignoreSaleId)
                 - self::approvedReturnQuantity($onhand)
-                - self::pendingReturnQuantity($onhand),
+                - self::pendingReturnQuantity($onhand)
                 - self::consignmentActiveQuantity($onhand),
             0,
         );

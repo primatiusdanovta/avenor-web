@@ -34,6 +34,7 @@ Route::prefix('mobile')->name('api.mobile.')->group(function () {
         Route::get('/product-knowledge', MobileProductKnowledgeController::class)->name('product-knowledge.index');
         Route::get('/consignments', [MobileConsignmentController::class, 'index'])->name('consignments.index');
         Route::post('/consignments', [MobileConsignmentController::class, 'store'])->name('consignments.store');
+        Route::put('/consignment-items/{item}', [MobileConsignmentController::class, 'updateItem'])->name('consignment-items.update');
         Route::get('/offline-sales', [MobileOfflineSaleController::class, 'index'])->name('offline-sales.index');
         Route::get('/offline-sales/customer', [MobileOfflineSaleController::class, 'findCustomer'])->name('offline-sales.customer');
         Route::post('/offline-sales', [MobileOfflineSaleController::class, 'store'])->name('offline-sales.store');

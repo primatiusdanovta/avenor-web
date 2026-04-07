@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:developer' as developer;
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:animations/animations.dart';
@@ -189,6 +190,7 @@ class _MarketingRootState extends State<MarketingRoot> {
   Map<String, dynamic>? _attendance;
   Map<String, dynamic>? _products;
   Map<String, dynamic>? _sales;
+  Map<String, dynamic>? _consignments;
   Map<String, dynamic>? _knowledge;
   Map<String, dynamic>? _notifications;
   Map<String, dynamic>? _pendingOpenedNotification;
@@ -359,6 +361,7 @@ class _MarketingRootState extends State<MarketingRoot> {
           'harga': 289000.0,
           'deskripsi': 'Floral creamy untuk acara premium dan gifting.',
           'image_url': null,
+          'badge_labels': ['Floral', 'Creamy', 'Premium'],
           'option_label': 'Avenor Velvet Bloom | stock 38',
         },
         {
@@ -368,6 +371,7 @@ class _MarketingRootState extends State<MarketingRoot> {
           'harga': 259000.0,
           'deskripsi': 'Fresh citrus musk untuk daily wear dan booth sampling.',
           'image_url': null,
+          'badge_labels': ['Citrus', 'Fresh', 'Daily'],
           'option_label': 'Avenor Citrus Muse | stock 24',
         },
         {
@@ -377,6 +381,7 @@ class _MarketingRootState extends State<MarketingRoot> {
           'harga': 329000.0,
           'deskripsi': 'Warm woody untuk closing high-ticket customer.',
           'image_url': null,
+          'badge_labels': ['Woody', 'Amber', 'Bold'],
           'option_label': 'Avenor Ember Oud | stock 16',
         },
       ],
@@ -500,12 +505,14 @@ class _MarketingRootState extends State<MarketingRoot> {
           'items': [
             {
               'id': 91,
+              'product_onhand_id': 91,
               'product_name': 'Avenor Velvet Bloom',
               'pickup_batch_code': 'PICK-20260408-U4-O91',
               'quantity': 2,
               'sold_quantity': 0,
               'returned_quantity': 0,
               'status': 'dititipkan',
+              'status_notes': null,
             }
           ],
         }
@@ -578,6 +585,67 @@ class _MarketingRootState extends State<MarketingRoot> {
         ((_sales?['sales'] as List?) ?? []).cast<Map<String, dynamic>>();
     final products =
         ((_products?['products'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final consignments =
+        ((_consignments?['consignments'] as List?) ?? []).cast<Map<String, dynamic>>();
+
+    final soldByOnhand = <int, int>{};
+    final activeConsignByOnhand = <int, int>{};
+    for (final consignment in consignments) {
+      final items = ((consignment['items'] as List?) ?? [])
+          .cast<Map<String, dynamic>>();
+      for (final item in items) {
+        final onhandId = (item['product_onhand_id'] as num?)?.toInt() ??
+            (item['id'] as num?)?.toInt();
+        if (onhandId == null) {
+          continue;
+        }
+        final sold = (item['sold_quantity'] as num?)?.toInt() ?? 0;
+        final returned = (item['returned_quantity'] as num?)?.toInt() ?? 0;
+        final quantity = (item['quantity'] as num?)?.toInt() ?? 0;
+        soldByOnhand[onhandId] = (soldByOnhand[onhandId] ?? 0) + sold;
+        activeConsignByOnhand[onhandId] =
+            (activeConsignByOnhand[onhandId] ?? 0) + max(quantity - sold - returned, 0);
+      }
+    }
+
+    for (final onhand in onhands) {
+      final onhandId = (onhand['id_product_onhand'] as num?)?.toInt();
+      final takeStatus = onhand['take_status']?.toString();
+      if (takeStatus != 'disetujui') {
+        onhand['remaining_quantity'] = takeStatus == 'pending' ? 0 : (onhand['remaining_quantity'] ?? 0);
+        onhand['sold_out'] = false;
+        onhand['max_return'] = 0;
+        continue;
+      }
+      final totalQuantity = (onhand['quantity'] as num?)?.toInt() ?? 0;
+      final directSold = (onhand['sold_quantity'] as num?)?.toInt() ?? 0;
+      final consignmentSold = onhandId == null ? 0 : (soldByOnhand[onhandId] ?? 0);
+      final pendingReturn = onhand['return_status'] == 'pending'
+          ? (onhand['quantity_dikembalikan'] as num?)?.toInt() ?? 0
+          : 0;
+      final approvedReturn =
+          (onhand['approved_return_quantity'] as num?)?.toInt() ?? 0;
+      final activeConsignment =
+          onhandId == null ? 0 : (activeConsignByOnhand[onhandId] ?? 0);
+      final soldTotal = directSold + consignmentSold;
+      final remaining = max(
+        totalQuantity - soldTotal - approvedReturn - pendingReturn - activeConsignment,
+        0,
+      );
+
+      onhand['remaining_quantity'] = remaining;
+      onhand['sold_out'] = soldTotal >= totalQuantity;
+      onhand['max_return'] = max(totalQuantity - soldTotal - approvedReturn, 0);
+      if (onhand['sold_out'] == true) {
+        onhand['status_label'] = 'Sold out';
+      } else if (activeConsignment > 0) {
+        onhand['status_label'] = 'Sebagian dititipkan consign';
+      } else if (onhand['return_status'] == 'pending') {
+        onhand['status_label'] = 'Menunggu approval retur';
+      } else {
+        onhand['status_label'] = 'Masih dibawa';
+      }
+    }
 
     final approvedSalesCount =
         sales.where((item) => item['approval_status'] == 'approved').length;
@@ -611,6 +679,62 @@ class _MarketingRootState extends State<MarketingRoot> {
         .where((item) =>
             item['take_status'] == 'disetujui' && !_isCountedAsOnHand(item))
         .toList();
+    _sales?['products'] = _buildMockSalesProducts(onhands);
+    _consignments?['products'] = _buildMockConsignmentProducts(onhands);
+  }
+
+  List<Map<String, dynamic>> _buildMockSalesProducts(
+      List<Map<String, dynamic>> onhands) {
+    final catalog =
+        ((_products?['products'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final totals = <int, int>{};
+    for (final onhand in onhands) {
+      if (!_isCountedAsOnHand(onhand)) {
+        continue;
+      }
+      final productId = (onhand['id_product'] as num?)?.toInt();
+      if (productId == null) {
+        continue;
+      }
+      totals[productId] =
+          (totals[productId] ?? 0) + ((onhand['remaining_quantity'] as num?)?.toInt() ?? 0);
+    }
+
+    return catalog
+        .where((product) => (totals[(product['id_product'] as num?)?.toInt() ?? -1] ?? 0) > 0)
+        .map((product) {
+      final productId = (product['id_product'] as num?)?.toInt() ?? 0;
+      final remaining = totals[productId] ?? 0;
+      return {
+        'id_product': productId,
+        'nama_product': product['nama_product'],
+        'harga': product['harga'],
+        'remaining': remaining,
+        'image_url': product['image_url'],
+        'badge_labels': product['badge_labels'],
+        'option_label': '${product['nama_product']} | Sisa $remaining',
+      };
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> _buildMockConsignmentProducts(
+      List<Map<String, dynamic>> onhands) {
+    return onhands
+        .where((onhand) =>
+            onhand['take_status'] == 'disetujui' &&
+            ((onhand['remaining_quantity'] as num?)?.toInt() ?? 0) > 0)
+        .map((onhand) {
+      final remaining = (onhand['remaining_quantity'] as num?)?.toInt() ?? 0;
+      return {
+        'id_product_onhand': onhand['id_product_onhand'],
+        'id_product': onhand['id_product'],
+        'nama_product': onhand['nama_product'],
+        'pickup_batch_code': onhand['pickup_batch_code'],
+        'available_quantity': remaining,
+        'option_label':
+            '${onhand['nama_product']} | batch ${onhand['pickup_batch_code'] ?? '-'} | sisa $remaining',
+      };
+    }).toList();
   }
 
   static bool _isCountedAsOnHand(Map<String, dynamic> item) {
@@ -644,6 +768,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     _attendance = null;
     _products = null;
     _sales = null;
+    _consignments = null;
     _knowledge = null;
     _notifications = null;
     _unreadNotificationCount = 0;
@@ -1043,6 +1168,8 @@ class _MarketingRootState extends State<MarketingRoot> {
                 : available;
             final remaining = available - deducted;
 
+            onhand['sold_quantity'] =
+                ((onhand['sold_quantity'] as num?)?.toInt() ?? 0) + deducted;
             onhand['remaining_quantity'] = remaining;
             onhand['sold_out'] = remaining == 0;
             onhand['status_label'] =
@@ -1121,17 +1248,19 @@ class _MarketingRootState extends State<MarketingRoot> {
           'id': DateTime.now().millisecondsSinceEpoch,
           'place_name': placeName,
           'address': address,
-          'consignment_date': _formatYmd(consignmentDate),
+          'consignment_date': _formatYmdHis(consignmentDate),
           'submitted_at': _formatYmdHis(DateTime.now()),
           'handover_proof_photo_url': null,
           'items': items.map((item) => {
-            'id': item['product_onhand_id'],
+            'id': DateTime.now().millisecondsSinceEpoch + (item['product_onhand_id'] as int),
+            'product_onhand_id': item['product_onhand_id'],
             'product_name': item['product_name'],
             'pickup_batch_code': item['pickup_batch_code'],
             'quantity': item['quantity'],
             'sold_quantity': 0,
             'returned_quantity': 0,
             'status': 'dititipkan',
+            'status_notes': null,
           }).toList(),
         });
       } else {
@@ -1154,6 +1283,72 @@ class _MarketingRootState extends State<MarketingRoot> {
       }
       await _refreshAll();
       _showMessage('Consign berhasil disimpan.');
+    } on DioException catch (error) {
+      _showMessage(_readError(error));
+    } catch (error) {
+      _showMessage(error.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _updateConsignmentItem({
+    required int itemId,
+    required int soldQuantity,
+    required int returnedQuantity,
+    String? statusNotes,
+  }) async {
+    setState(() => _busy = true);
+    try {
+      if (_mockMode) {
+        final consignments =
+            ((_consignments?['consignments'] as List?) ?? []).cast<Map<String, dynamic>>();
+        for (final consignment in consignments) {
+          final items = ((consignment['items'] as List?) ?? [])
+              .cast<Map<String, dynamic>>();
+          final index = items.indexWhere(
+            (item) => (item['id'] as num?)?.toInt() == itemId,
+          );
+          if (index < 0) {
+            continue;
+          }
+
+          final quantity = (items[index]['quantity'] as num?)?.toInt() ?? 0;
+          final resolvedStatus = soldQuantity >= quantity
+              ? 'terjual'
+              : returnedQuantity >= quantity
+                  ? 'dikembalikan'
+                  : soldQuantity > 0
+                      ? 'terjual'
+                      : returnedQuantity > 0
+                          ? 'dikembalikan'
+                          : 'dititipkan';
+
+          items[index] = {
+            ...items[index],
+            'sold_quantity': soldQuantity,
+            'returned_quantity': returnedQuantity,
+            'status': resolvedStatus,
+            'status_notes': statusNotes?.trim().isEmpty == true
+                ? null
+                : statusNotes?.trim(),
+          };
+          break;
+        }
+        _syncMockDerivedState();
+      } else {
+        await _dio.put('/consignment-items/$itemId', data: {
+          'sold_quantity': soldQuantity,
+          'returned_quantity': returnedQuantity,
+          'status_notes': statusNotes?.trim().isEmpty == true
+              ? null
+              : statusNotes?.trim(),
+        });
+        await _refreshAll();
+      }
+      _showMessage('Status consign berhasil diperbarui.');
     } on DioException catch (error) {
       _showMessage(_readError(error));
     } catch (error) {
@@ -1400,12 +1595,21 @@ class _MarketingRootState extends State<MarketingRoot> {
         products: availableProducts,
         onhands: onhands,
         historyOnhands: historyOnhands,
+        consignmentProducts: isSalesFieldExecutive ? consignProducts : null,
+        consignments: isSalesFieldExecutive ? consignments : null,
         attendanceBlockedReason:
             _products?['attendance_blocked_reason']?.toString(),
         busy: _busy,
         currency: _currency,
+        dateTime: _dateTime,
         onTake: _requestTake,
         onReturn: _requestReturn,
+        onPickConsignmentProof:
+            isSalesFieldExecutive ? _pickConsignmentProof : null,
+        onSubmitConsignment:
+            isSalesFieldExecutive ? _submitConsignment : null,
+        onUpdateConsignmentItem:
+            isSalesFieldExecutive ? _updateConsignmentItem : null,
       ),
       _SalesPage(
         sales: sales,
@@ -1419,14 +1623,6 @@ class _MarketingRootState extends State<MarketingRoot> {
         onLookupCustomer: _lookupCustomerByPhone,
         mockMode: _mockMode,
       ),
-      if (isSalesFieldExecutive)
-        _ConsignmentPage(
-          products: consignProducts,
-          consignments: consignments,
-          busy: _busy,
-          onPickProof: _pickConsignmentProof,
-          onSubmit: _submitConsignment,
-        ),
       _KnowledgePage(
         products: knowledge,
         loading: _knowledge == null && _busy,
@@ -1449,11 +1645,6 @@ class _MarketingRootState extends State<MarketingRoot> {
           icon: Icon(Icons.receipt_long_outlined),
           selectedIcon: Icon(Icons.receipt_long),
           label: 'Sales'),
-      if (isSalesFieldExecutive)
-        const NavigationDestination(
-            icon: Icon(Icons.storefront_outlined),
-            selectedIcon: Icon(Icons.storefront),
-            label: 'Consign'),
       const NavigationDestination(
           icon: Icon(Icons.auto_stories_outlined),
           selectedIcon: Icon(Icons.auto_stories),
@@ -1542,14 +1733,10 @@ class _MarketingRootState extends State<MarketingRoot> {
   }
 
   String _pageTitle(int index) {
-    final isSalesFieldExecutive =
-        (_me?['role']?.toString() ?? '') == 'sales_field_executive';
     if (index == 1) return 'Absensi Lapangan';
     if (index == 2) return 'Inventory Harian';
     if (index == 3) return 'Penjualan Offline';
-    if (isSalesFieldExecutive && index == 4) return 'Consign';
-    if ((!isSalesFieldExecutive && index == 4) ||
-        (isSalesFieldExecutive && index == 5)) {
+    if (index == 4) {
       return 'Product Knowledge';
     }
     return 'Dashboard Marketing';
@@ -1559,41 +1746,33 @@ class _MarketingRootState extends State<MarketingRoot> {
     final isSalesFieldExecutive =
         (_me?['role']?.toString() ?? '') == 'sales_field_executive';
     if (index == 1) return 'Check in, check out, dan kirim lokasi dengan cepat.';
-    if (index == 2) return 'Ambil barang, pantau on hand, lalu kirim retur tanpa pindah aplikasi.';
-    if (index == 3) return 'Input customer, item, promo, dan bukti pembelian dalam satu flow native.';
-    if (isSalesFieldExecutive && index == 4) {
-      return 'Titip barang per tempat, lampirkan foto serah terima, dan pantau statusnya.';
+    if (index == 2) {
+      return isSalesFieldExecutive
+          ? 'Ambil barang, consign, pantau on hand, dan kelola riwayat consign dari satu menu.'
+          : 'Ambil barang, pantau on hand, lalu kirim retur tanpa pindah aplikasi.';
     }
-    if ((!isSalesFieldExecutive && index == 4) ||
-        (isSalesFieldExecutive && index == 5)) {
+    if (index == 3) return 'Input customer, item, promo, dan bukti pembelian dalam satu flow native.';
+    if (index == 4) {
       return 'Bahan presentasi singkat untuk bantu closing di booth dan lapangan.';
     }
     return 'Ringkasan target, aktivitas, dan performa lapangan hari ini.';
   }
 
   Color _pageAccent(int index) {
-    final isSalesFieldExecutive =
-        (_me?['role']?.toString() ?? '') == 'sales_field_executive';
     if (index == 1) return const Color(0xFFC05D3B);
     if (index == 2) return const Color(0xFF6E8B3D);
     if (index == 3) return const Color(0xFF8E5BD9);
-    if (isSalesFieldExecutive && index == 4) return const Color(0xFF8C6A2C);
-    if ((!isSalesFieldExecutive && index == 4) ||
-        (isSalesFieldExecutive && index == 5)) {
+    if (index == 4) {
       return const Color(0xFF2C8C82);
     }
     return const Color(0xFFC18B2F);
   }
 
   IconData _pageIcon(int index) {
-    final isSalesFieldExecutive =
-        (_me?['role']?.toString() ?? '') == 'sales_field_executive';
     if (index == 1) return Icons.fingerprint_rounded;
     if (index == 2) return Icons.inventory_2_rounded;
     if (index == 3) return Icons.receipt_long_rounded;
-    if (isSalesFieldExecutive && index == 4) return Icons.storefront_rounded;
-    if ((!isSalesFieldExecutive && index == 4) ||
-        (isSalesFieldExecutive && index == 5)) {
+    if (index == 4) {
       return Icons.auto_stories_rounded;
     }
     return Icons.dashboard_rounded;
@@ -3043,23 +3222,46 @@ class _InventoryPage extends StatelessWidget {
     required this.products,
     required this.onhands,
     required this.historyOnhands,
+    required this.consignmentProducts,
+    required this.consignments,
     required this.attendanceBlockedReason,
     required this.busy,
     required this.currency,
+    required this.dateTime,
     required this.onTake,
     required this.onReturn,
+    required this.onPickConsignmentProof,
+    required this.onSubmitConsignment,
+    required this.onUpdateConsignmentItem,
   });
 
   final List<Map<String, dynamic>> products;
   final List<Map<String, dynamic>> onhands;
   final List<Map<String, dynamic>> historyOnhands;
+  final List<Map<String, dynamic>>? consignmentProducts;
+  final List<Map<String, dynamic>>? consignments;
   final String? attendanceBlockedReason;
   final bool busy;
   final NumberFormat currency;
+  final DateFormat dateTime;
   final Future<void> Function({required int productId, required int quantity})
       onTake;
   final Future<void> Function({required int onhandId, required int quantity})
       onReturn;
+  final Future<XFile?> Function()? onPickConsignmentProof;
+  final Future<void> Function({
+    required String placeName,
+    required String address,
+    required DateTime consignmentDate,
+    required List<Map<String, dynamic>> items,
+    required XFile proofPhoto,
+  })? onSubmitConsignment;
+  final Future<void> Function({
+    required int itemId,
+    required int soldQuantity,
+    required int returnedQuantity,
+    String? statusNotes,
+  })? onUpdateConsignmentItem;
 
   @override
   Widget build(BuildContext context) {
@@ -3106,6 +3308,36 @@ class _InventoryPage extends StatelessWidget {
           badgeLabel: '${historyOnhands.length} item',
           onTap: busy ? null : () => _openHistorySheet(context),
         ),
+        if (consignmentProducts != null && consignments != null) ...[
+          const SizedBox(height: 16),
+          _InventoryLauncherCard(
+            title: 'Titip Barang',
+            subtitle: consignmentProducts!.isEmpty
+                ? 'Belum ada stok batch yang siap untuk consign.'
+                : 'Buat consign dari inventory dengan tanggal otomatis dan banyak item sekaligus.',
+            icon: Icons.storefront_rounded,
+            accent: const Color(0xFF8C6A2C),
+            heroTag: 'inventory-consign-form',
+            badgeLabel: '${consignmentProducts!.length} batch',
+            onTap: busy || onPickConsignmentProof == null || onSubmitConsignment == null
+                ? null
+                : () => _openConsignmentFormSheet(context),
+          ),
+          const SizedBox(height: 16),
+          _InventoryLauncherCard(
+            title: 'Riwayat Consign',
+            subtitle: consignments!.isEmpty
+                ? 'Belum ada consign tersimpan.'
+                : 'Pantau dan edit status terjual atau dikembalikan per item consign.',
+            icon: Icons.history_toggle_off_rounded,
+            accent: const Color(0xFF7C5B39),
+            heroTag: 'inventory-consign-history',
+            badgeLabel: '${consignments!.length} consign',
+            onTap: busy || onUpdateConsignmentItem == null
+                ? null
+                : () => _openConsignmentHistorySheet(context),
+          ),
+        ],
       ],
     );
   }
@@ -3149,6 +3381,35 @@ class _InventoryPage extends StatelessWidget {
       builder: (context) => _HistoryOnHandSheet(
         items: historyOnhands,
         currency: currency,
+      ),
+    );
+  }
+
+  Future<void> _openConsignmentFormSheet(BuildContext context) {
+    return showMaterialModalBottomSheet<void>(
+      context: context,
+      expand: false,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _ConsignmentFormSheet(
+        products: consignmentProducts ?? const <Map<String, dynamic>>[],
+        busy: busy,
+        dateTime: dateTime,
+        onPickProof: onPickConsignmentProof!,
+        onSubmit: onSubmitConsignment!,
+      ),
+    );
+  }
+
+  Future<void> _openConsignmentHistorySheet(BuildContext context) {
+    return showMaterialModalBottomSheet<void>(
+      context: context,
+      expand: false,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _ConsignmentHistorySheet(
+        consignments: consignments ?? const <Map<String, dynamic>>[],
+        busy: busy,
+        dateTime: dateTime,
+        onUpdateItem: onUpdateConsignmentItem!,
       ),
     );
   }
@@ -3419,6 +3680,7 @@ class _TakeProductSheetState extends State<_TakeProductSheet> {
                           itemBuilder: (context, index) {
                             final item = filteredProducts[index];
                             final stock = (item['stock'] as num?)?.toInt() ?? 0;
+                            final badges = _productBadgeLabels(item);
                             return OpenContainer<void>(
                               openBuilder: (context, _) => _TakeProductDetailSheet(
                                 item: item,
@@ -3451,15 +3713,18 @@ class _TakeProductSheetState extends State<_TakeProductSheet> {
                                 child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Container(
-                                      width: 48,
-                                      height: 48,
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFE4EED7),
+                                    GestureDetector(
+                                      onTap: () => _showProductImageSheet(context, item),
+                                      child: ClipRRect(
                                         borderRadius: BorderRadius.circular(16),
+                                        child: SizedBox(
+                                          width: 58,
+                                          height: 58,
+                                          child: _KnowledgeImage(
+                                            imageUrl: _productImageUrl(item),
+                                          ),
+                                        ),
                                       ),
-                                      child: const Icon(Icons.shopping_bag_rounded,
-                                          color: Color(0xFF6E8B3D)),
                                     ),
                                     const SizedBox(width: 14),
                                     Expanded(
@@ -3471,18 +3736,14 @@ class _TakeProductSheetState extends State<_TakeProductSheet> {
                                                   fontWeight: FontWeight.w700,
                                                   fontSize: 16)),
                                           const SizedBox(height: 6),
-                                          Text(item['deskripsi']?.toString() ?? '-'),
-                                          const SizedBox(height: 10),
                                           Wrap(
                                             spacing: 8,
                                             runSpacing: 8,
                                             children: [
                                               _MiniPill(label: 'Stock $stock'),
-                                              _MiniPill(
-                                                  label: widget.currency.format(
-                                                      (item['harga'] as num?)
-                                                              ?.toDouble() ??
-                                                          0)),
+                                              ...badges.take(2).map(
+                                                (badge) => _MiniPill(label: badge),
+                                              ),
                                             ],
                                           ),
                                         ],
@@ -3527,6 +3788,7 @@ class _TakeProductDetailSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stock = (item['stock'] as num?)?.toInt() ?? 0;
+    final badges = _productBadgeLabels(item);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7F1E8),
@@ -3555,19 +3817,20 @@ class _TakeProductDetailSheet extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 18),
-              Hero(
-                tag: 'inventory-take',
-                child: Material(
-                  color: Colors.transparent,
-                  child: Container(
-                    width: 72,
-                    height: 72,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFE4EED7),
+              GestureDetector(
+                onTap: () => _showProductImageSheet(context, item),
+                child: Hero(
+                  tag: 'inventory-take',
+                  child: Material(
+                    color: Colors.transparent,
+                    child: ClipRRect(
                       borderRadius: BorderRadius.circular(24),
+                      child: SizedBox(
+                        width: 112,
+                        height: 112,
+                        child: _KnowledgeImage(imageUrl: _productImageUrl(item)),
+                      ),
                     ),
-                    child: const Icon(Icons.shopping_bag_rounded,
-                        color: Color(0xFF6E8B3D), size: 34),
                   ),
                 ),
               ),
@@ -3577,13 +3840,8 @@ class _TakeProductDetailSheet extends StatelessWidget {
                 runSpacing: 10,
                 children: [
                   _MiniPill(label: 'Stock $stock'),
-                  _MiniPill(label: currency.format((item['harga'] as num?)?.toDouble() ?? 0)),
+                  ...badges.map((badge) => _MiniPill(label: badge)),
                 ],
-              ),
-              const SizedBox(height: 16),
-              _BlockCard(
-                title: 'Deskripsi',
-                child: Text(item['deskripsi']?.toString() ?? '-'),
               ),
               if (blockedReason != null) ...[
                 const SizedBox(height: 14),
@@ -5695,18 +5953,18 @@ class _SelectionTile extends StatelessWidget {
   }
 }
 
-class _ConsignmentPage extends StatefulWidget {
-  const _ConsignmentPage({
+class _ConsignmentFormSheet extends StatefulWidget {
+  const _ConsignmentFormSheet({
     required this.products,
-    required this.consignments,
     required this.busy,
+    required this.dateTime,
     required this.onPickProof,
     required this.onSubmit,
   });
 
   final List<Map<String, dynamic>> products;
-  final List<Map<String, dynamic>> consignments;
   final bool busy;
+  final DateFormat dateTime;
   final Future<XFile?> Function() onPickProof;
   final Future<void> Function({
     required String placeName,
@@ -5717,10 +5975,10 @@ class _ConsignmentPage extends StatefulWidget {
   }) onSubmit;
 
   @override
-  State<_ConsignmentPage> createState() => _ConsignmentPageState();
+  State<_ConsignmentFormSheet> createState() => _ConsignmentFormSheetState();
 }
 
-class _ConsignmentPageState extends State<_ConsignmentPage> {
+class _ConsignmentFormSheetState extends State<_ConsignmentFormSheet> {
   final TextEditingController _placeController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _quantityController =
@@ -5801,15 +6059,27 @@ class _ConsignmentPageState extends State<_ConsignmentPage> {
           availableProducts.first['id_product_onhand'] as int;
     }
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      children: [
-        _BlockCard(
-          title: 'Form Consign',
-          subtitle: 'Foto bukti penyerahan diambil langsung dari kamera.',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return _AnimatedSheetScaffold(
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFF7F1E8),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
             children: [
+              const _SheetHandle(),
+              const SizedBox(height: 16),
+              const _SheetHeader(
+                heroTag: 'inventory-consign-form',
+                accent: Color(0xFF8C6A2C),
+                icon: Icons.storefront_rounded,
+                title: 'Titip Barang',
+                subtitle: 'Tanggal otomatis terisi sampai jam, dan sales field bisa menambahkan banyak item sekaligus.',
+              ),
+              const SizedBox(height: 16),
               TextField(
                 controller: _placeController,
                 decoration: const InputDecoration(labelText: 'Nama tempat'),
@@ -5822,22 +6092,96 @@ class _ConsignmentPageState extends State<_ConsignmentPage> {
                 decoration: const InputDecoration(labelText: 'Alamat'),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<int>(
-                value: _selectedProductOnhandId,
-                decoration: const InputDecoration(labelText: 'Product batch'),
-                items: availableProducts
-                    .map(
-                      (product) => DropdownMenuItem<int>(
-                        value: product['id_product_onhand'] as int,
-                        child: Text(product['option_label']?.toString() ?? '-'),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: const Color(0xFFE7DDD0)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.schedule_rounded, color: Color(0xFF8C6A2C)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Tanggal consign',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF7E7368),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            widget.dateTime.format(_date),
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          const Text(
+                            'Otomatis mengikuti waktu submit dan tidak bisa diubah manual.',
+                            style: TextStyle(fontSize: 12, color: Color(0xFF6F665F)),
+                          ),
+                        ],
                       ),
-                    )
-                    .toList(),
-                onChanged: widget.busy
-                    ? null
-                    : (value) {
-                        setState(() => _selectedProductOnhandId = value);
-                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              _PickerField(
+                heroTag: 'consign-product-batch',
+                accent: const Color(0xFF8C6A2C),
+                icon: Icons.inventory_2_outlined,
+                label: 'Product batch',
+                title: _selectedProductOnhandId == null
+                    ? 'Pilih batch'
+                    : (availableProducts
+                            .firstWhere(
+                              (product) => product['id_product_onhand'] == _selectedProductOnhandId,
+                              orElse: () => const <String, dynamic>{},
+                            )['nama_product']
+                            ?.toString() ??
+                        'Pilih batch'),
+                subtitle: _selectedProductOnhandId == null
+                    ? 'Tap untuk memilih batch consign'
+                    : _consignmentBatchSubtitle(
+                        availableProducts.firstWhere(
+                          (product) => product['id_product_onhand'] == _selectedProductOnhandId,
+                          orElse: () => const <String, dynamic>{},
+                        ),
+                      ),
+                enabled: availableProducts.isNotEmpty && !widget.busy,
+                onTap: () async {
+                  final selected = await showMaterialModalBottomSheet<int>(
+                    context: context,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => _SalesOptionSheet(
+                      heroTag: 'consign-product-batch',
+                      accent: const Color(0xFF8C6A2C),
+                      icon: Icons.inventory_2_outlined,
+                      title: 'Pilih Batch Consign',
+                      subtitle: 'Pilih batch dengan sisa stok yang masih tersedia.',
+                      searchHint: 'Cari batch consign',
+                      emptyMessage: 'Belum ada batch yang bisa dititipkan.',
+                      options: availableProducts,
+                      selectedId: _selectedProductOnhandId,
+                      idResolver: (item) => (item['id_product_onhand'] as num?)?.toInt(),
+                      titleResolver: (item) => item['nama_product']?.toString() ?? 'Produk',
+                      subtitleResolver: _consignmentBatchSubtitle,
+                    ),
+                  );
+                  if (!mounted || selected == null) {
+                    return;
+                  }
+                  setState(() => _selectedProductOnhandId = selected);
+                },
               ),
               const SizedBox(height: 12),
               Row(
@@ -5866,95 +6210,83 @@ class _ConsignmentPageState extends State<_ConsignmentPage> {
                   style: TextStyle(color: Colors.grey),
                 ),
               ],
-              const SizedBox(height: 12),
-              ..._items.asMap().entries.map((entry) {
-                final index = entry.key;
-                final item = entry.value;
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${item['product_name']} | batch ${item['pickup_batch_code'] ?? '-'}',
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            Text(
-                              'Maks ${item['available_quantity'] ?? 0}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey,
+              if (_items.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                ..._items.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final item = entry.value;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item['product_name']?.toString() ?? '-',
+                                style: const TextStyle(fontWeight: FontWeight.w700),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  _MiniPill(
+                                    label: 'Batch ${item['pickup_batch_code'] ?? '-'}',
+                                  ),
+                                  _MiniPill(
+                                    label: 'Maks ${item['available_quantity'] ?? 0}',
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      SizedBox(
-                        width: 88,
-                        child: TextFormField(
-                          initialValue: '${item['quantity']}',
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(labelText: 'Qty'),
-                          onChanged: (value) {
-                            final parsed = int.tryParse(value) ?? 1;
-                            final maxQuantity =
-                                (item['available_quantity'] as num?)?.toInt() ??
-                                    parsed;
-                            _items[index]['quantity'] =
-                                parsed.clamp(1, maxQuantity);
-                          },
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 88,
+                          child: TextFormField(
+                            initialValue: '${item['quantity']}',
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Qty'),
+                            onChanged: (value) {
+                              final parsed = int.tryParse(value) ?? 1;
+                              final maxQuantity =
+                                  (item['available_quantity'] as num?)?.toInt() ?? parsed;
+                              _items[index]['quantity'] =
+                                  parsed.clamp(1, maxQuantity);
+                            },
+                          ),
                         ),
-                      ),
-                      IconButton(
-                        onPressed: widget.busy
-                            ? null
-                            : () {
-                                setState(() => _items.removeAt(index));
-                              },
-                        icon: const Icon(Icons.delete_outline),
-                      ),
-                    ],
-                  ),
-                );
-              }),
+                        IconButton(
+                          onPressed: widget.busy
+                              ? null
+                              : () => setState(() => _items.removeAt(index)),
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: widget.busy
-                        ? null
-                        : () async {
-                            final file = await widget.onPickProof();
-                            if (!mounted || file == null) return;
-                            setState(() => _proof = file);
-                          },
-                    icon: const Icon(Icons.camera_alt_outlined),
-                    label: Text(_proof == null ? 'Ambil foto bukti' : _proof!.name),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: widget.busy
-                        ? null
-                        : () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate: _date,
-                              firstDate: DateTime(2024),
-                              lastDate: DateTime(2100),
-                            );
-                            if (picked != null) {
-                              setState(() => _date = picked);
-                            }
-                          },
-                    icon: const Icon(Icons.calendar_month_outlined),
-                    label: Text(DateFormat('dd MMM yyyy', 'id_ID').format(_date)),
-                  ),
-                ],
+              OutlinedButton.icon(
+                onPressed: widget.busy
+                    ? null
+                    : () async {
+                        final file = await widget.onPickProof();
+                        if (!mounted || file == null) return;
+                        setState(() => _proof = file);
+                      },
+                icon: const Icon(Icons.camera_alt_outlined),
+                label: Text(_proof == null ? 'Ambil foto bukti' : _proof!.name),
               ),
               const SizedBox(height: 16),
               SizedBox(
@@ -5966,54 +6298,559 @@ class _ConsignmentPageState extends State<_ConsignmentPage> {
                           _placeController.text.trim().isEmpty ||
                           _addressController.text.trim().isEmpty
                       ? null
-                      : () => widget.onSubmit(
+                      : () async {
+                          final submittedAt = DateTime.now();
+                          setState(() => _date = submittedAt);
+                          await widget.onSubmit(
                             placeName: _placeController.text.trim(),
                             address: _addressController.text.trim(),
-                            consignmentDate: _date,
+                            consignmentDate: submittedAt,
                             items: _items,
                             proofPhoto: _proof!,
-                          ),
+                          );
+                        },
                   child: Text(widget.busy ? 'Menyimpan...' : 'Simpan consign'),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        _BlockCard(
-          title: 'Riwayat Consign',
-          child: widget.consignments.isEmpty
-              ? const Text('Belum ada consign tersimpan.')
-              : Column(
-                  children: widget.consignments.map((consignment) {
-                    final items = ((consignment['items'] as List?) ?? [])
-                        .cast<Map<String, dynamic>>();
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFCF8F1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            consignment['place_name']?.toString() ?? '-',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(consignment['address']?.toString() ?? '-'),
-                          const SizedBox(height: 8),
-                          ...items.map((item) => Text(
-                              '${item['product_name']} x${item['quantity']} | ${item['status']}')),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
+      ),
+    );
+  }
+
+  String _consignmentBatchSubtitle(Map<String, dynamic> item) {
+    final batch = item['pickup_batch_code']?.toString().trim();
+    final quantity = (item['available_quantity'] as num?)?.toInt() ?? 0;
+    if (batch == null || batch.isEmpty) {
+      return 'Sisa $quantity item';
+    }
+    return 'Batch $batch • Sisa $quantity item';
+  }
+}
+
+class _ConsignmentHistorySheet extends StatelessWidget {
+  const _ConsignmentHistorySheet({
+    required this.consignments,
+    required this.busy,
+    required this.dateTime,
+    required this.onUpdateItem,
+  });
+
+  final List<Map<String, dynamic>> consignments;
+  final bool busy;
+  final DateFormat dateTime;
+  final Future<void> Function({
+    required int itemId,
+    required int soldQuantity,
+    required int returnedQuantity,
+    String? statusNotes,
+  }) onUpdateItem;
+
+  @override
+  Widget build(BuildContext context) {
+    return _AnimatedSheetScaffold(
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Color(0xFFF7F1E8),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
         ),
-      ],
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 18),
+              const _SheetHandle(),
+              const SizedBox(height: 16),
+              const _SheetHeader(
+                heroTag: 'inventory-consign-history',
+                accent: Color(0xFF7C5B39),
+                icon: Icons.history_toggle_off_rounded,
+                title: 'Riwayat Consign',
+                subtitle: 'Edit status consign per barang. Barang yang dikembalikan akan kembali terbaca sebagai on hand user.',
+              ),
+              Flexible(
+                child: consignments.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.fromLTRB(20, 16, 20, 28),
+                        child: Text('Belum ada consign tersimpan.'),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                        itemCount: consignments.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final consignment = consignments[index];
+                          final items = ((consignment['items'] as List?) ?? [])
+                              .cast<Map<String, dynamic>>();
+                          return Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(24),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color(0x120F0A05),
+                                  blurRadius: 18,
+                                  offset: Offset(0, 10),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        consignment['place_name']?.toString() ?? '-',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                    ),
+                                    _StatusChip(
+                                      label: '${items.length} item',
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(consignment['address']?.toString() ?? '-'),
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    _MiniPill(
+                                      label: _formatConsignmentDate(
+                                        consignment['consignment_date']?.toString(),
+                                        dateTime,
+                                      ),
+                                    ),
+                                    if ((consignment['submitted_at']?.toString().trim().isNotEmpty ?? false))
+                                      _MiniPill(
+                                        label: 'Submit ${_formatConsignmentDate(consignment['submitted_at']?.toString(), dateTime)}',
+                                      ),
+                                  ],
+                                ),
+                                if (items.isNotEmpty) ...[
+                                  const SizedBox(height: 14),
+                                  ...items.map(
+                                    (item) => Padding(
+                                      padding: const EdgeInsets.only(bottom: 10),
+                                      child: _ConsignmentHistoryItemCard(
+                                        item: item,
+                                        busy: busy,
+                                        onUpdateItem: onUpdateItem,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ConsignmentHistoryItemCard extends StatelessWidget {
+  const _ConsignmentHistoryItemCard({
+    required this.item,
+    required this.busy,
+    required this.onUpdateItem,
+  });
+
+  final Map<String, dynamic> item;
+  final bool busy;
+  final Future<void> Function({
+    required int itemId,
+    required int soldQuantity,
+    required int returnedQuantity,
+    String? statusNotes,
+  }) onUpdateItem;
+
+  @override
+  Widget build(BuildContext context) {
+    final quantity = (item['quantity'] as num?)?.toInt() ?? 0;
+    final soldQuantity = (item['sold_quantity'] as num?)?.toInt() ?? 0;
+    final returnedQuantity = (item['returned_quantity'] as num?)?.toInt() ?? 0;
+    final activeQuantity = max(quantity - soldQuantity - returnedQuantity, 0);
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFCF8F1),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  item['product_name']?.toString() ?? '-',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+              _StatusChip(label: item['status']?.toString() ?? '-'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _MiniPill(label: 'Qty $quantity'),
+              _MiniPill(label: 'Terjual $soldQuantity'),
+              _MiniPill(label: 'Dikembalikan $returnedQuantity'),
+              _MiniPill(label: 'Aktif $activeQuantity'),
+              if ((item['pickup_batch_code']?.toString().trim().isNotEmpty ?? false))
+                _MiniPill(label: 'Batch ${item['pickup_batch_code']}'),
+            ],
+          ),
+          if ((item['status_notes']?.toString().trim().isNotEmpty ?? false)) ...[
+            const SizedBox(height: 8),
+            Text(
+              item['status_notes'].toString(),
+              style: const TextStyle(
+                fontSize: 12,
+                color: Color(0xFF6F665F),
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton.icon(
+              onPressed: busy
+                  ? null
+                  : () => showModalBottomSheet<void>(
+                        context: context,
+                        isScrollControlled: true,
+                        builder: (context) => _EditConsignmentItemSheet(
+                          item: item,
+                          onUpdateItem: onUpdateItem,
+                        ),
+                      ),
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Edit status'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EditConsignmentItemSheet extends StatefulWidget {
+  const _EditConsignmentItemSheet({
+    required this.item,
+    required this.onUpdateItem,
+  });
+
+  final Map<String, dynamic> item;
+  final Future<void> Function({
+    required int itemId,
+    required int soldQuantity,
+    required int returnedQuantity,
+    String? statusNotes,
+  }) onUpdateItem;
+
+  @override
+  State<_EditConsignmentItemSheet> createState() =>
+      _EditConsignmentItemSheetState();
+}
+
+class _EditConsignmentItemSheetState extends State<_EditConsignmentItemSheet> {
+  late final TextEditingController _soldController;
+  late final TextEditingController _returnedController;
+  late final TextEditingController _notesController;
+  bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _soldController = TextEditingController(
+      text: '${(widget.item['sold_quantity'] as num?)?.toInt() ?? 0}',
+    );
+    _returnedController = TextEditingController(
+      text: '${(widget.item['returned_quantity'] as num?)?.toInt() ?? 0}',
+    );
+    _notesController = TextEditingController(
+      text: widget.item['status_notes']?.toString() ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _soldController.dispose();
+    _returnedController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final quantity = (widget.item['quantity'] as num?)?.toInt() ?? 0;
+    final sold = int.tryParse(_soldController.text.trim()) ?? 0;
+    final returned = int.tryParse(_returnedController.text.trim()) ?? 0;
+    final active = max(quantity - sold - returned, 0);
+    final invalid = sold < 0 || returned < 0 || sold + returned > quantity;
+
+    return Material(
+      color: const Color(0xFFF7F1E6),
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SheetHandle(),
+            Text(
+              widget.item['product_name']?.toString() ?? 'Edit consign',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Text('Total consign $quantity item. Atur jumlah terjual dan dikembalikan per barang.'),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _soldController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(labelText: 'Terjual'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _returnedController,
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(labelText: 'Dikembalikan'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _notesController,
+              minLines: 2,
+              maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Catatan status'),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _MiniPill(label: 'Qty $quantity'),
+                _MiniPill(label: 'Aktif $active'),
+                _MiniPill(
+                  label: _consignmentStatusLabel(
+                    quantity: quantity,
+                    soldQuantity: sold,
+                    returnedQuantity: returned,
+                  ),
+                ),
+              ],
+            ),
+            if (invalid) ...[
+              const SizedBox(height: 10),
+              const Text(
+                'Jumlah terjual dan dikembalikan tidak boleh melebihi quantity consign.',
+                style: TextStyle(
+                  color: Color(0xFFC05D3B),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: _submitting || invalid
+                    ? null
+                    : () async {
+                        setState(() => _submitting = true);
+                        await widget.onUpdateItem(
+                          itemId: (widget.item['id'] as num).toInt(),
+                          soldQuantity: sold,
+                          returnedQuantity: returned,
+                          statusNotes: _notesController.text.trim(),
+                        );
+                        if (!context.mounted) {
+                          return;
+                        }
+                        Navigator.of(context).pop();
+                      },
+                child: Text(_submitting ? 'Menyimpan...' : 'Simpan perubahan'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _consignmentStatusLabel({
+  required int quantity,
+  required int soldQuantity,
+  required int returnedQuantity,
+}) {
+  if (soldQuantity >= quantity) {
+    return 'Terjual';
+  }
+  if (returnedQuantity >= quantity) {
+    return 'Dikembalikan';
+  }
+  if (soldQuantity > 0 && returnedQuantity > 0) {
+    return 'Terjual + dikembalikan';
+  }
+  if (soldQuantity > 0) {
+    return 'Terjual sebagian';
+  }
+  if (returnedQuantity > 0) {
+    return 'Dikembalikan sebagian';
+  }
+  return 'Masih dititipkan';
+}
+
+String _formatConsignmentDate(String? value, DateFormat formatter) {
+  if (value == null || value.trim().isEmpty) {
+    return '-';
+  }
+
+  final parsed = DateTime.tryParse(value);
+  if (parsed == null) {
+    return value;
+  }
+
+  return formatter.format(parsed);
+}
+
+String _productImageUrl(Map<String, dynamic> item) {
+  final imageUrl = item['image_url']?.toString().trim();
+  if (imageUrl != null && imageUrl.isNotEmpty) {
+    return imageUrl;
+  }
+  final fallback = item['gambar']?.toString().trim();
+  return fallback ?? '';
+}
+
+List<String> _productBadgeLabels(Map<String, dynamic> item) {
+  final labels = ((item['badge_labels'] as List?) ?? const <dynamic>[])
+      .map((entry) => entry.toString().trim())
+      .where((entry) => entry.isNotEmpty)
+      .toSet()
+      .toList();
+  if (labels.isNotEmpty) {
+    return labels.take(4).toList();
+  }
+
+  final details =
+      ((item['fragrance_details'] as List?) ?? const <dynamic>[])
+          .cast<Map<String, dynamic>>();
+  final detailLabels = details
+      .map((detail) => detail['detail']?.toString().trim() ?? '')
+      .where((entry) => entry.isNotEmpty)
+      .toSet()
+      .toList();
+  if (detailLabels.isNotEmpty) {
+    return detailLabels.take(4).toList();
+  }
+
+  return const <String>[];
+}
+
+Future<void> _showProductImageSheet(
+    BuildContext context, Map<String, dynamic> item) {
+  return showMaterialModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (_) => _ProductImageSheet(
+      title: item['nama_product']?.toString() ?? 'Product',
+      imageUrl: _productImageUrl(item),
+    ),
+  );
+}
+
+class _ProductImageSheet extends StatelessWidget {
+  const _ProductImageSheet({
+    required this.title,
+    required this.imageUrl,
+  });
+
+  final String title;
+  final String imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return _AnimatedSheetScaffold(
+      child: SafeArea(
+        top: false,
+        child: Material(
+          color: const Color(0xFFF7F1E6),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 18),
+              const _SheetHandle(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 18),
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Flexible(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: InteractiveViewer(
+                        minScale: 1,
+                        maxScale: 4,
+                        child: _KnowledgeImage(imageUrl: imageUrl),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

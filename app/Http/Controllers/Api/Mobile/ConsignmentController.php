@@ -126,6 +126,69 @@ class ConsignmentController extends Controller
         ], 201);
     }
 
+    public function updateItem(Request $request, ConsignmentItem $item): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($user?->role === SalesRole::SALES_FIELD_EXECUTIVE, 403);
+
+        $item->loadMissing('consignment');
+        abort_unless((int) $item->consignment?->user_id === (int) $user->id_user, 403);
+
+        $validated = $request->validate([
+            'sold_quantity' => ['required', 'integer', 'min:0'],
+            'returned_quantity' => ['required', 'integer', 'min:0'],
+            'status_notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        abort_if(
+            ((int) $validated['sold_quantity'] + (int) $validated['returned_quantity']) > (int) $item->quantity,
+            422,
+            'Jumlah terjual dan dikembalikan melebihi quantity consign.'
+        );
+
+        DB::transaction(function () use ($item, $validated) {
+            $status = 'dititipkan';
+            if ((int) $validated['sold_quantity'] >= (int) $item->quantity) {
+                $status = 'terjual';
+            } elseif ((int) $validated['returned_quantity'] >= (int) $item->quantity) {
+                $status = 'dikembalikan';
+            } elseif ((int) $validated['sold_quantity'] > 0) {
+                $status = 'terjual';
+            } elseif ((int) $validated['returned_quantity'] > 0) {
+                $status = 'dikembalikan';
+            }
+
+            $item->update([
+                'sold_quantity' => (int) $validated['sold_quantity'],
+                'returned_quantity' => (int) $validated['returned_quantity'],
+                'status' => $status,
+                'status_notes' => $validated['status_notes'] ?? null,
+            ]);
+
+            AccountReceivableSupport::syncFromConsignment($item->consignment()->firstOrFail());
+        });
+
+        $item->refresh();
+        $item->loadMissing('consignment');
+
+        return response()->json([
+            'message' => 'Status consign berhasil diperbarui.',
+            'item' => [
+                'id' => $item->id,
+                'product_onhand_id' => $item->product_onhand_id,
+                'product_id' => $item->product_id,
+                'product_name' => $item->product_name,
+                'pickup_batch_code' => $item->pickup_batch_code,
+                'quantity' => (int) $item->quantity,
+                'sold_quantity' => (int) $item->sold_quantity,
+                'returned_quantity' => (int) $item->returned_quantity,
+                'status' => $item->status,
+                'status_notes' => $item->status_notes,
+            ],
+            'consignment' => $this->transformConsignment($item->consignment()->with('items')->firstOrFail()),
+        ]);
+    }
+
     private function transformConsignment(Consignment $consignment): array
     {
         return [
@@ -139,12 +202,15 @@ class ConsignmentController extends Controller
             'handover_proof_photo_url' => $consignment->handover_proof_photo ? Storage::disk('public')->url($consignment->handover_proof_photo) : null,
             'items' => $consignment->items->map(fn (ConsignmentItem $item) => [
                 'id' => $item->id,
+                'product_onhand_id' => $item->product_onhand_id,
+                'product_id' => $item->product_id,
                 'product_name' => $item->product_name,
                 'pickup_batch_code' => $item->pickup_batch_code,
                 'quantity' => (int) $item->quantity,
                 'sold_quantity' => (int) $item->sold_quantity,
                 'returned_quantity' => (int) $item->returned_quantity,
                 'status' => $item->status,
+                'status_notes' => $item->status_notes,
             ])->values(),
         ];
     }
