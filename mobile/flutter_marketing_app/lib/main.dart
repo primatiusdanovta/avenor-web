@@ -681,6 +681,135 @@ class _MarketingRootState extends State<MarketingRoot> {
         .toList();
     _sales?['products'] = _buildMockSalesProducts(onhands);
     _consignments?['products'] = _buildMockConsignmentProducts(onhands);
+    _enrichConsignmentPresentationData();
+  }
+
+  void _syncDerivedConsignmentInventoryState() {
+    final onhands =
+        ((_products?['onhands'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final consignments =
+        ((_consignments?['consignments'] as List?) ?? []).cast<Map<String, dynamic>>();
+
+    if (onhands.isEmpty) {
+      _enrichConsignmentPresentationData();
+      return;
+    }
+
+    final soldByOnhand = <int, int>{};
+    final activeConsignByOnhand = <int, int>{};
+    for (final consignment in consignments) {
+      final items = ((consignment['items'] as List?) ?? [])
+          .cast<Map<String, dynamic>>();
+      for (final item in items) {
+        final onhandId = (item['product_onhand_id'] as num?)?.toInt() ??
+            (item['id'] as num?)?.toInt();
+        if (onhandId == null) {
+          continue;
+        }
+        final sold = (item['sold_quantity'] as num?)?.toInt() ?? 0;
+        final returned = (item['returned_quantity'] as num?)?.toInt() ?? 0;
+        final quantity = (item['quantity'] as num?)?.toInt() ?? 0;
+        soldByOnhand[onhandId] = (soldByOnhand[onhandId] ?? 0) + sold;
+        activeConsignByOnhand[onhandId] =
+            (activeConsignByOnhand[onhandId] ?? 0) +
+                max(quantity - sold - returned, 0);
+      }
+    }
+
+    for (final onhand in onhands) {
+      final onhandId = (onhand['id_product_onhand'] as num?)?.toInt();
+      final takeStatus = onhand['take_status']?.toString();
+      if (takeStatus != 'disetujui') {
+        continue;
+      }
+
+      final totalQuantity = (onhand['quantity'] as num?)?.toInt() ?? 0;
+      final directSold = (onhand['sold_quantity'] as num?)?.toInt() ?? 0;
+      final consignmentSold = onhandId == null ? 0 : (soldByOnhand[onhandId] ?? 0);
+      final pendingReturn = onhand['return_status'] == 'pending'
+          ? (onhand['quantity_dikembalikan'] as num?)?.toInt() ?? 0
+          : 0;
+      final approvedReturn =
+          (onhand['approved_return_quantity'] as num?)?.toInt() ?? 0;
+      final activeConsignment =
+          onhandId == null ? 0 : (activeConsignByOnhand[onhandId] ?? 0);
+      final soldTotal = directSold + consignmentSold;
+      final remaining = max(
+        totalQuantity - soldTotal - approvedReturn - pendingReturn - activeConsignment,
+        0,
+      );
+
+      onhand['remaining_quantity'] = remaining;
+      onhand['sold_out'] = soldTotal >= totalQuantity;
+      onhand['max_return'] = max(totalQuantity - soldTotal - approvedReturn, 0);
+      if (onhand['sold_out'] == true) {
+        onhand['status_label'] = 'Sold out';
+      } else if (activeConsignment > 0) {
+        onhand['status_label'] = 'Sebagian dititipkan consign';
+      } else if (onhand['return_status'] == 'pending') {
+        onhand['status_label'] = 'Menunggu approval retur';
+      } else {
+        onhand['status_label'] = 'Masih dibawa';
+      }
+    }
+
+    _products?['history_onhands'] = onhands
+        .where((item) =>
+            item['take_status'] == 'disetujui' && !_isCountedAsOnHand(item))
+        .toList();
+    _consignments?['products'] = _buildMockConsignmentProducts(onhands);
+    _enrichConsignmentPresentationData();
+  }
+
+  void _enrichConsignmentPresentationData() {
+    final knowledgeProducts =
+        ((_knowledge?['products'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final knowledgeById = <int, Map<String, dynamic>>{
+      for (final product in knowledgeProducts)
+        if ((product['id_product'] as num?)?.toInt() != null)
+          (product['id_product'] as num).toInt(): product,
+    };
+
+    final consignmentProducts =
+        ((_consignments?['products'] as List?) ?? []).cast<Map<String, dynamic>>();
+    for (final product in consignmentProducts) {
+      final productId = (product['id_product'] as num?)?.toInt();
+      final knowledge = productId == null ? null : knowledgeById[productId];
+      if (knowledge == null) {
+        continue;
+      }
+      product['fragrance_details'] = knowledge['fragrance_details'];
+      product['deskripsi'] ??= knowledge['deskripsi'];
+    }
+
+    final consignments =
+        ((_consignments?['consignments'] as List?) ?? []).cast<Map<String, dynamic>>();
+    for (final consignment in consignments) {
+      final items = ((consignment['items'] as List?) ?? [])
+          .cast<Map<String, dynamic>>();
+      for (final item in items) {
+        Map<String, dynamic>? matchedProduct;
+        try {
+          matchedProduct = consignmentProducts.firstWhere(
+            (product) => product['id_product_onhand'] == item['product_onhand_id'],
+          );
+        } catch (_) {
+          matchedProduct = null;
+        }
+
+        if (matchedProduct != null) {
+          item['fragrance_details'] ??= matchedProduct['fragrance_details'];
+          item['deskripsi'] ??= matchedProduct['deskripsi'];
+        }
+
+        final productId = (matchedProduct?['id_product'] as num?)?.toInt();
+        final knowledge = productId == null ? null : knowledgeById[productId];
+        if (knowledge != null) {
+          item['fragrance_details'] ??= knowledge['fragrance_details'];
+          item['deskripsi'] ??= knowledge['deskripsi'];
+        }
+      }
+    }
   }
 
   List<Map<String, dynamic>> _buildMockSalesProducts(
@@ -890,6 +1019,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         _consignments = results[4].data as Map<String, dynamic>;
         _knowledge = results[5].data as Map<String, dynamic>;
         _notifications = results[6].data as Map<String, dynamic>;
+        _syncDerivedConsignmentInventoryState();
       });
       await NotificationScheduler.instance.syncServerNotifications(
         ((_notifications?['notifications'] as List?) ?? [])
@@ -1231,7 +1361,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     return _picker.pickImage(source: ImageSource.camera, imageQuality: 82);
   }
 
-  Future<void> _submitConsignment({
+  Future<bool> _submitConsignment({
     required String placeName,
     required String address,
     required DateTime consignmentDate,
@@ -1282,7 +1412,10 @@ class _MarketingRootState extends State<MarketingRoot> {
         await _dio.post('/consignments', data: form);
       }
       await _refreshAll();
-      _showMessage('Consign berhasil disimpan.');
+      if (mounted) {
+        setState(() => _navigationIndex = 2);
+      }
+      return true;
     } on DioException catch (error) {
       _showMessage(_readError(error));
     } catch (error) {
@@ -1292,6 +1425,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         setState(() => _busy = false);
       }
     }
+    return false;
   }
 
   Future<void> _updateConsignmentItem({
@@ -2253,9 +2387,9 @@ class _SalesQrSheet extends StatelessWidget {
                           ],
                         ),
                 ),
-              ],
-            ),
+            ],
           ),
+        ),
         ),
       ),
     );
@@ -3249,7 +3383,7 @@ class _InventoryPage extends StatelessWidget {
   final Future<void> Function({required int onhandId, required int quantity})
       onReturn;
   final Future<XFile?> Function()? onPickConsignmentProof;
-  final Future<void> Function({
+  final Future<bool> Function({
     required String placeName,
     required String address,
     required DateTime consignmentDate,
@@ -3266,6 +3400,14 @@ class _InventoryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final displayOnhands = _buildOnHandDisplayItems(onhands);
+    final activeConsignments = _filterConsignmentsByItemState(
+      consignments ?? const <Map<String, dynamic>>[],
+      (item) => _activeConsignmentQuantity(item) > 0,
+    );
+    final completedConsignments = _filterConsignmentsByItemState(
+      consignments ?? const <Map<String, dynamic>>[],
+      (item) => _activeConsignmentQuantity(item) == 0,
+    );
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -3325,17 +3467,31 @@ class _InventoryPage extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _InventoryLauncherCard(
-            title: 'Riwayat Consign',
-            subtitle: consignments!.isEmpty
-                ? 'Belum ada consign tersimpan.'
-                : 'Pantau dan edit status terjual atau dikembalikan per item consign.',
+            title: 'Active Consign',
+            subtitle: activeConsignments.isEmpty
+                ? 'Belum ada consign aktif.'
+                : 'Pantau consign yang masih berjalan dan edit status per item.',
             icon: Icons.history_toggle_off_rounded,
             accent: const Color(0xFF7C5B39),
             heroTag: 'inventory-consign-history',
-            badgeLabel: '${consignments!.length} consign',
+            badgeLabel: '${activeConsignments.length} consign',
             onTap: busy || onUpdateConsignmentItem == null
                 ? null
                 : () => _openConsignmentHistorySheet(context),
+          ),
+          const SizedBox(height: 16),
+          _InventoryLauncherCard(
+            title: 'Riwayat Consign',
+            subtitle: completedConsignments.isEmpty
+                ? 'Belum ada consign yang sudah diambil atau terjual.'
+                : 'Lihat consign yang sudah selesai diambil kembali atau sudah terjual.',
+            icon: Icons.fact_check_outlined,
+            accent: const Color(0xFF5B6F8D),
+            heroTag: 'inventory-consign-completed',
+            badgeLabel: '${completedConsignments.length} consign',
+            onTap: busy || onUpdateConsignmentItem == null
+                ? null
+                : () => _openCompletedConsignmentHistorySheet(context),
           ),
         ],
       ],
@@ -3406,9 +3562,38 @@ class _InventoryPage extends StatelessWidget {
       expand: false,
       backgroundColor: Colors.transparent,
       builder: (context) => _ConsignmentHistorySheet(
-        consignments: consignments ?? const <Map<String, dynamic>>[],
+        consignments: _filterConsignmentsByItemState(
+          consignments ?? const <Map<String, dynamic>>[],
+          (item) => _activeConsignmentQuantity(item) > 0,
+        ),
         busy: busy,
         dateTime: dateTime,
+        title: 'Active Consign',
+        subtitle:
+            'Edit status consign per barang yang masih aktif. Barang yang dikembalikan akan kembali terbaca sebagai on hand user.',
+        emptyMessage: 'Belum ada consign aktif.',
+        onUpdateItem: onUpdateConsignmentItem!,
+      ),
+    );
+  }
+
+  Future<void> _openCompletedConsignmentHistorySheet(BuildContext context) {
+    return showMaterialModalBottomSheet<void>(
+      context: context,
+      expand: false,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _ConsignmentHistorySheet(
+        consignments: _filterConsignmentsByItemState(
+          consignments ?? const <Map<String, dynamic>>[],
+          (item) => _activeConsignmentQuantity(item) == 0,
+        ),
+        busy: busy,
+        dateTime: dateTime,
+        title: 'Riwayat Consign',
+        subtitle:
+            'Daftar consign yang sudah selesai karena item terjual atau sudah diambil kembali.',
+        emptyMessage: 'Belum ada consign yang sudah diambil atau terjual.',
+        readOnly: true,
         onUpdateItem: onUpdateConsignmentItem!,
       ),
     );
@@ -5632,6 +5817,7 @@ class _SalesOptionSheet extends StatefulWidget {
     required this.idResolver,
     required this.titleResolver,
     this.subtitleResolver,
+    this.trailingBadgeResolver,
     this.includeNoneOption = false,
     this.noneLabel = 'Tidak ada',
   });
@@ -5648,6 +5834,7 @@ class _SalesOptionSheet extends StatefulWidget {
   final int? Function(Map<String, dynamic>) idResolver;
   final String Function(Map<String, dynamic>) titleResolver;
   final String? Function(Map<String, dynamic>)? subtitleResolver;
+  final String? Function(Map<String, dynamic>)? trailingBadgeResolver;
   final bool includeNoneOption;
   final String noneLabel;
 
@@ -5738,6 +5925,8 @@ class _SalesOptionSheetState extends State<_SalesOptionSheet> {
                                   accent: widget.accent,
                                   title: widget.titleResolver(item),
                                   subtitle: widget.subtitleResolver?.call(item),
+                                  trailingBadgeLabel:
+                                      widget.trailingBadgeResolver?.call(item),
                                   onTap: id == null
                                       ? null
                                       : () => Navigator.of(context).pop<int?>(id),
@@ -5764,6 +5953,7 @@ class _PickerField extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.trailingBadgeLabel,
     this.enabled = true,
   });
 
@@ -5774,6 +5964,7 @@ class _PickerField extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final String? trailingBadgeLabel;
   final bool enabled;
 
   @override
@@ -5851,7 +6042,17 @@ class _PickerField extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Icon(Icons.expand_more_rounded, color: foreground),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (trailingBadgeLabel != null &&
+                    trailingBadgeLabel!.trim().isNotEmpty) ...[
+                  _MiniPill(label: trailingBadgeLabel!),
+                  const SizedBox(width: 8),
+                ],
+                Icon(Icons.expand_more_rounded, color: foreground),
+              ],
+            ),
           ],
         ),
       ),
@@ -5867,6 +6068,7 @@ class _SelectionTile extends StatelessWidget {
     required this.title,
     required this.onTap,
     this.subtitle,
+    this.trailingBadgeLabel,
   });
 
   final bool selected;
@@ -5874,6 +6076,7 @@ class _SelectionTile extends StatelessWidget {
   final Color accent;
   final String title;
   final String? subtitle;
+  final String? trailingBadgeLabel;
   final VoidCallback? onTap;
 
   @override
@@ -5942,9 +6145,19 @@ class _SelectionTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Icon(
-              selected ? Icons.check_circle_rounded : Icons.chevron_right_rounded,
-              color: selected ? accent : const Color(0xFF8F857A),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (trailingBadgeLabel != null &&
+                    trailingBadgeLabel!.trim().isNotEmpty) ...[
+                  _MiniPill(label: trailingBadgeLabel!),
+                  const SizedBox(width: 8),
+                ],
+                Icon(
+                  selected ? Icons.check_circle_rounded : Icons.chevron_right_rounded,
+                  color: selected ? accent : const Color(0xFF8F857A),
+                ),
+              ],
             ),
           ],
         ),
@@ -5966,7 +6179,7 @@ class _ConsignmentFormSheet extends StatefulWidget {
   final bool busy;
   final DateFormat dateTime;
   final Future<XFile?> Function() onPickProof;
-  final Future<void> Function({
+  final Future<bool> Function({
     required String placeName,
     required String address,
     required DateTime consignmentDate,
@@ -6157,6 +6370,17 @@ class _ConsignmentFormSheetState extends State<_ConsignmentFormSheet> {
                           orElse: () => const <String, dynamic>{},
                         ),
                       ),
+                trailingBadgeLabel: _selectedProductOnhandId == null
+                    ? null
+                    : 'Stok ${((availableProducts
+                                    .firstWhere(
+                                      (product) =>
+                                          product['id_product_onhand'] ==
+                                          _selectedProductOnhandId,
+                                      orElse: () => const <String, dynamic>{},
+                                    )['available_quantity'] as num?)
+                                ?.toInt() ??
+                            0)}',
                 enabled: availableProducts.isNotEmpty && !widget.busy,
                 onTap: () async {
                   final selected = await showMaterialModalBottomSheet<int>(
@@ -6175,6 +6399,8 @@ class _ConsignmentFormSheetState extends State<_ConsignmentFormSheet> {
                       idResolver: (item) => (item['id_product_onhand'] as num?)?.toInt(),
                       titleResolver: (item) => item['nama_product']?.toString() ?? 'Produk',
                       subtitleResolver: _consignmentBatchSubtitle,
+                      trailingBadgeResolver: (item) =>
+                          'Stok ${((item['available_quantity'] as num?)?.toInt() ?? 0)}',
                     ),
                   );
                   if (!mounted || selected == null) {
@@ -6301,13 +6527,36 @@ class _ConsignmentFormSheetState extends State<_ConsignmentFormSheet> {
                       : () async {
                           final submittedAt = DateTime.now();
                           setState(() => _date = submittedAt);
-                          await widget.onSubmit(
+                          final success = await widget.onSubmit(
                             placeName: _placeController.text.trim(),
                             address: _addressController.text.trim(),
                             consignmentDate: submittedAt,
                             items: _items,
                             proofPhoto: _proof!,
                           );
+                          if (!context.mounted || !success) {
+                            return;
+                          }
+                          await showDialog<void>(
+                            context: context,
+                            builder: (dialogContext) => AlertDialog(
+                              title: const Text('Consign berhasil'),
+                              content: const Text(
+                                'Data consign berhasil disimpan. Anda akan kembali ke halaman inventory.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(dialogContext).pop(),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (!context.mounted) {
+                            return;
+                          }
+                          Navigator.of(context).pop();
                         },
                   child: Text(widget.busy ? 'Menyimpan...' : 'Simpan consign'),
                 ),
@@ -6321,25 +6570,35 @@ class _ConsignmentFormSheetState extends State<_ConsignmentFormSheet> {
 
   String _consignmentBatchSubtitle(Map<String, dynamic> item) {
     final batch = item['pickup_batch_code']?.toString().trim();
-    final quantity = (item['available_quantity'] as num?)?.toInt() ?? 0;
+    final fragrance = _productFragranceSummary(item, maxParts: 2);
     if (batch == null || batch.isEmpty) {
-      return 'Sisa $quantity item';
+      return fragrance ?? 'Detail fragrance belum tersedia';
     }
-    return 'Batch $batch • Sisa $quantity item';
+    if (fragrance == null || fragrance.isEmpty) {
+      return 'Batch $batch';
+    }
+    return 'Batch $batch | $fragrance';
   }
 }
-
 class _ConsignmentHistorySheet extends StatelessWidget {
   const _ConsignmentHistorySheet({
     required this.consignments,
     required this.busy,
     required this.dateTime,
+    required this.title,
+    required this.subtitle,
+    required this.emptyMessage,
     required this.onUpdateItem,
+    this.readOnly = false,
   });
 
   final List<Map<String, dynamic>> consignments;
   final bool busy;
   final DateFormat dateTime;
+  final String title;
+  final String subtitle;
+  final String emptyMessage;
+  final bool readOnly;
   final Future<void> Function({
     required int itemId,
     required int soldQuantity,
@@ -6363,18 +6622,18 @@ class _ConsignmentHistorySheet extends StatelessWidget {
               const SizedBox(height: 18),
               const _SheetHandle(),
               const SizedBox(height: 16),
-              const _SheetHeader(
+              _SheetHeader(
                 heroTag: 'inventory-consign-history',
                 accent: Color(0xFF7C5B39),
                 icon: Icons.history_toggle_off_rounded,
-                title: 'Riwayat Consign',
-                subtitle: 'Edit status consign per barang. Barang yang dikembalikan akan kembali terbaca sebagai on hand user.',
+                title: title,
+                subtitle: subtitle,
               ),
               Flexible(
                 child: consignments.isEmpty
-                    ? const Padding(
-                        padding: EdgeInsets.fromLTRB(20, 16, 20, 28),
-                        child: Text('Belum ada consign tersimpan.'),
+                    ? Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                        child: Text(emptyMessage),
                       )
                     : ListView.separated(
                         shrinkWrap: true,
@@ -6444,11 +6703,12 @@ class _ConsignmentHistorySheet extends StatelessWidget {
                                       child: _ConsignmentHistoryItemCard(
                                         item: item,
                                         busy: busy,
+                                        readOnly: readOnly,
                                         onUpdateItem: onUpdateItem,
                                       ),
                                     ),
                                   ),
-                                ],
+                              ],
                               ],
                             ),
                           );
@@ -6467,11 +6727,13 @@ class _ConsignmentHistoryItemCard extends StatelessWidget {
   const _ConsignmentHistoryItemCard({
     required this.item,
     required this.busy,
+    this.readOnly = false,
     required this.onUpdateItem,
   });
 
   final Map<String, dynamic> item;
   final bool busy;
+  final bool readOnly;
   final Future<void> Function({
     required int itemId,
     required int soldQuantity,
@@ -6529,24 +6791,26 @@ class _ConsignmentHistoryItemCard extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerRight,
-            child: OutlinedButton.icon(
-              onPressed: busy
-                  ? null
-                  : () => showModalBottomSheet<void>(
-                        context: context,
-                        isScrollControlled: true,
-                        builder: (context) => _EditConsignmentItemSheet(
-                          item: item,
-                          onUpdateItem: onUpdateItem,
+          if (!readOnly) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                onPressed: busy
+                    ? null
+                    : () => showModalBottomSheet<void>(
+                          context: context,
+                          isScrollControlled: true,
+                          builder: (context) => _EditConsignmentItemSheet(
+                            item: item,
+                            onUpdateItem: onUpdateItem,
+                          ),
                         ),
-                      ),
-              icon: const Icon(Icons.edit_outlined),
-              label: const Text('Edit status'),
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Edit status'),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -6607,16 +6871,18 @@ class _EditConsignmentItemSheetState extends State<_EditConsignmentItemSheet> {
     final returned = int.tryParse(_returnedController.text.trim()) ?? 0;
     final active = max(quantity - sold - returned, 0);
     final invalid = sold < 0 || returned < 0 || sold + returned > quantity;
+    final mediaQuery = MediaQuery.of(context);
+    final safeBottom = max(mediaQuery.padding.bottom, mediaQuery.viewPadding.bottom);
 
     return Material(
       color: const Color(0xFFF7F1E6),
       borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-      child: Padding(
+      child: SingleChildScrollView(
         padding: EdgeInsets.only(
           left: 20,
           right: 20,
           top: 20,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          bottom: mediaQuery.viewInsets.bottom + safeBottom + 20,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -6751,6 +7017,65 @@ String _formatConsignmentDate(String? value, DateFormat formatter) {
   }
 
   return formatter.format(parsed);
+}
+
+String _startCaseWords(String value) {
+  return value
+      .split(RegExp(r'[\s_-]+'))
+      .where((part) => part.trim().isNotEmpty)
+      .map((part) =>
+          '${part[0].toUpperCase()}${part.substring(1).toLowerCase()}')
+      .join(' ');
+}
+
+String? _productFragranceSummary(Map<String, dynamic> item, {int maxParts = 2}) {
+  final details =
+      ((item['fragrance_details'] as List?) ?? const <dynamic>[])
+          .cast<Map<String, dynamic>>();
+  final labels = <String>[];
+  for (final detail in details) {
+    final value = detail['detail']?.toString().trim();
+    if (value != null && value.isNotEmpty) {
+      labels.add(_startCaseWords(value));
+    }
+  }
+  if (labels.isNotEmpty) {
+    return labels.take(maxParts).join(', ');
+  }
+
+  final description = item['deskripsi']?.toString().trim();
+  if (description != null && description.isNotEmpty) {
+    return description;
+  }
+
+  return null;
+}
+
+int _activeConsignmentQuantity(Map<String, dynamic> item) {
+  final quantity = (item['quantity'] as num?)?.toInt() ?? 0;
+  final soldQuantity = (item['sold_quantity'] as num?)?.toInt() ?? 0;
+  final returnedQuantity = (item['returned_quantity'] as num?)?.toInt() ?? 0;
+  return max(quantity - soldQuantity - returnedQuantity, 0);
+}
+
+List<Map<String, dynamic>> _filterConsignmentsByItemState(
+  List<Map<String, dynamic>> consignments,
+  bool Function(Map<String, dynamic>) predicate,
+) {
+  final filtered = <Map<String, dynamic>>[];
+  for (final consignment in consignments) {
+    final items = ((consignment['items'] as List?) ?? const <dynamic>[])
+        .cast<Map<String, dynamic>>();
+    final matchedItems = items.where(predicate).map(Map<String, dynamic>.from).toList();
+    if (matchedItems.isEmpty) {
+      continue;
+    }
+    filtered.add({
+      ...Map<String, dynamic>.from(consignment),
+      'items': matchedItems,
+    });
+  }
+  return filtered;
 }
 
 String _productImageUrl(Map<String, dynamic> item) {

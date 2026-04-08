@@ -265,6 +265,13 @@
             >
                 Kelola Onhand
             </Link>
+            <Link
+                v-if="isSuperadmin && selectedMember"
+                :href="adminUrl(`/consignments?user_id=${selectedMember.id_user}`)"
+                class="btn btn-outline-primary"
+            >
+                Kelola Consign
+            </Link>
             <Link :href="adminUrl('/approvals')" class="btn btn-outline-primary">Buka Halaman Approval</Link>
             <button type="button" class="btn btn-secondary" @click="closeDetailModal">Tutup</button>
         </template>
@@ -656,6 +663,8 @@ const returnStatusBadgeClass = (status) => ({ pending: 'badge-warning-soft text-
     .carried-item { padding: 0.75rem; }
 }
 </style>
+
+
 
 
 

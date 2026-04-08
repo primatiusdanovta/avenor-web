@@ -168,6 +168,9 @@ Route::prefix($administratorPrefix)->group(function () {
 
         Route::get('/products', [ProductController::class, 'index'])->name('products.index');
         Route::get('/consignments', [ConsignmentController::class, 'index'])->name('consignments.index');
+        Route::post('/consignments', [ConsignmentController::class, 'store'])->name('consignments.store');
+        Route::put('/consignments/{consignment}', [ConsignmentController::class, 'update'])->name('consignments.update');
+        Route::delete('/consignments/{consignment}', [ConsignmentController::class, 'destroy'])->name('consignments.destroy');
         Route::put('/consignment-items/{item}', [ConsignmentController::class, 'updateItem'])->name('consignment-items.update');
         Route::get('/product-onhands', [ProductOnhandManagementController::class, 'index'])->name('product-onhands.index');
         Route::post('/product-onhands', [ProductOnhandManagementController::class, 'store'])->name('product-onhands.store');
