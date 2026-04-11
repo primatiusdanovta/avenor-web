@@ -19,10 +19,17 @@ class ConsignmentController extends Controller
     {
         $user = $request->user();
         abort_unless($user?->role === SalesRole::SALES_FIELD_EXECUTIVE, 403);
+        abort_if(
+            $user && MarketingMobileSupport::isSmoothiesSweetieUser($user),
+            404,
+            'Fitur consign dinonaktifkan untuk store Smoothies Sweetie.'
+        );
+        $storeId = MarketingMobileSupport::currentStoreId($user);
 
         $products = collect();
         $onhands = \App\Models\ProductOnhand::query()
             ->with('user')
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
             ->where('user_id', $user->id_user)
             ->where('take_status', 'disetujui')
             ->orderByDesc('assignment_date')
@@ -47,6 +54,7 @@ class ConsignmentController extends Controller
 
         $consignments = Consignment::query()
             ->with('items')
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
             ->where('user_id', $user->id_user)
             ->latest('submitted_at')
             ->latest('id')
@@ -65,6 +73,12 @@ class ConsignmentController extends Controller
     {
         $user = $request->user();
         abort_unless($user?->role === SalesRole::SALES_FIELD_EXECUTIVE, 403);
+        abort_if(
+            $user && MarketingMobileSupport::isSmoothiesSweetieUser($user),
+            404,
+            'Fitur consign dinonaktifkan untuk store Smoothies Sweetie.'
+        );
+        $storeId = MarketingMobileSupport::currentStoreId($user);
 
         $validated = $request->validate([
             'place_name' => ['required', 'string', 'max:255'],
@@ -79,8 +93,9 @@ class ConsignmentController extends Controller
         ]);
 
         $proofPath = $request->file('handover_proof_photo')?->store('consignments', 'public');
-        $consignment = DB::transaction(function () use ($validated, $user, $proofPath) {
+        $consignment = DB::transaction(function () use ($validated, $user, $proofPath, $storeId) {
             $consignment = Consignment::query()->create([
+                'store_id' => $storeId,
                 'user_id' => $user->id_user,
                 'place_name' => $validated['place_name'],
                 'address' => $validated['address'],
@@ -94,6 +109,7 @@ class ConsignmentController extends Controller
             foreach ($validated['items'] as $item) {
                 $onhand = \App\Models\ProductOnhand::query()
                     ->with('user')
+                    ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
                     ->where('id_product_onhand', $item['product_onhand_id'])
                     ->where('user_id', $user->id_user)
                     ->lockForUpdate()
@@ -130,9 +146,15 @@ class ConsignmentController extends Controller
     {
         $user = $request->user();
         abort_unless($user?->role === SalesRole::SALES_FIELD_EXECUTIVE, 403);
+        abort_if(
+            $user && MarketingMobileSupport::isSmoothiesSweetieUser($user),
+            404,
+            'Fitur consign dinonaktifkan untuk store Smoothies Sweetie.'
+        );
 
         $item->loadMissing('consignment');
         abort_unless((int) $item->consignment?->user_id === (int) $user->id_user, 403);
+        abort_unless((int) $item->consignment?->store_id === (int) MarketingMobileSupport::currentStoreId($user), 404);
 
         $validated = $request->validate([
             'sold_quantity' => ['required', 'integer', 'min:0'],

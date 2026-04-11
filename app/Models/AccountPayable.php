@@ -2,14 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DefaultsToAvenorStore;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AccountPayable extends Model
 {
-    use HasFactory;
+    use DefaultsToAvenorStore, HasFactory;
 
     protected $fillable = [
+        'store_id',
         'account_payable',
         'due_date',
         'notes',
@@ -20,5 +23,10 @@ class AccountPayable extends Model
         return [
             'due_date' => 'date',
         ];
+    }
+
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 }

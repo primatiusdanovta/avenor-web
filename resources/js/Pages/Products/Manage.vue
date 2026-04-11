@@ -18,7 +18,7 @@
                 </div>
                 <div class="card-body p-0 table-responsive">
                     <table class="table table-hover mb-0">
-                        <thead><tr><th>Gambar</th><th>Nama</th><th>Fragrance Detail</th><th>Harga</th><th>Harga Modal</th><th>Stock</th><th class="action-column">Aksi</th></tr></thead>
+                        <thead><tr><th>Gambar</th><th>Nama</th><th v-if="!isSmoothiesSweetie">Fragrance Detail</th><th>Varian</th><th>Harga</th><th>Harga Modal</th><th>Stock</th><th class="action-column">Aksi</th></tr></thead>
                         <tbody>
                             <tr v-for="item in filteredProducts" :key="item.id_product">
                                 <td><img v-if="item.gambar" :src="item.gambar" alt="product" style="width:48px;height:48px;object-fit:cover"></td>
@@ -26,9 +26,17 @@
                                     <button type="button" class="btn btn-link p-0 font-weight-bold text-left" @click="openEditModal(item)">{{ item.nama_product }}</button>
                                     <div class="text-muted small">{{ truncateWords(item.deskripsi, 10) }}</div>
                                 </td>
-                                <td>
+                                <td v-if="!isSmoothiesSweetie">
                                     <div v-if="item.fragrance_details.length" class="small">
                                         <span v-for="detail in item.fragrance_details" :key="`${item.id_product}-${detail.id_fd}`" class="fragrance-badge mr-1 mb-1">{{ detail.detail }}</span>
+                                    </div>
+                                    <span v-else class="text-muted">-</span>
+                                </td>
+                                <td>
+                                    <div v-if="item.variants?.length" class="small">
+                                        <div v-for="variant in item.variants" :key="`${item.id_product}-${variant.id}`">
+                                            {{ variant.name }} | {{ toCurrency(variant.price) }}<span v-if="variant.total_satuan_ml"> | {{ formatNumber(variant.total_satuan_ml) }} ml</span>
+                                        </div>
                                     </div>
                                     <span v-else class="text-muted">-</span>
                                 </td>
@@ -42,7 +50,7 @@
                                     </div>
                                 </td>
                             </tr>
-                            <tr v-if="!filteredProducts.length"><td colspan="7" class="text-center text-muted">Belum ada product.</td></tr>
+                            <tr v-if="!filteredProducts.length"><td :colspan="isSmoothiesSweetie ? 8 : 9" class="text-center text-muted">Belum ada product.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -69,18 +77,52 @@
                 <div class="form-group col-md-6 mb-0"><label>Harga Modal</label><input :value="0" type="number" min="0" class="form-control" disabled></div>
             </div>
             <small class="text-muted d-block">Harga modal diisi otomatis dari halaman HPP.</small>
-            <div class="form-group mb-0">
+            <div v-if="!isSmoothiesSweetie" class="form-group mb-0">
                 <label>Stock Awal</label>
                 <input v-model="createForm.stock" type="number" min="0" class="form-control" :class="{ 'is-invalid': createForm.errors.stock }">
                 <div v-if="createForm.errors.stock" class="invalid-feedback d-block">{{ createForm.errors.stock }}</div>
             </div>
-            <small class="text-muted d-block">Buat product baru dengan stock 0 terlebih dahulu. Setelah HPP dibuat, stock ditambah lewat form edit agar raw material ikut terpotong otomatis.</small>
+            <small class="text-muted d-block">
+                {{ isSmoothiesSweetie ? 'Stock awal disembunyikan untuk store Smoothies Sweetie. Tambah stock dilakukan setelah product selesai dibuat.' : 'Buat product baru dengan stock 0 terlebih dahulu. Setelah HPP dibuat, stock ditambah lewat form edit agar raw material ikut terpotong otomatis.' }}
+            </small>
             <div class="form-group mb-0">
                 <label>Deskripsi</label>
-                <textarea v-model="createForm.deskripsi" rows="3" class="form-control" :class="{ 'is-invalid': createForm.errors.deskripsi }"></textarea>
+                <RichTextEditor v-model="createForm.deskripsi" />
                 <div v-if="createForm.errors.deskripsi" class="invalid-feedback d-block">{{ createForm.errors.deskripsi }}</div>
             </div>
             <div class="form-group mb-0">
+                <label>Varian Product</label>
+                <div class="variant-box">
+                    <div v-for="(variant, index) in createForm.variants" :key="variant.key" class="border rounded p-2 mb-2 bg-light">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong>Varian {{ index + 1 }}</strong>
+                            <button v-if="createForm.variants.length > 1" type="button" class="btn btn-xs btn-outline-danger" @click="removeVariant(createForm, index)">Hapus</button>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-2">
+                                <label class="small">Nama Varian</label>
+                                <input v-model="variant.name" type="text" class="form-control" placeholder="Reguler / Large">
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label class="small">Harga</label>
+                                <input v-model="variant.price" type="number" min="0" class="form-control">
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <label class="small">Total Satuan ML</label>
+                                <input v-model="variant.total_satuan_ml" type="number" min="0" step="0.01" class="form-control">
+                            </div>
+                            <div class="col-md-1 mb-2 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input :id="`create-default-${index}`" v-model="variant.is_default" type="radio" class="form-check-input" :name="'create-default-variant'" @change="markDefaultVariant(createForm, index)">
+                                    <label class="form-check-label small" :for="`create-default-${index}`">Default</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" @click="addVariant(createForm)">Tambah Varian</button>
+                </div>
+            </div>
+            <div v-if="!isSmoothiesSweetie" class="form-group mb-0">
                 <label>Fragrance Detail</label>
                 <div class="border rounded p-2 bg-light fragrance-box">
                     <div v-for="item in fragranceDetails" :key="`create-${item.id_fd}`" class="custom-control custom-checkbox">
@@ -129,10 +171,42 @@
             </div>
             <div class="form-group mb-0">
                 <label>Deskripsi</label>
-                <textarea v-model="editForm.deskripsi" rows="3" class="form-control" :class="{ 'is-invalid': editForm.errors.deskripsi }"></textarea>
+                <RichTextEditor v-model="editForm.deskripsi" />
                 <div v-if="editForm.errors.deskripsi" class="invalid-feedback d-block">{{ editForm.errors.deskripsi }}</div>
             </div>
             <div class="form-group mb-0">
+                <label>Varian Product</label>
+                <div class="variant-box">
+                    <div v-for="(variant, index) in editForm.variants" :key="variant.key" class="border rounded p-2 mb-2 bg-light">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <strong>Varian {{ index + 1 }}</strong>
+                            <button v-if="editForm.variants.length > 1" type="button" class="btn btn-xs btn-outline-danger" @click="removeVariant(editForm, index)">Hapus</button>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-2">
+                                <label class="small">Nama Varian</label>
+                                <input v-model="variant.name" type="text" class="form-control" placeholder="Reguler / Large">
+                            </div>
+                            <div class="col-md-4 mb-2">
+                                <label class="small">Harga</label>
+                                <input v-model="variant.price" type="number" min="0" class="form-control">
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <label class="small">Total Satuan ML</label>
+                                <input v-model="variant.total_satuan_ml" type="number" min="0" step="0.01" class="form-control">
+                            </div>
+                            <div class="col-md-1 mb-2 d-flex align-items-end">
+                                <div class="form-check">
+                                    <input :id="`edit-default-${index}`" v-model="variant.is_default" type="radio" class="form-check-input" :name="'edit-default-variant'" @change="markDefaultVariant(editForm, index)">
+                                    <label class="form-check-label small" :for="`edit-default-${index}`">Default</label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" @click="addVariant(editForm)">Tambah Varian</button>
+                </div>
+            </div>
+            <div v-if="!isSmoothiesSweetie" class="form-group mb-0">
                 <label>Fragrance Detail</label>
                 <div class="border rounded p-2 bg-light fragrance-box">
                     <div v-for="item in fragranceDetails" :key="`edit-${item.id_fd}`" class="custom-control custom-checkbox">
@@ -177,12 +251,14 @@ import { computed, ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import BootstrapModal from '../../Components/BootstrapModal.vue';
+import RichTextEditor from '../../Components/RichTextEditor.vue';
 import { adminUrl } from '../../utils/admin';
 
-const props = defineProps({ products: Array, fragranceDetails: Array });
+const props = defineProps({ products: Array, fragranceDetails: Array, isSmoothiesSweetie: Boolean });
 const keyword = ref('');
-const createForm = useForm({ nama_product: '', harga: '', stock: 0, deskripsi: '', fragrance_details: [], gambar: null });
-const editForm = useForm({ id_product: null, nama_product: '', harga: '', harga_modal: 0, stock: 0, deskripsi: '', fragrance_details: [], gambar: null, gambar_lama: null });
+const emptyVariant = () => ({ key: `${Date.now()}-${Math.random()}`, id: null, name: '', price: 0, total_satuan_ml: 0, is_default: false });
+const createForm = useForm({ nama_product: '', harga: '', stock: 0, deskripsi: '', fragrance_details: [], variants: [emptyVariant()], gambar: null });
+const editForm = useForm({ id_product: null, nama_product: '', harga: '', harga_modal: 0, stock: 0, deskripsi: '', fragrance_details: [], variants: [emptyVariant()], gambar: null, gambar_lama: null });
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
 const showDeleteModal = ref(false);
@@ -191,18 +267,43 @@ const filteredProducts = computed(() => props.products.filter((item) => item.nam
 const toCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(value || 0);
 const createErrorMessages = computed(() => Object.values(createForm.errors || {}));
 const editErrorMessages = computed(() => Object.values(editForm.errors || {}));
+const formatNumber = (value) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(Number(value || 0));
+const plainText = (value) => String(value || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 const truncateWords = (value, limit = 10) => {
-    const words = String(value || '').trim().split(/\s+/).filter(Boolean);
+    const words = plainText(value).split(/\s+/).filter(Boolean);
     if (!words.length) return '-';
     return words.length <= limit ? words.join(' ') : `${words.slice(0, limit).join(' ')}...`;
 };
 const setImageFile = (form, event) => {
     form.gambar = event.target.files?.[0] ?? null;
 };
+const addVariant = (form) => {
+    form.variants.push(emptyVariant());
+};
+const removeVariant = (form, index) => {
+    form.variants.splice(index, 1);
+    if (!form.variants.length) {
+        form.variants = [emptyVariant()];
+    }
+    if (!form.variants.some((variant) => variant.is_default)) {
+        form.variants[0].is_default = true;
+    }
+};
+const markDefaultVariant = (form, index) => {
+    form.variants = form.variants.map((variant, currentIndex) => ({
+        ...variant,
+        is_default: currentIndex === index,
+    }));
+};
 const openCreateModal = () => {
     createForm.reset();
     createForm.fragrance_details = [];
+    createForm.variants = [Object.assign(emptyVariant(), { name: 'Reguler', price: 0, is_default: true })];
     createForm.gambar = null;
     showCreateModal.value = true;
 };
@@ -210,9 +311,13 @@ const closeCreateModal = () => {
     showCreateModal.value = false;
     createForm.reset();
     createForm.fragrance_details = [];
+    createForm.variants = [emptyVariant()];
     createForm.gambar = null;
 };
-const submitCreate = () => createForm.post(adminUrl('/products'), {
+const submitCreate = () => createForm.transform((data) => ({
+    ...data,
+    variants: data.variants.map(({ id, name, price, total_satuan_ml, is_default }) => ({ id, name, price, total_satuan_ml, is_default })),
+})).post(adminUrl('/products'), {
     forceFormData: true,
     preserveScroll: true,
     onSuccess: () => closeCreateModal(),
@@ -226,6 +331,9 @@ const openEditModal = (item) => {
         stock: item.stock,
         deskripsi: item.deskripsi || '',
         fragrance_details: item.fragrance_details.map((detail) => String(detail.id_fd)),
+        variants: item.variants?.length
+            ? item.variants.map((variant) => ({ key: `${variant.id}-${Math.random()}`, id: variant.id, name: variant.name, price: variant.price, total_satuan_ml: variant.total_satuan_ml, is_default: variant.is_default }))
+            : [Object.assign(emptyVariant(), { name: 'Reguler', price: item.harga, is_default: true })],
         gambar: null,
         gambar_lama: item.gambar || null,
     });
@@ -236,11 +344,12 @@ const closeEditModal = () => {
     editForm.reset();
     editForm.id_product = null;
     editForm.fragrance_details = [];
+    editForm.variants = [emptyVariant()];
     editForm.gambar = null;
     editForm.gambar_lama = null;
 };
 const submitEdit = () => {
-    editForm.transform((data) => ({ id_product: data.id_product, nama_product: data.nama_product, harga: data.harga, stock: data.stock, deskripsi: data.deskripsi, fragrance_details: data.fragrance_details, gambar: data.gambar, _method: 'put' })).post(adminUrl(`/products/${editForm.id_product}`), {
+    editForm.transform((data) => ({ id_product: data.id_product, nama_product: data.nama_product, harga: data.harga, stock: data.stock, deskripsi: data.deskripsi, fragrance_details: data.fragrance_details, variants: data.variants.map(({ id, name, price, total_satuan_ml, is_default }) => ({ id, name, price, total_satuan_ml, is_default })), gambar: data.gambar, _method: 'put' })).post(adminUrl(`/products/${editForm.id_product}`), {
         forceFormData: true,
         preserveScroll: true,
         onSuccess: () => closeEditModal(),
@@ -269,6 +378,11 @@ const confirmDelete = () => {
 
 .fragrance-box {
     max-height: 220px;
+    overflow-y: auto;
+}
+
+.variant-box {
+    max-height: 340px;
     overflow-y: auto;
 }
 

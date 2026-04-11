@@ -14,18 +14,20 @@ class RawMaterialUsage
         return self::normalizeUnit($satuan) === 'ML';
     }
 
-    public static function calculateUsageQuantity(float $inputValue, ?string $satuan): float
+    public static function calculateUsageQuantity(float $inputValue, ?string $satuan, ?float $mlBase = null): float
     {
         if (self::isMilliliter($satuan)) {
-            return ($inputValue / 100) * 50;
+            $base = max((float) ($mlBase ?? 50), 0);
+
+            return ($inputValue / 100) * $base;
         }
 
         return $inputValue;
     }
 
-    public static function calculateItemCost(float $inputValue, float $hargaSatuan, ?string $satuan): float
+    public static function calculateItemCost(float $inputValue, float $hargaSatuan, ?string $satuan, ?float $mlBase = null): float
     {
-        return self::calculateUsageQuantity($inputValue, $satuan) * $hargaSatuan;
+        return self::calculateUsageQuantity($inputValue, $satuan, $mlBase) * $hargaSatuan;
     }
 
     public static function recalculatePackageStock(float $totalQuantity, float $quantityPerPack): float

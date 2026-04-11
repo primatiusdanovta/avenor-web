@@ -2,8 +2,11 @@
 
 namespace App\Models;
 
+use App\Support\PermissionCatalog;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -20,6 +23,7 @@ class User extends Authenticatable
         'nama',
         'status',
         'role',
+        'permission_role_id',
         'password',
         'require_return_before_checkout',
     ];
@@ -36,6 +40,18 @@ class User extends Authenticatable
             'created_at' => 'datetime',
             'require_return_before_checkout' => 'boolean',
         ];
+    }
+
+    public function permissionRole(): BelongsTo
+    {
+        return $this->belongsTo(PermissionRole::class, 'permission_role_id');
+    }
+
+    public function stores(): BelongsToMany
+    {
+        return $this->belongsToMany(Store::class, 'store_user_assignments', 'user_id', 'store_id', 'id_user', 'id')
+            ->withPivot(['is_primary'])
+            ->withTimestamps();
     }
 
     public function attendances(): HasMany
@@ -76,5 +92,25 @@ class User extends Authenticatable
     public function consignments(): HasMany
     {
         return $this->hasMany(Consignment::class, 'user_id', 'id_user');
+    }
+
+    public function permissions(): array
+    {
+        $permissions = $this->permissionRole?->permissions;
+
+        if (is_array($permissions) && $permissions !== []) {
+            return $permissions;
+        }
+
+        return PermissionCatalog::defaultPermissionsForLegacyRole($this->getRawOriginal('role'));
+    }
+
+    public function hasPermission(string $permission): bool
+    {
+        if ($this->getRawOriginal('role') === 'superadmin') {
+            return true;
+        }
+
+        return in_array($permission, $this->permissions(), true);
     }
 }

@@ -15,9 +15,11 @@ class RawMaterialController extends Controller
 {
     public function index(Request $request): Response
     {
-        abort_unless($request->user()->role === 'superadmin', 403);
+        $this->authorizePermission($request, 'raw_materials.view');
+        $storeId = $this->currentStoreId($request);
 
         $materials = RawMaterial::query()
+            ->where('store_id', $storeId)
             ->orderByDesc('created_at')
             ->get()
             ->map(fn (RawMaterial $material) => [
@@ -29,6 +31,10 @@ class RawMaterialController extends Controller
                 'harga_satuan' => (float) $material->harga_satuan,
                 'stock' => (float) $material->stock,
                 'total_quantity' => (float) $material->total_quantity,
+                'waste_materials' => (float) $material->waste_materials,
+                'waste_percentage' => (float) $material->waste_percentage,
+                'waste_loss_percentage' => (float) $material->waste_loss_percentage,
+                'waste_loss_amount' => (float) $material->waste_loss_amount,
                 'harga_total' => (float) $material->harga_total,
                 'created_at' => optional($material->created_at)->format('Y-m-d H:i:s'),
                 'option_label' => $material->nama_rm . ' | ' . $material->satuan,
@@ -42,12 +48,16 @@ class RawMaterialController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->role === 'superadmin', 403);
+        $this->authorizePermission($request, 'raw_materials.manage');
+        $storeId = $this->currentStoreId($request);
 
         $validated = $this->validatePayload($request);
 
-        DB::transaction(function () use ($validated): void {
-            RawMaterial::query()->create($this->buildPayload($validated) + ['created_at' => now()]);
+        DB::transaction(function () use ($validated, $storeId): void {
+            RawMaterial::query()->create($this->buildPayload($validated) + [
+                'store_id' => $storeId,
+                'created_at' => now(),
+            ]);
         });
 
         return redirect()->route('raw-materials.index')->with('success', 'Raw material berhasil ditambahkan.');
@@ -55,7 +65,8 @@ class RawMaterialController extends Controller
 
     public function update(Request $request, RawMaterial $rawMaterial): RedirectResponse
     {
-        abort_unless($request->user()->role === 'superadmin', 403);
+        $this->authorizePermission($request, 'raw_materials.manage');
+        $this->ensureStoreMatch($request, $rawMaterial);
 
         $validated = $this->validatePayload($request, $rawMaterial);
 
@@ -69,15 +80,18 @@ class RawMaterialController extends Controller
 
     public function restock(Request $request): RedirectResponse
     {
-        abort_unless($request->user()->role === 'superadmin', 403);
+        $this->authorizePermission($request, 'raw_materials.manage');
 
         $validated = $request->validate([
             'id_rm' => ['required', 'exists:raw_materials,id_rm'],
             'stock' => ['required', 'numeric', 'min:0.01'],
         ]);
 
-        DB::transaction(function () use ($validated): void {
+        $storeId = $this->currentStoreId($request);
+
+        DB::transaction(function () use ($validated, $storeId): void {
             $rawMaterial = RawMaterial::query()->lockForUpdate()->findOrFail($validated['id_rm']);
+            abort_unless((int) $rawMaterial->store_id === $storeId, 404);
             $stockToAdd = round((float) $validated['stock'], 2);
             $newStock = round((float) $rawMaterial->stock + $stockToAdd, 2);
             $newTotalQuantity = round((float) $rawMaterial->total_quantity + ($stockToAdd * (float) $rawMaterial->quantity), 2);
@@ -96,7 +110,8 @@ class RawMaterialController extends Controller
 
     public function destroy(Request $request, RawMaterial $rawMaterial): RedirectResponse
     {
-        abort_unless($request->user()->role === 'superadmin', 403);
+        $this->authorizePermission($request, 'raw_materials.manage');
+        $this->ensureStoreMatch($request, $rawMaterial);
 
         $rawMaterial->delete();
 
@@ -110,12 +125,15 @@ class RawMaterialController extends Controller
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('raw_materials', 'nama_rm')->ignore($rawMaterial?->id_rm, 'id_rm'),
+                Rule::unique('raw_materials', 'nama_rm')
+                    ->where(fn ($query) => $query->where('store_id', $this->currentStoreId($request)))
+                    ->ignore($rawMaterial?->id_rm, 'id_rm'),
             ],
-            'satuan' => ['required', Rule::in(['pcs', 'ML'])],
+            'satuan' => ['required', Rule::in(['pcs', 'ML', 'gram', 'kg'])],
             'harga' => ['required', 'numeric', 'min:0'],
             'quantity' => ['required', 'numeric', 'min:0.01'],
             'stock' => ['required', 'numeric', 'min:0'],
+            'waste_materials' => ['nullable', 'numeric', 'min:0'],
         ]);
     }
 
@@ -124,6 +142,10 @@ class RawMaterialController extends Controller
         $hargaSatuan = (float) $validated['quantity'] > 0 ? (float) $validated['harga'] / (float) $validated['quantity'] : 0;
         $totalQuantity = round((float) $validated['stock'] * (float) $validated['quantity'], 2);
         $hargaTotal = round((float) $validated['stock'] * (float) $validated['harga'], 2);
+        $wasteMaterials = round((float) ($validated['waste_materials'] ?? 0), 2);
+        $wastePercentage = $totalQuantity > 0 ? round(($wasteMaterials / $totalQuantity) * 100, 2) : 0;
+        $wasteLossAmount = round($wasteMaterials * $hargaSatuan, 2);
+        $wasteLossPercentage = $hargaTotal > 0 ? round(($wasteLossAmount / $hargaTotal) * 100, 2) : 0;
 
         return [
             'nama_rm' => $validated['nama_rm'],
@@ -133,6 +155,10 @@ class RawMaterialController extends Controller
             'harga_satuan' => $hargaSatuan,
             'stock' => round((float) $validated['stock'], 2),
             'total_quantity' => $totalQuantity,
+            'waste_materials' => $wasteMaterials,
+            'waste_percentage' => $wastePercentage,
+            'waste_loss_percentage' => $wasteLossPercentage,
+            'waste_loss_amount' => $wasteLossAmount,
             'harga_total' => $hargaTotal,
         ];
     }

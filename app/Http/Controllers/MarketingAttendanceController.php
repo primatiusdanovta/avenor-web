@@ -18,20 +18,24 @@ class MarketingAttendanceController extends Controller
 {
     public function index(Request $request): Response
     {
-        abort_unless(SalesRole::isFieldRole($request->user()->role), 403);
+        abort_unless(SalesRole::isFieldRole($request->user()->role) && $request->user()->hasPermission('attendance.view'), 403);
 
         $user = $request->user();
+        $storeId = $this->currentStoreId($request);
         $start = Carbon::now()->startOfMonth()->toDateString();
         $end = Carbon::now()->endOfMonth()->toDateString();
         $attendanceQuery = Attendance::query()
+            ->where('store_id', $storeId)
             ->where('user_id', $user->id_user)
             ->whereBetween('attendance_date', [$start, $end]);
         $today = Attendance::query()
+            ->where('store_id', $storeId)
             ->where('user_id', $user->id_user)
             ->whereDate('attendance_date', now()->toDateString())
             ->first();
 
         $recentAttendances = Attendance::query()
+            ->where('store_id', $storeId)
             ->where('user_id', $user->id_user)
             ->latest('attendance_date')
             ->limit(8)
@@ -47,14 +51,17 @@ class MarketingAttendanceController extends Controller
                 'check_out_location' => $attendance->check_out_latitude && $attendance->check_out_longitude ? $attendance->check_out_latitude . ', ' . $attendance->check_out_longitude : '-',
             ]);
 
-        $todayOnhands = ProductOnhand::query()
-            ->where('user_id', $user->id_user)
-            ->whereDate('assignment_date', now()->toDateString())
-            ->where('take_status', 'disetujui')
-            ->orderByDesc('id_product_onhand')
-            ->get()
-            ->map(fn (ProductOnhand $onhand) => $this->transformOnhand($onhand))
-            ->values();
+        $todayOnhands = $this->isSmoothiesSweetieStore($request)
+            ? collect()
+            : ProductOnhand::query()
+                ->where('store_id', $storeId)
+                ->where('user_id', $user->id_user)
+                ->whereDate('assignment_date', now()->toDateString())
+                ->where('take_status', 'disetujui')
+                ->orderByDesc('id_product_onhand')
+                ->get()
+                ->map(fn (ProductOnhand $onhand) => $this->transformOnhand($onhand))
+                ->values();
 
         return Inertia::render('Marketing/Attendance', [
             'kpis' => [
@@ -73,7 +80,9 @@ class MarketingAttendanceController extends Controller
             ] : null,
             'recentAttendances' => $recentAttendances,
             'carriedProducts' => $todayOnhands,
+            'isSmoothiesSweetie' => $this->isSmoothiesSweetieStore($request),
             'latestLocation' => Inertia::defer(fn () => optional(MarketingLocation::query()
+                ->where('store_id', $storeId)
                 ->where('user_id', $user->id_user)
                 ->latest('recorded_at')
                 ->first(), fn ($location) => [
@@ -88,21 +97,25 @@ class MarketingAttendanceController extends Controller
 
     public function checkIn(Request $request): RedirectResponse
     {
+        abort_unless($request->user()->hasPermission('attendance.checkin'), 403);
         return $this->storeAttendanceEvent($request, 'check_in');
     }
 
     public function checkOut(Request $request): RedirectResponse
     {
-        abort_unless(SalesRole::isFieldRole($request->user()->role), 403);
+        abort_unless(SalesRole::isFieldRole($request->user()->role) && $request->user()->hasPermission('attendance.checkout'), 403);
 
-        $blockingItems = ProductOnhand::query()
-            ->with('user')
-            ->where('user_id', $request->user()->id_user)
-            ->whereDate('assignment_date', now()->toDateString())
-            ->where('take_status', 'disetujui')
-            ->get()
-            ->filter(fn (ProductOnhand $onhand) => ! $this->stateForOnhand($onhand)['can_checkout'])
-            ->values();
+        $blockingItems = $this->isSmoothiesSweetieStore($request)
+            ? collect()
+            : ProductOnhand::query()
+                ->with('user')
+                ->where('store_id', $this->currentStoreId($request))
+                ->where('user_id', $request->user()->id_user)
+                ->whereDate('assignment_date', now()->toDateString())
+                ->where('take_status', 'disetujui')
+                ->get()
+                ->filter(fn (ProductOnhand $onhand) => ! $this->stateForOnhand($onhand)['can_checkout'])
+                ->values();
 
         if ($blockingItems->isNotEmpty()) {
             return back()->withErrors(['checkout' => 'Barang belum dikembalikan']);
@@ -113,7 +126,7 @@ class MarketingAttendanceController extends Controller
 
     public function storeLocation(Request $request): RedirectResponse
     {
-        abort_unless(SalesRole::isFieldRole($request->user()->role), 403);
+        abort_unless(SalesRole::isFieldRole($request->user()->role) && $request->user()->hasPermission('attendance.manage'), 403);
 
         $validated = $request->validate([
             'latitude' => ['required', 'numeric', 'between:-90,90'],
@@ -122,6 +135,7 @@ class MarketingAttendanceController extends Controller
         ]);
 
         MarketingLocation::create([
+            'store_id' => $this->currentStoreId($request),
             'user_id' => $request->user()->id_user,
             'latitude' => $validated['latitude'],
             'longitude' => $validated['longitude'],
@@ -134,7 +148,7 @@ class MarketingAttendanceController extends Controller
 
     private function storeAttendanceEvent(Request $request, string $event): RedirectResponse
     {
-        abort_unless(SalesRole::isFieldRole($request->user()->role), 403);
+        abort_unless(SalesRole::isFieldRole($request->user()->role) && $request->user()->hasPermission('attendance.manage'), 403);
 
         $validated = $request->validate([
             'status' => ['required', 'in:hadir,terlambat,izin,sakit'],
@@ -145,6 +159,7 @@ class MarketingAttendanceController extends Controller
 
         $now = now();
         $attendance = Attendance::query()->firstOrNew([
+            'store_id' => $this->currentStoreId($request),
             'user_id' => $request->user()->id_user,
             'attendance_date' => $now->toDateString(),
         ]);
@@ -185,6 +200,7 @@ class MarketingAttendanceController extends Controller
         $attendance->save();
 
         MarketingLocation::create([
+            'store_id' => $this->currentStoreId($request),
             'user_id' => $request->user()->id_user,
             'latitude' => $validated['latitude'],
             'longitude' => $validated['longitude'],

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
+use App\Models\ProductVariant;
 use App\Models\FragranceDetail;
 use App\Models\HppCalculationItem;
 use App\Models\OfflineSale;
@@ -29,10 +30,14 @@ class ProductController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
+        $storeId = $this->currentStoreId($request);
 
-        if (in_array($user->role, ['superadmin', 'admin'], true)) {
+        if (in_array($user->role, ['superadmin', 'admin', SalesRole::OWNER], true) && $user->hasPermission('products.manage')) {
+            $this->authorizePermission($request, 'products.view');
+
             $products = Product::query()
-                ->with(['fragranceDetails', 'images'])
+                ->where('store_id', $storeId)
+                ->with(['fragranceDetails', 'images', 'variants'])
                 ->orderByDesc('created_at')
                 ->orderByDesc('id_product')
                 ->get()
@@ -60,6 +65,13 @@ class ProductController extends Controller
                             'deskripsi' => $detail->deskripsi,
                         ])
                         ->values(),
+                    'variants' => $product->variants->map(fn (ProductVariant $variant) => [
+                        'id' => $variant->id,
+                        'name' => $variant->name,
+                        'price' => (float) $variant->price,
+                        'total_satuan_ml' => (float) $variant->total_satuan_ml,
+                        'is_default' => (bool) $variant->is_default,
+                    ])->values(),
                     'created_at' => optional($product->created_at)->format('Y-m-d H:i:s'),
                 ])
                 ->values();
@@ -79,11 +91,13 @@ class ProductController extends Controller
 
             return Inertia::render('Products/Manage', [
                 'products' => $products,
-                'fragranceDetails' => $fragranceDetails,
+                'fragranceDetails' => $this->isSmoothiesSweetieStore($request) ? [] : $fragranceDetails,
+                'isSmoothiesSweetie' => $this->isSmoothiesSweetieStore($request),
             ]);
         }
 
-        abort_unless(in_array($user->role, ['marketing', 'sales_field_executive'], true), 403);
+        abort_unless(SalesRole::isFieldRole($user->role) && $user->hasPermission('products.view'), 403);
+        $this->abortIfStoreDisablesOnhandAndConsignment($request);
 
         $todayAttendance = null;
         $attendanceReady = true;
@@ -105,6 +119,7 @@ class ProductController extends Controller
         }
 
         $products = Product::query()
+            ->where('store_id', $storeId)
             ->where('stock', '>', 0)
             ->orderBy('nama_product')
             ->get(['id_product', 'nama_product', 'stock', 'harga'])
@@ -118,6 +133,7 @@ class ProductController extends Controller
             ->values();
 
         $onhands = ProductOnhand::query()
+            ->where('store_id', $storeId)
             ->where('user_id', $user->id_user)
             ->orderByDesc('assignment_date')
             ->orderByDesc('id_product_onhand')
@@ -126,6 +142,7 @@ class ProductController extends Controller
             ->values();
 
         $todayReturnItems = ProductOnhand::query()
+            ->where('store_id', $storeId)
             ->where('user_id', $user->id_user)
             ->orderByDesc('assignment_date')
             ->orderByDesc('id_product_onhand')
@@ -160,15 +177,21 @@ class ProductController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $this->authorizeManagement($request);
+        $storeId = $this->currentStoreId($request);
 
         $validated = $request->validate([
-            'nama_product' => ['required', 'string', 'max:255', 'unique:products,nama_product'],
+            'nama_product' => ['required', 'string', 'max:255', Rule::unique('products', 'nama_product')->where(fn ($query) => $query->where('store_id', $storeId))],
             'harga' => ['required', 'numeric', 'min:0'],
             'stock' => ['required', 'integer', 'min:0'],
             'gambar' => ['nullable', 'image', 'max:3072'],
             'deskripsi' => ['nullable', 'string'],
             'fragrance_details' => ['nullable', 'array'],
             'fragrance_details.*' => ['integer', 'exists:fragrance_details,id_fd'],
+            'variants' => ['nullable', 'array'],
+            'variants.*.name' => ['required_with:variants', 'string', 'max:255'],
+            'variants.*.price' => ['required_with:variants', 'numeric', 'min:0'],
+            'variants.*.total_satuan_ml' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.is_default' => ['nullable', 'boolean'],
         ]);
 
         if ((int) $validated['stock'] > 0) {
@@ -180,8 +203,9 @@ class ProductController extends Controller
         $path = $request->file('gambar')?->store('products', 'public');
 
         try {
-            DB::transaction(function () use ($validated, $path): void {
+            DB::transaction(function () use ($validated, $path, $storeId): void {
                 $product = Product::query()->create([
+                    'store_id' => $storeId,
                     'nama_product' => $validated['nama_product'],
                     'harga' => $validated['harga'],
                     'harga_modal' => 0,
@@ -192,6 +216,7 @@ class ProductController extends Controller
                 ]);
 
                 $product->fragranceDetails()->sync($validated['fragrance_details'] ?? []);
+                $this->syncVariants($product, $validated['variants'] ?? [], true);
             });
         } catch (Throwable $exception) {
             if ($path) {
@@ -207,15 +232,23 @@ class ProductController extends Controller
     public function update(Request $request, Product $product): RedirectResponse
     {
         $this->authorizeManagement($request);
+        $this->ensureStoreMatch($request, $product);
+        $storeId = $this->currentStoreId($request);
 
         $validated = $request->validate([
-            'nama_product' => ['required', 'string', 'max:255', Rule::unique('products', 'nama_product')->ignore($product->id_product, 'id_product')],
+            'nama_product' => ['required', 'string', 'max:255', Rule::unique('products', 'nama_product')->where(fn ($query) => $query->where('store_id', $storeId))->ignore($product->id_product, 'id_product')],
             'harga' => ['required', 'numeric', 'min:0'],
             'stock' => ['required', 'integer', 'min:0'],
             'gambar' => ['nullable', 'image', 'max:3072'],
             'deskripsi' => ['nullable', 'string'],
             'fragrance_details' => ['nullable', 'array'],
             'fragrance_details.*' => ['integer', 'exists:fragrance_details,id_fd'],
+            'variants' => ['nullable', 'array'],
+            'variants.*.id' => ['nullable', 'integer', 'exists:product_variants,id'],
+            'variants.*.name' => ['required_with:variants', 'string', 'max:255'],
+            'variants.*.price' => ['required_with:variants', 'numeric', 'min:0'],
+            'variants.*.total_satuan_ml' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.is_default' => ['nullable', 'boolean'],
         ]);
 
         $payload = [
@@ -244,6 +277,7 @@ class ProductController extends Controller
 
                 $product->update($payload);
                 $product->fragranceDetails()->sync($validated['fragrance_details'] ?? []);
+                $this->syncVariants($product, $validated['variants'] ?? []);
             });
         } catch (Throwable $exception) {
             if ($newImagePath) {
@@ -263,6 +297,7 @@ class ProductController extends Controller
     public function destroy(Request $request, Product $product): RedirectResponse
     {
         $this->authorizeManagement($request);
+        $this->ensureStoreMatch($request, $product);
 
         if ($product->gambar) {
             Storage::disk('public')->delete($product->gambar);
@@ -322,7 +357,8 @@ class ProductController extends Controller
 
     public function take(Request $request): RedirectResponse
     {
-        abort_unless(in_array($request->user()->role, ['marketing', 'sales_field_executive'], true), 403);
+        abort_unless(in_array($request->user()->role, [SalesRole::MARKETING, SalesRole::SALES_FIELD_EXECUTIVE], true) && $request->user()->hasPermission('products.take'), 403);
+        $storeId = $this->currentStoreId($request);
 
         if (SalesRole::requiresAttendanceToSell($request->user()->role)) {
             $attendance = Attendance::query()
@@ -356,6 +392,7 @@ class ProductController extends Controller
         }
 
         $product = Product::query()->findOrFail($validated['id_product']);
+        abort_unless((int) $product->store_id === $storeId, 404);
 
         if ($product->stock <= 0) {
             return back()->withErrors(['stock_empty' => 'Stock Kosong, Silahkan Hubungi Admin!']);
@@ -366,6 +403,7 @@ class ProductController extends Controller
         }
 
         $onhand = ProductOnhand::query()->create([
+            'store_id' => $storeId,
             'user_id' => $request->user()->id_user,
             'id_product' => $product->id_product,
             'nama_product' => $product->nama_product,
@@ -385,7 +423,8 @@ class ProductController extends Controller
 
     public function requestReturn(Request $request, ProductOnhand $onhand): RedirectResponse
     {
-        abort_unless(in_array($request->user()->role, ['marketing', 'sales_field_executive'], true), 403);
+        abort_unless(in_array($request->user()->role, [SalesRole::MARKETING, SalesRole::SALES_FIELD_EXECUTIVE], true) && $request->user()->hasPermission('products.take'), 403);
+        $this->ensureStoreMatch($request, $onhand);
         abort_unless($onhand->user_id === $request->user()->id_user, 404);
 
         if ($onhand->take_status !== 'disetujui') {
@@ -425,7 +464,8 @@ class ProductController extends Controller
 
     public function approveReturn(Request $request, ProductOnhand $onhand): RedirectResponse
     {
-        $this->authorizeManagement($request);
+        $this->authorizeApproval($request);
+        $this->ensureStoreMatch($request, $onhand);
         abort_unless($onhand->quantity_dikembalikan > 0, 422);
 
         DB::transaction(function () use ($request, $onhand): void {
@@ -445,7 +485,8 @@ class ProductController extends Controller
 
     public function rejectReturn(Request $request, ProductOnhand $onhand): RedirectResponse
     {
-        $this->authorizeManagement($request);
+        $this->authorizeApproval($request);
+        $this->ensureStoreMatch($request, $onhand);
 
         $onhand->update([
             'quantity_dikembalikan' => 0,
@@ -458,7 +499,8 @@ class ProductController extends Controller
 
     public function approveTake(Request $request, ProductOnhand $onhand): RedirectResponse
     {
-        $this->authorizeManagement($request);
+        $this->authorizeApproval($request);
+        $this->ensureStoreMatch($request, $onhand);
         abort_unless($onhand->take_status === 'pending', 422);
 
         DB::transaction(function () use ($request, $onhand): void {
@@ -482,7 +524,8 @@ class ProductController extends Controller
 
     public function rejectTake(Request $request, ProductOnhand $onhand): RedirectResponse
     {
-        $this->authorizeManagement($request);
+        $this->authorizeApproval($request);
+        $this->ensureStoreMatch($request, $onhand);
         abort_unless($onhand->take_status === 'pending', 422);
 
         $onhand->update([
@@ -496,7 +539,12 @@ class ProductController extends Controller
 
     private function authorizeManagement(Request $request): void
     {
-        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
+        abort_unless(in_array($request->user()->role, ['superadmin', 'admin', SalesRole::OWNER], true) && $request->user()->hasPermission('products.manage'), 403);
+    }
+
+    private function authorizeApproval(Request $request): void
+    {
+        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true) && $request->user()->hasPermission('products.approve'), 403);
     }
 
     private function transformOnhand(ProductOnhand $onhand): array
@@ -607,6 +655,7 @@ class ProductController extends Controller
             $rawMaterial = RawMaterial::query()
                 ->lockForUpdate()
                 ->findOrFail($item->id_rm);
+            abort_unless((int) $rawMaterial->store_id === (int) $product->store_id, 404);
 
             $usagePerProduct = RawMaterialUsage::calculateUsageQuantity((float) $item->presentase, $item->satuan);
             $requiredQuantity = round($usagePerProduct * $stockIncrease, 2);
@@ -637,6 +686,80 @@ class ProductController extends Controller
             HppCalculationItem::query()
                 ->where('id_rm', $rawMaterial->id_rm)
                 ->update(['total_stock' => $remainingQuantity]);
+        }
+    }
+
+    private function syncVariants(Product $product, array $variants, bool $createDefaultWhenEmpty = false): void
+    {
+        $normalized = collect($variants)
+            ->map(function (array $variant, int $index) {
+                return [
+                    'id' => isset($variant['id']) ? (int) $variant['id'] : null,
+                    'name' => trim((string) ($variant['name'] ?? '')),
+                    'price' => round((float) ($variant['price'] ?? 0), 2),
+                    'total_satuan_ml' => round((float) ($variant['total_satuan_ml'] ?? 0), 2),
+                    'is_default' => (bool) ($variant['is_default'] ?? false),
+                    'sort_index' => $index,
+                ];
+            })
+            ->filter(fn (array $variant) => $variant['name'] !== '')
+            ->values();
+
+        if ($normalized->isEmpty() && $createDefaultWhenEmpty) {
+            $normalized = collect([[
+                'id' => null,
+                'name' => 'Reguler',
+                'price' => (float) $product->harga,
+                'total_satuan_ml' => 0,
+                'is_default' => true,
+                'sort_index' => 0,
+            ]]);
+        }
+
+        if ($normalized->isEmpty()) {
+            $product->variants()->delete();
+
+            return;
+        }
+
+        if (! $normalized->contains(fn (array $variant) => $variant['is_default'])) {
+            $normalized = $normalized->values()->map(fn (array $variant, int $index) => [
+                ...$variant,
+                'is_default' => $index === 0,
+            ]);
+        }
+
+        $keepIds = [];
+
+        foreach ($normalized as $variant) {
+            $model = $variant['id']
+                ? $product->variants()->whereKey($variant['id'])->first()
+                : null;
+
+            if (! $model) {
+                $model = $product->variants()->create([
+                    'name' => $variant['name'],
+                    'price' => $variant['price'],
+                    'total_satuan_ml' => $variant['total_satuan_ml'],
+                    'is_default' => $variant['is_default'],
+                ]);
+            } else {
+                $model->update([
+                    'name' => $variant['name'],
+                    'price' => $variant['price'],
+                    'total_satuan_ml' => $variant['total_satuan_ml'],
+                    'is_default' => $variant['is_default'],
+                ]);
+            }
+
+            $keepIds[] = $model->id;
+        }
+
+        $product->variants()->whereNotIn('id', $keepIds)->delete();
+
+        $defaultId = $product->variants()->where('is_default', true)->value('id');
+        if (! $defaultId && isset($keepIds[0])) {
+            $product->variants()->whereKey($keepIds[0])->update(['is_default' => true]);
         }
     }
 

@@ -2,15 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DefaultsToAvenorStore;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class MarketingNotification extends Model
 {
-    use HasFactory;
+    use DefaultsToAvenorStore, HasFactory;
 
     protected $fillable = [
+        'store_id',
         'created_by',
         'title',
         'body',
@@ -33,5 +35,10 @@ class MarketingNotification extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by', 'id_user');
+    }
+
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 }

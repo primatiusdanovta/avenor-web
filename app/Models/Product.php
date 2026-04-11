@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DefaultsToAvenorStore;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -12,12 +14,13 @@ use Illuminate\Support\Str;
 
 class Product extends Model
 {
-    use HasFactory;
+    use DefaultsToAvenorStore, HasFactory;
 
     protected $primaryKey = 'id_product';
     public $timestamps = false;
 
     protected $fillable = [
+        'store_id',
         'nama_product',
         'harga',
         'harga_modal',
@@ -70,9 +73,21 @@ class Product extends Model
         return $this->hasMany(ProductOnhand::class, 'id_product', 'id_product');
     }
 
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
+    }
+
     public function hppCalculation(): HasOne
     {
         return $this->hasOne(HppCalculation::class, 'id_product', 'id_product');
+    }
+
+    public function variants(): HasMany
+    {
+        return $this->hasMany(ProductVariant::class, 'product_id', 'id_product')
+            ->orderByDesc('is_default')
+            ->orderBy('name');
     }
 
     public function fragranceDetails(): BelongsToMany

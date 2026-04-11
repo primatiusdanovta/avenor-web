@@ -18,9 +18,10 @@ class OnlineSaleController extends Controller
 
     public function index(Request $request): Response
     {
-        $this->authorizeSuperadmin($request);
+        $this->authorizeView($request);
 
         $sales = OnlineSale::query()
+            ->where('store_id', $this->currentStoreId($request))
             ->with('items.product.hppCalculation')
             ->orderByDesc('paid_time')
             ->orderByDesc('id')
@@ -54,7 +55,7 @@ class OnlineSaleController extends Controller
 
     public function import(Request $request): RedirectResponse
     {
-        $this->authorizeSuperadmin($request);
+        $this->authorizeManage($request);
 
         $validated = $request->validate([
             'orders_file' => ['required', 'file', 'mimes:csv,xlsx,txt'],
@@ -64,7 +65,7 @@ class OnlineSaleController extends Controller
             'income_file.required' => 'File income wajib diupload.',
         ]);
 
-        $result = $this->importService->import($validated['orders_file'], $validated['income_file']);
+        $result = $this->importService->import($validated['orders_file'], $validated['income_file'], $this->currentStoreId($request));
 
         if (($result['imported'] ?? 0) === 0) {
             return redirect()->route('online-sales.index')->with('warning', sprintf(
@@ -85,7 +86,7 @@ class OnlineSaleController extends Controller
 
     public function debugImport(Request $request): JsonResponse
     {
-        $this->authorizeSuperadmin($request);
+        $this->authorizeManage($request);
 
         $validated = $request->validate([
             'orders_file' => ['required', 'file', 'mimes:csv,xlsx,txt'],
@@ -101,8 +102,13 @@ class OnlineSaleController extends Controller
         ]);
     }
 
-    private function authorizeSuperadmin(Request $request): void
+    private function authorizeView(Request $request): void
     {
-        abort_unless($request->user()->role === 'superadmin', 403);
+        abort_unless($request->user()->hasPermission('online_sales.view'), 403);
+    }
+
+    private function authorizeManage(Request $request): void
+    {
+        abort_unless($request->user()->hasPermission('online_sales.manage'), 403);
     }
 }

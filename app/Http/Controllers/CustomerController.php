@@ -14,9 +14,11 @@ class CustomerController extends Controller
 {
     public function index(Request $request): Response
     {
-        $this->authorizeManagement($request);
+        $this->authorizePermission($request, 'customers.view');
+        $storeId = $this->currentStoreId($request);
 
         $latestPurchaseItems = OfflineSale::query()
+            ->where('store_id', $storeId)
             ->whereNotNull('id_pelanggan')
             ->whereNotNull('created_at')
             ->get(['id_pelanggan', 'nama_product', 'quantity', 'created_at'])
@@ -33,6 +35,7 @@ class CustomerController extends Controller
             });
 
         $customers = Customer::query()
+            ->where('store_id', $storeId)
             ->orderByDesc('pembelian_terakhir')
             ->orderByDesc('id_pelanggan')
             ->get()
@@ -54,11 +57,12 @@ class CustomerController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        $this->authorizeManagement($request);
+        $this->authorizePermission($request, 'customers.manage');
 
         $validated = $this->validatePayload($request);
 
         Customer::query()->create([
+            'store_id' => $this->currentStoreId($request),
             'nama' => $validated['nama'] ?: null,
             'no_telp' => $validated['no_telp'] ?: null,
             'tiktok_instagram' => $validated['tiktok_instagram'] ?: null,
@@ -71,7 +75,8 @@ class CustomerController extends Controller
 
     public function update(Request $request, Customer $customer): RedirectResponse
     {
-        $this->authorizeManagement($request);
+        $this->authorizePermission($request, 'customers.manage');
+        $this->ensureStoreMatch($request, $customer);
 
         $validated = $this->validatePayload($request, $customer);
 
@@ -87,16 +92,12 @@ class CustomerController extends Controller
 
     public function destroy(Request $request, Customer $customer): RedirectResponse
     {
-        $this->authorizeManagement($request);
+        $this->authorizePermission($request, 'customers.manage');
+        $this->ensureStoreMatch($request, $customer);
 
         $customer->delete();
 
         return redirect()->route('customers.index')->with('success', 'Data pelanggan berhasil dihapus.');
-    }
-
-    private function authorizeManagement(Request $request): void
-    {
-        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
     }
 
     private function validatePayload(Request $request, ?Customer $customer = null): array
@@ -105,13 +106,17 @@ class CustomerController extends Controller
             'no_telp' => $this->normalizePhone($request->input('no_telp')),
         ]);
 
+        $storeId = $this->currentStoreId($request);
+
         return $request->validate([
             'nama' => ['nullable', 'string', 'max:255'],
             'no_telp' => [
                 'nullable',
                 'string',
                 'max:30',
-                Rule::unique('customers', 'no_telp')->ignore($customer?->id_pelanggan, 'id_pelanggan'),
+                Rule::unique('customers', 'no_telp')
+                    ->where(fn ($query) => $query->where('store_id', $storeId))
+                    ->ignore($customer?->id_pelanggan, 'id_pelanggan'),
             ],
             'tiktok_instagram' => ['nullable', 'string', 'max:255'],
             'pembelian_terakhir' => ['nullable', 'date'],

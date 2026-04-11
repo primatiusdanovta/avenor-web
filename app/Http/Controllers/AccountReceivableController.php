@@ -11,10 +11,11 @@ class AccountReceivableController extends Controller
 {
     public function index(Request $request): Response
     {
-        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
+        $this->authorizePermission($request, 'account_receivables.view');
 
         return Inertia::render('AccountReceivables/Index', [
             'accountReceivables' => AccountReceivable::query()
+                ->where('store_id', $this->currentStoreId($request))
                 ->latest('due_date')
                 ->latest('id')
                 ->get()

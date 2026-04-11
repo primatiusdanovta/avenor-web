@@ -12,11 +12,13 @@ class ApprovalController extends Controller
 {
     public function index(Request $request): Response
     {
-        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
+        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true) && $request->user()->hasPermission('products.approve'), 403);
+        $storeId = $this->currentStoreId($request);
 
         $selectedId = (int) $request->integer('selected');
 
         $takeRequests = ProductOnhand::query()
+            ->where('store_id', $storeId)
             ->with('user')
             ->where('take_status', 'pending')
             ->orderByDesc('take_requested_at')
@@ -35,6 +37,7 @@ class ApprovalController extends Controller
             ->values();
 
         $returnRequests = ProductOnhand::query()
+            ->where('store_id', $storeId)
             ->with('user')
             ->where('take_status', 'disetujui')
             ->where('return_status', 'pending')
@@ -56,7 +59,7 @@ class ApprovalController extends Controller
         $selectedMarketing = null;
         if ($selectedId > 0) {
             $marketing = User::query()->find($selectedId);
-            if ($marketing && in_array($marketing->role, ['marketing', 'sales_field_executive'], true)) {
+            if ($marketing && in_array($marketing->role, ['marketing', 'sales_field_executive'], true) && $marketing->stores()->where('stores.id', $storeId)->exists()) {
                 $selectedMarketing = [
                     'id_user' => $marketing->id_user,
                     'nama' => $marketing->nama,

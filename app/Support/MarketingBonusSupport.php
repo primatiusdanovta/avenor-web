@@ -11,12 +11,13 @@ use Illuminate\Support\Collection;
 
 class MarketingBonusSupport
 {
-    public static function buildTargetSummary(User $user, Carbon $periodStart, Carbon $periodEnd, ?SalesTarget $target = null): array
+    public static function buildTargetSummary(User $user, Carbon $periodStart, Carbon $periodEnd, ?SalesTarget $target = null, ?int $storeId = null): array
     {
         $today = now()->startOfDay();
         $effectiveEnd = $periodEnd->copy()->startOfDay()->gt($today) ? $today->copy() : $periodEnd->copy()->startOfDay();
 
         $sales = OfflineSale::query()
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
             ->where('id_user', $user->id_user)
             ->where('approval_status', '!=', 'ditolak')
             ->whereBetween('created_at', [$periodStart->copy()->startOfDay(), $effectiveEnd->copy()->endOfDay()])

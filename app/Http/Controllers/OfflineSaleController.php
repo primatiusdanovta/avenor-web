@@ -3,12 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Models\ExtraTopping;
+use App\Models\GlobalSetting;
 use App\Models\OfflineSale;
 use App\Models\Product;
 use App\Models\ProductOnhand;
+use App\Models\ProductVariant;
 use App\Models\Promo;
 use App\Models\User;
+use App\Support\RawMaterialUsage;
 use App\Support\ProductOnhandStock;
+use App\Support\StoreFeature;
 use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,9 +30,12 @@ class OfflineSaleController extends Controller
     public function index(Request $request): Response
     {
         $user = $request->user();
+        $storeId = $this->currentStoreId($request);
         $isManager = in_array($user->role, ['superadmin', 'admin'], true);
+        abort_unless($user->hasPermission('offline_sales.view'), 403);
 
         $sales = OfflineSale::query()
+            ->where('store_id', $storeId)
             ->with('customer')
             ->when(! $isManager, fn ($query) => $query->where('id_user', $user->id_user))
             ->orderByDesc('created_at')
@@ -37,18 +45,39 @@ class OfflineSaleController extends Controller
         $transactions = $this->transformTransactions($sales);
 
         $products = $isManager
-            ? Product::query()->orderBy('nama_product')->get(['id_product', 'nama_product', 'harga'])
-            : $this->availableOnhandProducts($user->id_user);
+            ? Product::query()->where('store_id', $storeId)->orderBy('nama_product')->get(['id_product', 'nama_product', 'harga', 'gambar', 'deskripsi'])
+            : (
+                StoreFeature::requiresOnhandForOfflineSales($request)
+                    ? $this->availableOnhandProducts($user->id_user, $storeId)
+                    : Product::query()->where('store_id', $storeId)->orderBy('nama_product')->get(['id_product', 'nama_product', 'harga', 'gambar', 'deskripsi'])
+            );
 
         $products = collect($products)->map(fn ($product) => [
             'id_product' => $product->id_product,
             'nama_product' => $product->nama_product,
             'harga' => (float) $product->harga,
+            'deskripsi' => $product->deskripsi ?? null,
+            'image_url' => $product->public_image_url,
             'remaining' => data_get($product, 'remaining'),
             'option_label' => $product->nama_product . (data_get($product, 'remaining') !== null ? ' | sisa ' . data_get($product, 'remaining') : ''),
+            'variants' => ProductVariant::query()
+                ->where('product_id', $product->id_product)
+                ->orderByDesc('is_default')
+                ->orderBy('name')
+                ->get()
+                ->map(fn (ProductVariant $variant) => [
+                    'id' => $variant->id,
+                    'name' => $variant->name,
+                    'price' => (float) $variant->price,
+                    'total_satuan_ml' => (float) $variant->total_satuan_ml,
+                    'is_default' => (bool) $variant->is_default,
+                    'option_label' => $variant->name . ' | ' . number_format((float) $variant->price, 0, ',', '.'),
+                ])
+                ->values(),
         ])->values();
 
         $promos = Promo::query()
+            ->where('store_id', $storeId)
             ->whereDate('masa_aktif', '>=', today())
             ->orderBy('nama_promo')
             ->get()
@@ -65,6 +94,7 @@ class OfflineSaleController extends Controller
             ->values();
 
         $customers = Customer::query()
+            ->where('store_id', $storeId)
             ->orderByDesc('pembelian_terakhir')
             ->orderByDesc('id_pelanggan')
             ->get()
@@ -77,15 +107,44 @@ class OfflineSaleController extends Controller
             ])
             ->values();
 
+        $extraToppings = ExtraTopping::query()
+            ->where('store_id', $storeId)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get()
+            ->map(fn (ExtraTopping $item) => [
+                'id' => $item->id,
+                'name' => $item->name,
+                'price' => (float) $item->price,
+                'option_label' => $item->name . ' | ' . number_format((float) $item->price, 0, ',', '.'),
+            ])
+            ->values();
+
+        $lastClosedSale = OfflineSale::query()
+            ->where('store_id', $storeId)
+            ->whereNotNull('sale_number')
+            ->where('payment_status', 'closed')
+            ->whereNotNull('closed_at')
+            ->orderByDesc('closed_at')
+            ->first();
+
         return Inertia::render('Sales/Index', [
             'sales' => $transactions,
             'products' => $products,
             'promos' => $promos,
             'customers' => $customers,
+            'extraToppings' => $extraToppings,
             'canApprove' => $isManager,
             'canManageAll' => $isManager,
             'currentRole' => $user->role,
             'defaultCreatedAt' => now()->format('Y-m-d\TH:i'),
+            'isSmoothiesSweetie' => StoreFeature::isSmoothiesSweetie($request),
+            'qrisImageUrl' => data_get(GlobalSetting::masterSocialHub(), 'sales_qr_url'),
+            'lastClosedSale' => $lastClosedSale ? [
+                'sale_number' => $lastClosedSale->sale_number,
+                'transaction_code' => $lastClosedSale->transaction_code,
+                'closed_at' => optional($lastClosedSale->closed_at)->format('Y-m-d H:i:s'),
+            ] : null,
         ]);
     }
 
@@ -93,65 +152,107 @@ class OfflineSaleController extends Controller
     {
         $user = $request->user();
         $isManager = in_array($user->role, ['superadmin', 'admin'], true);
-        $validated = $this->validateTransactionPayload($request, true, $isManager);
+        abort_unless($user->hasPermission('offline_sales.manage'), 403);
+        $validated = $this->validateTransactionPayload($request, ! StoreFeature::isSmoothiesSweetie($request), $isManager);
+        $storeId = $this->currentStoreId($request);
 
-        [$products, $promo, $lineSubtotals, $onhands, $totalQuantity, $subtotal] = $this->prepareTransactionContext($validated, $user->id_user, $isManager);
+        [$products, $promo, $lineSubtotals, $onhands, $totalQuantity, $subtotal, $variants, $extraToppings] = $this->prepareTransactionContext($validated, $user->id_user, $isManager, null, $storeId);
 
         $this->validatePromoEligibility($promo, $totalQuantity, $subtotal);
 
         $path = $request->file('bukti_pembelian')?->store('offline-sales', 'public');
         $timestamp = $this->resolveTransactionTimestamp($validated, $isManager);
         $transactionCode = $this->generateTransactionCode();
+        $saleNumber = $this->generateSaleNumber($storeId, $timestamp);
         $discounts = $this->allocateDiscounts($lineSubtotals, (float) ($promo?->potongan ?? 0));
+        $paymentMethod = $validated['payment_method'] ?? 'Cash';
+        $paymentStatus = 'paid';
+        $paidAt = $timestamp;
+        $autoApproved = $isManager || StoreFeature::isSmoothiesSweetie($request);
 
-        DB::transaction(function () use ($validated, $user, $isManager, $products, $promo, $path, $timestamp, $discounts, $lineSubtotals, $onhands, $transactionCode): void {
-            $customer = $this->resolveCustomer($validated, $timestamp);
+        DB::transaction(function () use ($validated, $user, $autoApproved, $products, $promo, $path, $timestamp, $discounts, $lineSubtotals, $onhands, $transactionCode, $saleNumber, $paymentMethod, $paymentStatus, $paidAt, $storeId, $variants, $extraToppings): void {
+            $customer = $this->resolveCustomer($validated, $timestamp, $storeId);
 
             foreach ($validated['items'] as $index => $item) {
                 $product = $products->get($item['id_product']);
+                $variant = $variants[(int) ($item['product_variant_id'] ?? 0)] ?? null;
+                $selectedExtraToppings = collect($item['extra_topping_ids'] ?? [])
+                    ->map(fn ($id) => $extraToppings[(int) $id] ?? null)
+                    ->filter()
+                    ->values();
                 $lineSubtotal = $lineSubtotals[$index] ?? 0;
                 $lineDiscount = $discounts[$index] ?? 0;
-                $lineHpp = $this->resolveProductHpp($product);
+                $lineHpp = $this->resolveProductHpp($product, $variant);
+                $extraToppingTotal = round($selectedExtraToppings->sum('price') * (int) $item['quantity'], 2);
 
                 OfflineSale::query()->create([
+                    'store_id' => $storeId,
                     'transaction_code' => $transactionCode,
+                    'sale_number' => $saleNumber,
                     'id_user' => $user->id_user,
                     'id_pelanggan' => $customer?->id_pelanggan,
                     'id_product' => $product?->id_product,
-                    'id_product_onhand' => $isManager ? null : ($onhands[(int) $item['id_product']]?->id_product_onhand ?? null),
+                    'product_variant_id' => $variant?->id,
+                    'product_variant_name' => $variant?->name,
+                    'unit_price' => (float) ($variant?->price ?? $product?->harga ?? 0),
+                    'extra_topping_total' => $extraToppingTotal,
+                    'extra_toppings' => $selectedExtraToppings->map(fn ($topping) => [
+                        'id' => $topping->id,
+                        'name' => $topping->name,
+                        'price' => (float) $topping->price,
+                    ])->all(),
+                    'payment_method' => $paymentMethod,
+                    'payment_status' => $paymentStatus,
+                    'paid_at' => $paidAt,
+                    'id_product_onhand' => $autoApproved ? null : ($onhands[(int) $item['id_product']]?->id_product_onhand ?? null),
                     'promo_id' => $promo?->id,
                     'nama' => $user->nama,
-                    'nama_product' => $product?->nama_product,
+                    'nama_product' => trim(($product?->nama_product ?? '') . ($variant?->name ? ' - ' . $variant->name : '')),
                     'quantity' => (int) $item['quantity'],
                     'harga' => max($lineSubtotal - $lineDiscount, 0),
                     'total_hpp' => $lineHpp,
                     'kode_promo' => $promo?->kode_promo,
                     'promo' => $promo?->nama_promo,
                     'bukti_pembelian' => $path,
-                    'approval_status' => $isManager ? 'disetujui' : 'pending',
-                    'approved_by' => $isManager ? $user->id_user : null,
-                    'approved_at' => $isManager ? $timestamp : null,
+                    'approval_status' => $autoApproved ? 'disetujui' : 'pending',
+                    'approved_by' => $autoApproved ? $user->id_user : null,
+                    'approved_at' => $autoApproved ? $timestamp : null,
                     'created_at' => $timestamp,
                 ]);
             }
         });
 
-        return redirect()->route('offline-sales.index')->with('success', 'Penjualan offline berhasil disimpan.');
+        return redirect()
+            ->route('offline-sales.index')
+            ->with('success', 'Penjualan offline berhasil disimpan.')
+            ->with('saleSummary', [
+                'transaction_code' => $transactionCode,
+                'sale_number' => $saleNumber,
+                'payment_method' => $paymentMethod,
+                'payment_status' => $paymentStatus,
+                'total_quantity' => $totalQuantity,
+                'total_harga' => max(round($subtotal - (float) ($promo?->potongan ?? 0), 2), 0),
+                'promo' => $promo?->nama_promo,
+                'created_at' => $timestamp->format('Y-m-d H:i:s'),
+            ]);
     }
 
     public function update(Request $request, OfflineSale $sale): RedirectResponse
     {
-        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
+        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true) && $request->user()->hasPermission('offline_sales.manage'), 403);
+        $this->ensureStoreMatch($request, $sale);
 
         $validated = $this->validateTransactionPayload($request, false, true);
         $transactionSales = $this->transactionSales($sale);
         $userId = (int) $sale->id_user;
+        $storeId = $this->currentStoreId($request);
 
-        [$products, $promo, $lineSubtotals, $onhands, $totalQuantity, $subtotal] = $this->prepareTransactionContext(
+        [$products, $promo, $lineSubtotals, $onhands, $totalQuantity, $subtotal, $variants, $extraToppings] = $this->prepareTransactionContext(
             $validated,
             $userId,
             true,
-            $transactionSales
+            $transactionSales,
+            $storeId
         );
 
         $this->validatePromoEligibility($promo, $totalQuantity, $subtotal);
@@ -159,23 +260,38 @@ class OfflineSaleController extends Controller
         $timestamp = $this->resolveTransactionTimestamp($validated, true, $sale->created_at);
         $discounts = $this->allocateDiscounts($lineSubtotals, (float) ($promo?->potongan ?? 0));
 
-        DB::transaction(function () use ($validated, $sale, $transactionSales, $products, $promo, $timestamp, $discounts, $lineSubtotals): void {
-            $customer = $this->resolveCustomer($validated, $timestamp);
+        DB::transaction(function () use ($validated, $sale, $transactionSales, $products, $promo, $timestamp, $discounts, $lineSubtotals, $storeId, $variants, $extraToppings): void {
+            $customer = $this->resolveCustomer($validated, $timestamp, $storeId);
             $existingByProduct = $transactionSales->keyBy('id_product');
             $keepIds = [];
 
             foreach ($validated['items'] as $index => $item) {
                 $product = $products->get($item['id_product']);
+                $variant = $variants[(int) ($item['product_variant_id'] ?? 0)] ?? null;
+                $selectedExtraToppings = collect($item['extra_topping_ids'] ?? [])
+                    ->map(fn ($id) => $extraToppings[(int) $id] ?? null)
+                    ->filter()
+                    ->values();
                 $lineSubtotal = $lineSubtotals[$index] ?? 0;
                 $lineDiscount = $discounts[$index] ?? 0;
-                $lineHpp = $this->resolveProductHpp($product);
+                $lineHpp = $this->resolveProductHpp($product, $variant);
                 $existing = $existingByProduct->get((int) $item['id_product']);
+                $extraToppingTotal = round($selectedExtraToppings->sum('price') * (int) $item['quantity'], 2);
 
                 if ($existing) {
                     $existing->update([
                         'id_pelanggan' => $customer?->id_pelanggan,
                         'promo_id' => $promo?->id,
-                        'nama_product' => $product?->nama_product,
+                        'product_variant_id' => $variant?->id,
+                        'product_variant_name' => $variant?->name,
+                        'unit_price' => (float) ($variant?->price ?? $product?->harga ?? 0),
+                        'extra_topping_total' => $extraToppingTotal,
+                        'extra_toppings' => $selectedExtraToppings->map(fn ($topping) => [
+                            'id' => $topping->id,
+                            'name' => $topping->name,
+                            'price' => (float) $topping->price,
+                        ])->all(),
+                        'nama_product' => trim(($product?->nama_product ?? '') . ($variant?->name ? ' - ' . $variant->name : '')),
                         'quantity' => (int) $item['quantity'],
                         'harga' => max($lineSubtotal - $lineDiscount, 0),
                         'total_hpp' => $lineHpp,
@@ -190,14 +306,28 @@ class OfflineSaleController extends Controller
                 }
 
                 $created = OfflineSale::query()->create([
+                    'store_id' => $storeId,
                     'transaction_code' => $sale->transaction_code,
+                    'sale_number' => $sale->sale_number,
                     'id_user' => $sale->id_user,
                     'id_pelanggan' => $customer?->id_pelanggan,
                     'id_product' => $product?->id_product,
+                    'product_variant_id' => $variant?->id,
+                    'product_variant_name' => $variant?->name,
+                    'unit_price' => (float) ($variant?->price ?? $product?->harga ?? 0),
+                    'extra_topping_total' => $extraToppingTotal,
+                    'extra_toppings' => $selectedExtraToppings->map(fn ($topping) => [
+                        'id' => $topping->id,
+                        'name' => $topping->name,
+                        'price' => (float) $topping->price,
+                    ])->all(),
+                    'payment_method' => $sale->payment_method,
+                    'payment_status' => $sale->payment_status,
+                    'paid_at' => $sale->paid_at,
                     'id_product_onhand' => null,
                     'promo_id' => $promo?->id,
                     'nama' => $sale->nama,
-                    'nama_product' => $product?->nama_product,
+                    'nama_product' => trim(($product?->nama_product ?? '') . ($variant?->name ? ' - ' . $variant->name : '')),
                     'quantity' => (int) $item['quantity'],
                     'harga' => max($lineSubtotal - $lineDiscount, 0),
                     'total_hpp' => $lineHpp,
@@ -225,7 +355,8 @@ class OfflineSaleController extends Controller
 
     public function destroy(Request $request, OfflineSale $sale): RedirectResponse
     {
-        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
+        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true) && $request->user()->hasPermission('offline_sales.manage'), 403);
+        $this->ensureStoreMatch($request, $sale);
 
         $transactionSales = $this->transactionSales($sale);
         $receiptPath = $sale->bukti_pembelian;
@@ -251,7 +382,8 @@ class OfflineSaleController extends Controller
 
     public function approve(Request $request, OfflineSale $sale): RedirectResponse
     {
-        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
+        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true) && $request->user()->hasPermission('offline_sales.approve'), 403);
+        $this->ensureStoreMatch($request, $sale);
 
         $this->transactionSales($sale)->each->update([
             'approval_status' => 'disetujui',
@@ -264,7 +396,8 @@ class OfflineSaleController extends Controller
 
     public function reject(Request $request, OfflineSale $sale): RedirectResponse
     {
-        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
+        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true) && $request->user()->hasPermission('offline_sales.approve'), 403);
+        $this->ensureStoreMatch($request, $sale);
 
         $this->transactionSales($sale)->each->update([
             'approval_status' => 'ditolak',
@@ -279,12 +412,89 @@ class OfflineSaleController extends Controller
     {
         $user = $request->user();
         $isManager = in_array($user->role, ['superadmin', 'admin'], true);
+        $this->ensureStoreMatch($request, $sale);
 
         abort_unless($isManager || (int) $sale->id_user === (int) $user->id_user, 403);
         abort_if(! $sale->bukti_pembelian, 404);
         abort_unless(Storage::disk('public')->exists($sale->bukti_pembelian), 404);
 
         return Storage::disk('public')->response($sale->bukti_pembelian);
+    }
+
+    public function queueBoard(Request $request): Response
+    {
+        abort_unless($request->user()?->hasPermission('offline_sales.view'), 403);
+
+        $storeId = $this->currentStoreId($request);
+
+        $items = OfflineSale::query()
+            ->where('store_id', $storeId)
+            ->whereNotNull('sale_number')
+            ->where('payment_status', '!=', 'closed')
+            ->orderBy('created_at')
+            ->get()
+            ->groupBy('sale_number')
+            ->map(function (Collection $sales, string $saleNumber) {
+                $first = $sales->first();
+                $queueNumber = (int) trim((string) str($saleNumber)->afterLast('-'));
+
+                return [
+                    'sale_number' => $saleNumber,
+                    'queue_number' => $queueNumber,
+                    'transaction_code' => $first?->transaction_code,
+                    'payment_status' => $first?->payment_status,
+                    'created_at' => optional($first?->created_at)->format('Y-m-d H:i:s'),
+                    'details' => $sales->map(fn (OfflineSale $sale) => [
+                        'nama_product' => $sale->nama_product,
+                        'quantity' => (int) $sale->quantity,
+                        'extra_toppings' => collect($sale->extra_toppings ?? [])
+                            ->pluck('name')
+                            ->filter()
+                            ->values()
+                            ->all(),
+                    ])->values()->all(),
+                ];
+            })
+            ->sortBy('queue_number')
+            ->values();
+
+        $lastClosedSale = OfflineSale::query()
+            ->where('store_id', $storeId)
+            ->whereNotNull('sale_number')
+            ->where('payment_status', 'closed')
+            ->whereNotNull('closed_at')
+            ->orderByDesc('closed_at')
+            ->first();
+
+        return Inertia::render('Queue/Board', [
+            'items' => $items,
+            'canClose' => $request->user()?->hasPermission('offline_sales.manage') ?? false,
+            'lastClosedSale' => $lastClosedSale ? [
+                'sale_number' => $lastClosedSale->sale_number,
+                'transaction_code' => $lastClosedSale->transaction_code,
+                'closed_at' => optional($lastClosedSale->closed_at)->format('Y-m-d H:i:s'),
+            ] : null,
+        ]);
+    }
+
+    public function closeQueue(Request $request): RedirectResponse
+    {
+        abort_unless($request->user()?->hasPermission('offline_sales.manage'), 403);
+        $validated = $request->validate([
+            'sale_number' => ['required', 'string'],
+        ]);
+        $targetSaleNumber = trim((string) $validated['sale_number']);
+        abort_if($targetSaleNumber === '', 422, 'Nomor antrian wajib diisi.');
+
+        OfflineSale::query()
+            ->where('store_id', $this->currentStoreId($request))
+            ->where('sale_number', $targetSaleNumber)
+            ->update([
+                'payment_status' => 'closed',
+                'closed_at' => now(),
+            ]);
+
+        return back()->with('success', 'Antrian selesai dan sudah ditutup.');
     }
 
     private function transformTransactions(Collection $sales): Collection
@@ -302,10 +512,14 @@ class OfflineSaleController extends Controller
                     'nama_customer' => $first->customer?->nama,
                     'no_telp' => $first->customer?->no_telp,
                     'tiktok_instagram' => $first->customer?->tiktok_instagram,
+                    'sale_number' => $first->sale_number,
                     'promo_id' => $first->promo_id,
                     'promo' => $first->promo,
                     'kode_promo' => $first->kode_promo,
                     'approval_status' => $first->approval_status,
+                    'payment_method' => $first->payment_method,
+                    'payment_status' => $first->payment_status,
+                    'closed_at' => optional($first->closed_at)->format('Y-m-d H:i:s'),
                     'bukti_pembelian' => $first->bukti_pembelian ? route('offline-sales.proof', $first) : null,
                     'created_at' => optional($first->created_at)->format('Y-m-d H:i:s'),
                     'created_at_form' => optional($first->created_at)->format('Y-m-d\TH:i'),
@@ -314,8 +528,13 @@ class OfflineSaleController extends Controller
                     'items' => $items->map(fn (OfflineSale $sale) => [
                         'id_penjualan_offline' => $sale->id_penjualan_offline,
                         'id_product' => $sale->id_product,
+                        'product_variant_id' => $sale->product_variant_id,
+                        'product_variant_name' => $sale->product_variant_name,
                         'nama_product' => $sale->nama_product,
                         'quantity' => (int) $sale->quantity,
+                        'unit_price' => (float) ($sale->unit_price ?? 0),
+                        'extra_topping_ids' => collect($sale->extra_toppings ?? [])->pluck('id')->filter()->values()->all(),
+                        'extra_toppings' => $sale->extra_toppings ?? [],
                         'harga' => (float) $sale->harga,
                     ])->values(),
                 ];
@@ -329,30 +548,38 @@ class OfflineSaleController extends Controller
         $request->merge([
             'customer_no_telp' => $this->normalizePhone($request->input('customer_no_telp')),
         ]);
+        $storeId = $this->currentStoreId($request);
 
         $rules = [
             'customer_nama' => ['nullable', 'string', 'max:255'],
             'customer_no_telp' => ['nullable', 'string', 'max:30'],
             'customer_tiktok_instagram' => ['nullable', 'string', 'max:255'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.id_product' => ['required', 'distinct', 'exists:products,id_product'],
+            'items.*.id_product' => ['required', \Illuminate\Validation\Rule::exists('products', 'id_product')->where(fn ($query) => $query->where('store_id', $storeId))],
+            'items.*.product_variant_id' => ['nullable', \Illuminate\Validation\Rule::exists('product_variants', 'id')->where(fn ($query) => $query->whereIn('product_id', Product::query()->where('store_id', $storeId)->select('id_product')))],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
-            'promo_id' => ['nullable', 'exists:promos,id'],
+            'items.*.extra_topping_ids' => ['nullable', 'array'],
+            'items.*.extra_topping_ids.*' => ['integer', \Illuminate\Validation\Rule::exists('extra_toppings', 'id')->where(fn ($query) => $query->where('store_id', $storeId))],
+            'promo_id' => ['nullable', \Illuminate\Validation\Rule::exists('promos', 'id')->where(fn ($query) => $query->where('store_id', $storeId))],
             'bukti_pembelian' => [$requireReceipt ? 'required' : 'nullable', 'image', 'max:4096'],
             'created_at' => [$allowManualTimestamp ? 'required' : 'nullable', 'date'],
+            'payment_method' => ['nullable', 'in:Cash,Qris'],
         ];
 
         return $request->validate($rules, [
-            'items.*.id_product.distinct' => 'Product tidak boleh dipilih lebih dari sekali dalam satu transaksi.',
             'created_at.required' => 'Tanggal transaksi wajib diisi untuk admin dan superadmin.',
         ]);
     }
 
-    private function prepareTransactionContext(array $validated, int $userId, bool $isManager, ?Collection $existingSales = null): array
+    private function prepareTransactionContext(array $validated, int $userId, bool $isManager, ?Collection $existingSales = null, ?int $storeId = null): array
     {
         $productIds = collect($validated['items'])->pluck('id_product')->all();
-        $products = Product::query()->whereIn('id_product', $productIds)->get()->keyBy('id_product');
-        $promo = empty($validated['promo_id']) ? null : Promo::query()->findOrFail($validated['promo_id']);
+        $products = Product::query()->where('store_id', $storeId)->whereIn('id_product', $productIds)->get()->keyBy('id_product');
+        $promo = empty($validated['promo_id']) ? null : Promo::query()->where('store_id', $storeId)->findOrFail($validated['promo_id']);
+        $variantIds = collect($validated['items'])->pluck('product_variant_id')->filter()->map(fn ($id) => (int) $id)->all();
+        $variants = ProductVariant::query()->whereIn('id', $variantIds)->get()->keyBy('id')->all();
+        $extraToppingIds = collect($validated['items'])->flatMap(fn ($item) => $item['extra_topping_ids'] ?? [])->filter()->map(fn ($id) => (int) $id)->all();
+        $extraToppings = ExtraTopping::query()->whereIn('id', $extraToppingIds)->get()->keyBy('id')->all();
 
         $lineSubtotals = [];
         $onhands = [];
@@ -362,15 +589,19 @@ class OfflineSaleController extends Controller
         foreach ($validated['items'] as $item) {
             $product = $products->get($item['id_product']);
             $quantity = (int) $item['quantity'];
-            $lineSubtotal = (float) ($product?->harga ?? 0) * $quantity;
+            $variant = $variants[(int) ($item['product_variant_id'] ?? 0)] ?? null;
+            $unitPrice = (float) ($variant?->price ?? $product?->harga ?? 0);
+            $extraToppingTotal = collect($item['extra_topping_ids'] ?? [])
+                ->sum(fn ($id) => (float) ($extraToppings[(int) $id]?->price ?? 0)) * $quantity;
+            $lineSubtotal = ($unitPrice * $quantity) + $extraToppingTotal;
 
             $lineSubtotals[] = $lineSubtotal;
             $totalQuantity += $quantity;
             $subtotal += $lineSubtotal;
 
-            if (! $isManager) {
+            if (! $isManager && StoreFeature::requiresOnhandForOfflineSales(request())) {
                 $ignoreSaleId = $existingSales?->firstWhere('id_product', (int) $item['id_product'])?->id_penjualan_offline;
-                $onhand = $this->resolveOnhandForSale($userId, (int) $item['id_product']);
+                $onhand = $this->resolveOnhandForSale($userId, (int) $item['id_product'], $storeId);
 
                 if (! $onhand) {
                     throw ValidationException::withMessages(['items' => 'Ada product yang belum tersedia di on hand untuk dijual.']);
@@ -384,7 +615,7 @@ class OfflineSaleController extends Controller
             }
         }
 
-        return [$products, $promo, $lineSubtotals, $onhands, $totalQuantity, $subtotal];
+        return [$products, $promo, $lineSubtotals, $onhands, $totalQuantity, $subtotal, $variants, $extraToppings];
     }
 
     private function validatePromoEligibility(?Promo $promo, int $totalQuantity, float $subtotal): void
@@ -402,7 +633,7 @@ class OfflineSaleController extends Controller
         }
     }
 
-    private function resolveCustomer(array $validated, $timestamp): ?Customer
+    private function resolveCustomer(array $validated, $timestamp, int $storeId): ?Customer
     {
         $nama = trim((string) ($validated['customer_nama'] ?? ''));
         $noTelp = $validated['customer_no_telp'] ?? null;
@@ -420,7 +651,7 @@ class OfflineSaleController extends Controller
         ];
 
         $customer = $noTelp
-            ? Customer::query()->where('no_telp', $noTelp)->first()
+            ? Customer::query()->where('store_id', $storeId)->where('no_telp', $noTelp)->first()
             : null;
 
         if ($customer) {
@@ -442,6 +673,7 @@ class OfflineSaleController extends Controller
         }
 
         $payload['created_at'] = $timestamp;
+        $payload['store_id'] = $storeId;
 
         return Customer::query()->create($payload);
     }
@@ -510,22 +742,25 @@ class OfflineSaleController extends Controller
         }
 
         return OfflineSale::query()
+            ->where('store_id', $sale->store_id)
             ->where('transaction_code', $sale->transaction_code)
             ->orderBy('id_penjualan_offline')
             ->get();
     }
 
-    private function availableOnhandProducts(int $userId)
+    private function availableOnhandProducts(int $userId, int $storeId)
     {
         return Product::query()
             ->select('products.id_product', 'products.nama_product', 'products.harga')
             ->join('product_onhands', 'product_onhands.id_product', '=', 'products.id_product')
+            ->where('products.store_id', $storeId)
+            ->where('product_onhands.store_id', $storeId)
             ->where('product_onhands.user_id', $userId)
             ->where('product_onhands.take_status', 'disetujui')
             ->groupBy('products.id_product', 'products.nama_product', 'products.harga')
             ->get()
-            ->map(function (Product $product) use ($userId) {
-                $onhand = $this->resolveOnhandForSale($userId, $product->id_product);
+            ->map(function (Product $product) use ($userId, $storeId) {
+                $onhand = $this->resolveOnhandForSale($userId, $product->id_product, $storeId);
                 $product->remaining = $onhand ? $this->availableForOnhand($onhand) : 0;
                 return $product;
             })
@@ -533,9 +768,10 @@ class OfflineSaleController extends Controller
             ->values();
     }
 
-    private function resolveOnhandForSale(int $userId, int $productId): ?ProductOnhand
+    private function resolveOnhandForSale(int $userId, int $productId, ?int $storeId = null): ?ProductOnhand
     {
         return ProductOnhand::query()
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
             ->where('user_id', $userId)
             ->where('id_product', $productId)
             ->where('take_status', 'disetujui')
@@ -555,15 +791,41 @@ class OfflineSaleController extends Controller
         return ProductOnhandStock::availableQuantity($onhand, $ignoreSaleId);
     }
 
-    private function resolveProductHpp(?Product $product): float
+    private function resolveProductHpp(?Product $product, ?ProductVariant $variant = null): float
     {
         if (! $product) {
             return 0;
         }
 
-        $product->loadMissing('hppCalculation');
+        $product->loadMissing('hppCalculation.items');
+
+        if ($product->hppCalculation?->items?->isNotEmpty()) {
+            $mlBase = (float) ($variant?->total_satuan_ml ?? 50);
+
+            return round((float) $product->hppCalculation->items->sum(function ($item) use ($mlBase) {
+                return RawMaterialUsage::calculateItemCost(
+                    (float) $item->presentase,
+                    (float) $item->harga_satuan,
+                    (string) $item->satuan,
+                    $mlBase
+                );
+            }), 2);
+        }
 
         return round((float) ($product->hppCalculation?->total_hpp ?? $product->harga_modal ?? 0), 2);
+    }
+
+    private function generateSaleNumber(int $storeId, Carbon $timestamp): string
+    {
+        $nextNumber = OfflineSale::query()
+            ->where('store_id', $storeId)
+            ->whereDate('created_at', $timestamp->toDateString())
+            ->select('sale_number')
+            ->distinct()
+            ->get()
+            ->count() + 1;
+
+        return $timestamp->format('d/m/Y') . ' - ' . $nextNumber;
     }
 }
 

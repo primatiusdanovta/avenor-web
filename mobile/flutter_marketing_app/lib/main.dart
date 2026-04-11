@@ -594,14 +594,18 @@ class _MarketingRootState extends State<MarketingRoot> {
       final items = ((consignment['items'] as List?) ?? [])
           .cast<Map<String, dynamic>>();
       for (final item in items) {
-        final onhandId = (item['product_onhand_id'] as num?)?.toInt() ??
-            (item['id'] as num?)?.toInt();
+        final onhandId = _asInt(item['product_onhand_id'],
+                fallback: _asInt(item['id'], fallback: -1)) ==
+            -1
+            ? null
+            : _asInt(item['product_onhand_id'],
+                fallback: _asInt(item['id'], fallback: -1));
         if (onhandId == null) {
           continue;
         }
-        final sold = (item['sold_quantity'] as num?)?.toInt() ?? 0;
-        final returned = (item['returned_quantity'] as num?)?.toInt() ?? 0;
-        final quantity = (item['quantity'] as num?)?.toInt() ?? 0;
+        final sold = _asInt(item['sold_quantity']);
+        final returned = _asInt(item['returned_quantity']);
+        final quantity = _asInt(item['quantity']);
         soldByOnhand[onhandId] = (soldByOnhand[onhandId] ?? 0) + sold;
         activeConsignByOnhand[onhandId] =
             (activeConsignByOnhand[onhandId] ?? 0) + max(quantity - sold - returned, 0);
@@ -609,7 +613,9 @@ class _MarketingRootState extends State<MarketingRoot> {
     }
 
     for (final onhand in onhands) {
-      final onhandId = (onhand['id_product_onhand'] as num?)?.toInt();
+      final onhandId = _asInt(onhand['id_product_onhand'], fallback: -1) == -1
+          ? null
+          : _asInt(onhand['id_product_onhand']);
       final takeStatus = onhand['take_status']?.toString();
       if (takeStatus != 'disetujui') {
         onhand['remaining_quantity'] = takeStatus == 'pending' ? 0 : (onhand['remaining_quantity'] ?? 0);
@@ -617,14 +623,13 @@ class _MarketingRootState extends State<MarketingRoot> {
         onhand['max_return'] = 0;
         continue;
       }
-      final totalQuantity = (onhand['quantity'] as num?)?.toInt() ?? 0;
-      final directSold = (onhand['sold_quantity'] as num?)?.toInt() ?? 0;
+      final totalQuantity = _asInt(onhand['quantity']);
+      final directSold = _asInt(onhand['sold_quantity']);
       final consignmentSold = onhandId == null ? 0 : (soldByOnhand[onhandId] ?? 0);
       final pendingReturn = onhand['return_status'] == 'pending'
-          ? (onhand['quantity_dikembalikan'] as num?)?.toInt() ?? 0
+          ? _asInt(onhand['quantity_dikembalikan'])
           : 0;
-      final approvedReturn =
-          (onhand['approved_return_quantity'] as num?)?.toInt() ?? 0;
+      final approvedReturn = _asInt(onhand['approved_return_quantity']);
       final activeConsignment =
           onhandId == null ? 0 : (activeConsignByOnhand[onhandId] ?? 0);
       final soldTotal = directSold + consignmentSold;
@@ -655,7 +660,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         onhands.where((item) => item['return_status'] == 'pending').length;
     final onHandCount =
         onhands.where(_isCountedAsOnHand).fold<int>(0, (sum, item) {
-      return sum + ((item['remaining_quantity'] as num?)?.toInt() ?? 0);
+      return sum + _asInt(item['remaining_quantity']);
     });
 
     _dashboard = {
@@ -701,14 +706,18 @@ class _MarketingRootState extends State<MarketingRoot> {
       final items = ((consignment['items'] as List?) ?? [])
           .cast<Map<String, dynamic>>();
       for (final item in items) {
-        final onhandId = (item['product_onhand_id'] as num?)?.toInt() ??
-            (item['id'] as num?)?.toInt();
+        final onhandId = _asInt(item['product_onhand_id'],
+                fallback: _asInt(item['id'], fallback: -1)) ==
+            -1
+            ? null
+            : _asInt(item['product_onhand_id'],
+                fallback: _asInt(item['id'], fallback: -1));
         if (onhandId == null) {
           continue;
         }
-        final sold = (item['sold_quantity'] as num?)?.toInt() ?? 0;
-        final returned = (item['returned_quantity'] as num?)?.toInt() ?? 0;
-        final quantity = (item['quantity'] as num?)?.toInt() ?? 0;
+        final sold = _asInt(item['sold_quantity']);
+        final returned = _asInt(item['returned_quantity']);
+        final quantity = _asInt(item['quantity']);
         soldByOnhand[onhandId] = (soldByOnhand[onhandId] ?? 0) + sold;
         activeConsignByOnhand[onhandId] =
             (activeConsignByOnhand[onhandId] ?? 0) +
@@ -717,20 +726,21 @@ class _MarketingRootState extends State<MarketingRoot> {
     }
 
     for (final onhand in onhands) {
-      final onhandId = (onhand['id_product_onhand'] as num?)?.toInt();
+      final onhandId = _asInt(onhand['id_product_onhand'], fallback: -1) == -1
+          ? null
+          : _asInt(onhand['id_product_onhand']);
       final takeStatus = onhand['take_status']?.toString();
       if (takeStatus != 'disetujui') {
         continue;
       }
 
-      final totalQuantity = (onhand['quantity'] as num?)?.toInt() ?? 0;
-      final directSold = (onhand['sold_quantity'] as num?)?.toInt() ?? 0;
+      final totalQuantity = _asInt(onhand['quantity']);
+      final directSold = _asInt(onhand['sold_quantity']);
       final consignmentSold = onhandId == null ? 0 : (soldByOnhand[onhandId] ?? 0);
       final pendingReturn = onhand['return_status'] == 'pending'
-          ? (onhand['quantity_dikembalikan'] as num?)?.toInt() ?? 0
+          ? _asInt(onhand['quantity_dikembalikan'])
           : 0;
-      final approvedReturn =
-          (onhand['approved_return_quantity'] as num?)?.toInt() ?? 0;
+      final approvedReturn = _asInt(onhand['approved_return_quantity']);
       final activeConsignment =
           onhandId == null ? 0 : (activeConsignByOnhand[onhandId] ?? 0);
       final soldTotal = directSold + consignmentSold;
@@ -821,18 +831,20 @@ class _MarketingRootState extends State<MarketingRoot> {
       if (!_isCountedAsOnHand(onhand)) {
         continue;
       }
-      final productId = (onhand['id_product'] as num?)?.toInt();
+      final productId = _asInt(onhand['id_product'], fallback: -1) == -1
+          ? null
+          : _asInt(onhand['id_product']);
       if (productId == null) {
         continue;
       }
       totals[productId] =
-          (totals[productId] ?? 0) + ((onhand['remaining_quantity'] as num?)?.toInt() ?? 0);
+          (totals[productId] ?? 0) + _asInt(onhand['remaining_quantity']);
     }
 
     return catalog
-        .where((product) => (totals[(product['id_product'] as num?)?.toInt() ?? -1] ?? 0) > 0)
+        .where((product) => (totals[_asInt(product['id_product'], fallback: -1)] ?? 0) > 0)
         .map((product) {
-      final productId = (product['id_product'] as num?)?.toInt() ?? 0;
+      final productId = _asInt(product['id_product']);
       final remaining = totals[productId] ?? 0;
       return {
         'id_product': productId,
@@ -851,9 +863,9 @@ class _MarketingRootState extends State<MarketingRoot> {
     return onhands
         .where((onhand) =>
             onhand['take_status'] == 'disetujui' &&
-            ((onhand['remaining_quantity'] as num?)?.toInt() ?? 0) > 0)
+            _asInt(onhand['remaining_quantity']) > 0)
         .map((onhand) {
-      final remaining = (onhand['remaining_quantity'] as num?)?.toInt() ?? 0;
+      final remaining = _asInt(onhand['remaining_quantity']);
       return {
         'id_product_onhand': onhand['id_product_onhand'],
         'id_product': onhand['id_product'],
@@ -868,8 +880,7 @@ class _MarketingRootState extends State<MarketingRoot> {
 
   static bool _isCountedAsOnHand(Map<String, dynamic> item) {
     final takeStatus = item['take_status']?.toString().toLowerCase() ?? '';
-    final remainingQuantity =
-        (item['remaining_quantity'] as num?)?.toInt() ?? 0;
+    final remainingQuantity = _asInt(item['remaining_quantity']);
     final soldOut = item['sold_out'] == true || remainingQuantity <= 0;
 
     return takeStatus == 'disetujui' && !soldOut;
@@ -1139,7 +1150,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     }
   }
 
-  Future<void> _requestTake(
+  Future<bool> _requestTake(
       {required int productId, required int quantity}) async {
     setState(() => _busy = true);
     try {
@@ -1174,7 +1185,10 @@ class _MarketingRootState extends State<MarketingRoot> {
         });
         await _refreshAll();
       }
-      _showMessage('Request pengambilan barang berhasil dikirim.');
+      if (mounted) {
+        setState(() => _navigationIndex = 2);
+      }
+      return true;
     } on DioException catch (error) {
       _showMessage(_readError(error));
     } catch (error) {
@@ -1184,9 +1198,10 @@ class _MarketingRootState extends State<MarketingRoot> {
         setState(() => _busy = false);
       }
     }
+    return false;
   }
 
-  Future<void> _requestReturn(
+  Future<bool> _requestReturn(
       {required int onhandId, required int quantity}) async {
     setState(() => _busy = true);
     try {
@@ -1205,7 +1220,10 @@ class _MarketingRootState extends State<MarketingRoot> {
         await _submitReturnRequest(onhandId: onhandId, quantity: quantity);
         await _refreshAll();
       }
-      _showMessage('Request pengembalian barang berhasil dikirim.');
+      if (mounted) {
+        setState(() => _navigationIndex = 2);
+      }
+      return true;
     } on DioException catch (error) {
       _showMessage(_readError(error));
     } catch (error) {
@@ -1215,6 +1233,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         setState(() => _busy = false);
       }
     }
+    return false;
   }
 
   Future<void> _submitSale({
@@ -1428,7 +1447,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     return false;
   }
 
-  Future<void> _updateConsignmentItem({
+  Future<bool> _updateConsignmentItem({
     required int itemId,
     required int soldQuantity,
     required int returnedQuantity,
@@ -1443,13 +1462,13 @@ class _MarketingRootState extends State<MarketingRoot> {
           final items = ((consignment['items'] as List?) ?? [])
               .cast<Map<String, dynamic>>();
           final index = items.indexWhere(
-            (item) => (item['id'] as num?)?.toInt() == itemId,
+            (item) => _asInt(item['id'], fallback: -1) == itemId,
           );
           if (index < 0) {
             continue;
           }
 
-          final quantity = (items[index]['quantity'] as num?)?.toInt() ?? 0;
+          final quantity = _asInt(items[index]['quantity']);
           final resolvedStatus = soldQuantity >= quantity
               ? 'terjual'
               : returnedQuantity >= quantity
@@ -1482,7 +1501,10 @@ class _MarketingRootState extends State<MarketingRoot> {
         });
         await _refreshAll();
       }
-      _showMessage('Status consign berhasil diperbarui.');
+      if (mounted) {
+        setState(() => _navigationIndex = 2);
+      }
+      return true;
     } on DioException catch (error) {
       _showMessage(_readError(error));
     } catch (error) {
@@ -1492,6 +1514,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         setState(() => _busy = false);
       }
     }
+    return false;
   }
 
   Future<void> _submitReturnRequest({
@@ -3378,9 +3401,9 @@ class _InventoryPage extends StatelessWidget {
   final bool busy;
   final NumberFormat currency;
   final DateFormat dateTime;
-  final Future<void> Function({required int productId, required int quantity})
+  final Future<bool> Function({required int productId, required int quantity})
       onTake;
-  final Future<void> Function({required int onhandId, required int quantity})
+  final Future<bool> Function({required int onhandId, required int quantity})
       onReturn;
   final Future<XFile?> Function()? onPickConsignmentProof;
   final Future<bool> Function({
@@ -3390,7 +3413,7 @@ class _InventoryPage extends StatelessWidget {
     required List<Map<String, dynamic>> items,
     required XFile proofPhoto,
   })? onSubmitConsignment;
-  final Future<void> Function({
+  final Future<bool> Function({
     required int itemId,
     required int soldQuantity,
     required int returnedQuantity,
@@ -3782,7 +3805,7 @@ class _TakeProductSheet extends StatefulWidget {
   final bool busy;
   final String? blockedReason;
   final NumberFormat currency;
-  final Future<void> Function({required int productId, required int quantity})
+  final Future<bool> Function({required int productId, required int quantity})
       onTake;
 
   @override
@@ -3967,12 +3990,12 @@ class _TakeProductDetailSheet extends StatelessWidget {
   final NumberFormat currency;
   final bool busy;
   final String? blockedReason;
-  final Future<void> Function({required int productId, required int quantity})
+  final Future<bool> Function({required int productId, required int quantity})
       onTake;
 
   @override
   Widget build(BuildContext context) {
-    final stock = (item['stock'] as num?)?.toInt() ?? 0;
+    final stock = _asInt(item['stock']);
     final badges = _productBadgeLabels(item);
 
     return Scaffold(
@@ -4048,8 +4071,11 @@ class _TakeProductDetailSheet extends StatelessWidget {
                               title: 'Request ${item['nama_product']}',
                               maxQuantity: stock,
                               ctaLabel: 'Kirim Request',
+                              successMessage:
+                                  'Request barang berhasil dikirim. Anda akan kembali ke halaman inventory.',
+                              closeDepth: 2,
                               onSubmit: (qty) => onTake(
-                                productId: (item['id_product'] as num).toInt(),
+                                productId: _asInt(item['id_product']),
                                 quantity: qty,
                               ),
                             ),
@@ -4077,7 +4103,7 @@ class _OnHandSheet extends StatefulWidget {
   final List<Map<String, dynamic>> onhands;
   final bool busy;
   final NumberFormat currency;
-  final Future<void> Function({required int onhandId, required int quantity})
+  final Future<bool> Function({required int onhandId, required int quantity})
       onReturn;
 
   @override
@@ -4479,7 +4505,7 @@ class _OnHandItemCard extends StatelessWidget {
   final Map<String, dynamic> item;
   final bool busy;
   final NumberFormat currency;
-  final Future<void> Function({required int onhandId, required int quantity})
+  final Future<bool> Function({required int onhandId, required int quantity})
       onReturn;
 
   @override
@@ -4567,8 +4593,11 @@ class _OnHandItemCard extends StatelessWidget {
                           maxQuantity:
                               (item['max_return'] as num?)?.toInt() ?? 1,
                           ctaLabel: 'Kirim Retur',
+                          successMessage:
+                              'Request retur berhasil dikirim. Anda akan kembali ke halaman inventory.',
+                          closeDepth: 2,
                           onSubmit: (qty) => onReturn(
-                            onhandId: (item['id_product_onhand'] as num).toInt(),
+                            onhandId: _asInt(item['id_product_onhand']),
                             quantity: qty,
                           ),
                         ),
@@ -4593,7 +4622,7 @@ class _MergedOnHandReturnSheet extends StatelessWidget {
 
   final Map<String, dynamic> item;
   final bool busy;
-  final Future<void> Function({required int onhandId, required int quantity})
+  final Future<bool> Function({required int onhandId, required int quantity})
       onReturn;
 
   @override
@@ -4715,11 +4744,13 @@ class _MergedOnHandReturnSheet extends StatelessWidget {
                                                         ?.toInt() ??
                                                     1,
                                             ctaLabel: 'Kirim Retur',
+                                            successMessage:
+                                                'Request retur berhasil dikirim. Anda akan kembali ke halaman inventory.',
+                                            closeDepth: 3,
                                             onSubmit: (qty) => onReturn(
-                                              onhandId:
-                                                  (source['id_product_onhand']
-                                                          as num)
-                                                      .toInt(),
+                                              onhandId: _asInt(
+                                                source['id_product_onhand'],
+                                              ),
                                               quantity: qty,
                                             ),
                                           ),
@@ -5197,11 +5228,12 @@ class _SalesPageState extends State<_SalesPage> {
         ctaLabel: 'Gunakan quantity ini',
         onSubmit: (qty) async {
           if (!mounted) {
-            return;
+            return false;
           }
           setState(() {
             _items[index] = _items[index].copyWith(quantity: qty);
           });
+          return true;
         },
       ),
     );
@@ -6224,13 +6256,11 @@ class _ConsignmentFormSheetState extends State<_ConsignmentFormSheet> {
     final existingIndex = _items.indexWhere(
       (item) => item['product_onhand_id'] == _selectedProductOnhandId,
     );
-    final availableQuantity =
-        (product['available_quantity'] as num?)?.toInt() ?? 0;
+    final availableQuantity = _asInt(product['available_quantity']);
 
     setState(() {
       if (existingIndex >= 0) {
-        final currentQuantity =
-            (_items[existingIndex]['quantity'] as num?)?.toInt() ?? 0;
+        final currentQuantity = _asInt(_items[existingIndex]['quantity']);
         _items[existingIndex]['quantity'] =
             (currentQuantity + quantity).clamp(1, availableQuantity);
       } else {
@@ -6254,10 +6284,8 @@ class _ConsignmentFormSheetState extends State<_ConsignmentFormSheet> {
             (item) => item['product_onhand_id'] == productOnhandId,
             orElse: () => <String, dynamic>{},
           );
-      final selectedQuantity =
-          (selectedItem['quantity'] as num?)?.toInt() ?? 0;
-      final availableQuantity =
-          (product['available_quantity'] as num?)?.toInt() ?? 0;
+      final selectedQuantity = _asInt(selectedItem['quantity']);
+      final availableQuantity = _asInt(product['available_quantity']);
       return selectedQuantity < availableQuantity;
     }).toList();
 
@@ -6372,15 +6400,13 @@ class _ConsignmentFormSheetState extends State<_ConsignmentFormSheet> {
                       ),
                 trailingBadgeLabel: _selectedProductOnhandId == null
                     ? null
-                    : 'Stok ${((availableProducts
-                                    .firstWhere(
-                                      (product) =>
-                                          product['id_product_onhand'] ==
-                                          _selectedProductOnhandId,
-                                      orElse: () => const <String, dynamic>{},
-                                    )['available_quantity'] as num?)
-                                ?.toInt() ??
-                            0)}',
+                    : 'Stok ${_asInt(availableProducts
+                            .firstWhere(
+                              (product) =>
+                                  product['id_product_onhand'] ==
+                                  _selectedProductOnhandId,
+                              orElse: () => const <String, dynamic>{},
+                            )['available_quantity'])}',
                 enabled: availableProducts.isNotEmpty && !widget.busy,
                 onTap: () async {
                   final selected = await showMaterialModalBottomSheet<int>(
@@ -6400,7 +6426,7 @@ class _ConsignmentFormSheetState extends State<_ConsignmentFormSheet> {
                       titleResolver: (item) => item['nama_product']?.toString() ?? 'Produk',
                       subtitleResolver: _consignmentBatchSubtitle,
                       trailingBadgeResolver: (item) =>
-                          'Stok ${((item['available_quantity'] as num?)?.toInt() ?? 0)}',
+                          'Stok ${_asInt(item['available_quantity'])}',
                     ),
                   );
                   if (!mounted || selected == null) {
@@ -6599,7 +6625,7 @@ class _ConsignmentHistorySheet extends StatelessWidget {
   final String subtitle;
   final String emptyMessage;
   final bool readOnly;
-  final Future<void> Function({
+  final Future<bool> Function({
     required int itemId,
     required int soldQuantity,
     required int returnedQuantity,
@@ -6734,7 +6760,7 @@ class _ConsignmentHistoryItemCard extends StatelessWidget {
   final Map<String, dynamic> item;
   final bool busy;
   final bool readOnly;
-  final Future<void> Function({
+  final Future<bool> Function({
     required int itemId,
     required int soldQuantity,
     required int returnedQuantity,
@@ -6743,9 +6769,9 @@ class _ConsignmentHistoryItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final quantity = (item['quantity'] as num?)?.toInt() ?? 0;
-    final soldQuantity = (item['sold_quantity'] as num?)?.toInt() ?? 0;
-    final returnedQuantity = (item['returned_quantity'] as num?)?.toInt() ?? 0;
+    final quantity = _asInt(item['quantity']);
+    final soldQuantity = _asInt(item['sold_quantity']);
+    final returnedQuantity = _asInt(item['returned_quantity']);
     final activeQuantity = max(quantity - soldQuantity - returnedQuantity, 0);
 
     return Container(
@@ -6824,7 +6850,7 @@ class _EditConsignmentItemSheet extends StatefulWidget {
   });
 
   final Map<String, dynamic> item;
-  final Future<void> Function({
+  final Future<bool> Function({
     required int itemId,
     required int soldQuantity,
     required int returnedQuantity,
@@ -6846,10 +6872,10 @@ class _EditConsignmentItemSheetState extends State<_EditConsignmentItemSheet> {
   void initState() {
     super.initState();
     _soldController = TextEditingController(
-      text: '${(widget.item['sold_quantity'] as num?)?.toInt() ?? 0}',
+      text: '${_asInt(widget.item['sold_quantity'])}',
     );
     _returnedController = TextEditingController(
-      text: '${(widget.item['returned_quantity'] as num?)?.toInt() ?? 0}',
+      text: '${_asInt(widget.item['returned_quantity'])}',
     );
     _notesController = TextEditingController(
       text: widget.item['status_notes']?.toString() ?? '',
@@ -6866,7 +6892,7 @@ class _EditConsignmentItemSheetState extends State<_EditConsignmentItemSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final quantity = (widget.item['quantity'] as num?)?.toInt() ?? 0;
+    final quantity = _asInt(widget.item['quantity']);
     final sold = int.tryParse(_soldController.text.trim()) ?? 0;
     final returned = int.tryParse(_returnedController.text.trim()) ?? 0;
     final active = max(quantity - sold - returned, 0);
@@ -6962,16 +6988,37 @@ class _EditConsignmentItemSheetState extends State<_EditConsignmentItemSheet> {
                     ? null
                     : () async {
                         setState(() => _submitting = true);
-                        await widget.onUpdateItem(
+                        final success = await widget.onUpdateItem(
                           itemId: (widget.item['id'] as num).toInt(),
                           soldQuantity: sold,
                           returnedQuantity: returned,
                           statusNotes: _notesController.text.trim(),
                         );
+                        if (!context.mounted || !success) {
+                          return;
+                        }
+                        await showDialog<void>(
+                          context: context,
+                          builder: (dialogContext) => AlertDialog(
+                            title: const Text('Berhasil'),
+                            content: const Text(
+                              'Status consign berhasil diperbarui. Anda akan kembali ke halaman inventory.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(dialogContext).pop(),
+                                child: const Text('OK'),
+                              ),
+                            ],
+                          ),
+                        );
                         if (!context.mounted) {
                           return;
                         }
                         Navigator.of(context).pop();
+                        if (Navigator.of(context).canPop()) {
+                          Navigator.of(context).pop();
+                        }
                       },
                 child: Text(_submitting ? 'Menyimpan...' : 'Simpan perubahan'),
               ),
@@ -7019,6 +7066,21 @@ String _formatConsignmentDate(String? value, DateFormat formatter) {
   return formatter.format(parsed);
 }
 
+int _asInt(dynamic value, {int fallback = 0}) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  if (value is String) {
+    return int.tryParse(value.trim()) ??
+        double.tryParse(value.trim())?.toInt() ??
+        fallback;
+  }
+  return fallback;
+}
+
 String _startCaseWords(String value) {
   return value
       .split(RegExp(r'[\s_-]+'))
@@ -7052,9 +7114,9 @@ String? _productFragranceSummary(Map<String, dynamic> item, {int maxParts = 2}) 
 }
 
 int _activeConsignmentQuantity(Map<String, dynamic> item) {
-  final quantity = (item['quantity'] as num?)?.toInt() ?? 0;
-  final soldQuantity = (item['sold_quantity'] as num?)?.toInt() ?? 0;
-  final returnedQuantity = (item['returned_quantity'] as num?)?.toInt() ?? 0;
+  final quantity = _asInt(item['quantity']);
+  final soldQuantity = _asInt(item['sold_quantity']);
+  final returnedQuantity = _asInt(item['returned_quantity']);
   return max(quantity - soldQuantity - returnedQuantity, 0);
 }
 
@@ -8105,13 +8167,17 @@ class _QuantitySheet extends StatefulWidget {
     required this.ctaLabel,
     required this.onSubmit,
     this.initialQuantity = 1,
+    this.successMessage,
+    this.closeDepth = 1,
   });
 
   final String title;
   final int maxQuantity;
   final String ctaLabel;
-  final Future<void> Function(int quantity) onSubmit;
+  final Future<bool> Function(int quantity) onSubmit;
   final int initialQuantity;
+  final String? successMessage;
+  final int closeDepth;
 
   @override
   State<_QuantitySheet> createState() => _QuantitySheetState();
@@ -8137,15 +8203,18 @@ class _QuantitySheetState extends State<_QuantitySheet> {
 
   @override
   Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final safeBottom = max(mediaQuery.padding.bottom, mediaQuery.viewPadding.bottom);
+
     return Material(
       color: const Color(0xFFF7F1E6),
       borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-      child: Padding(
+      child: SingleChildScrollView(
         padding: EdgeInsets.only(
           left: 20,
           right: 20,
           top: 20,
-          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          bottom: mediaQuery.viewInsets.bottom + safeBottom + 20,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -8250,9 +8319,35 @@ class _QuantitySheetState extends State<_QuantitySheet> {
                           return;
                         }
                         setState(() => _submitting = true);
-                        await widget.onSubmit(qty);
+                        final success = await widget.onSubmit(qty);
                         if (!context.mounted) return;
-                        Navigator.of(context).pop();
+                        if (!success) {
+                          setState(() => _submitting = false);
+                          return;
+                        }
+                        if (widget.successMessage != null &&
+                            widget.successMessage!.trim().isNotEmpty) {
+                          await showDialog<void>(
+                            context: context,
+                            builder: (dialogContext) => AlertDialog(
+                              title: const Text('Berhasil'),
+                              content: Text(widget.successMessage!),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(dialogContext).pop(),
+                                  child: const Text('OK'),
+                                ),
+                              ],
+                            ),
+                          );
+                        }
+                        if (!context.mounted) return;
+                        for (var index = 0; index < widget.closeDepth; index++) {
+                          if (!Navigator.of(context).canPop()) {
+                            break;
+                          }
+                          Navigator.of(context).pop();
+                        }
                       },
                 child: Text(_submitting ? 'Memproses...' : widget.ctaLabel),
               ),

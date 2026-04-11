@@ -9,8 +9,8 @@
     @inertiaHead
     @include('partials.google-tag')
 
-    <link rel="icon" type="image/png" href="{{ asset('img/logo.png') }}">
-    <link rel="apple-touch-icon" href="{{ asset('img/logo.png') }}">
+    <link rel="icon" type="image/png" href="{{ asset('img/avenor_hitam.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('img/avenor_hitam.png') }}">
     <link rel="stylesheet" href="{{ asset('vendor/fontawesome-free/css/all.min.css') }}">
 
     @php

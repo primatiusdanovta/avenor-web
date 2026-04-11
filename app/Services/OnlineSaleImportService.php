@@ -14,7 +14,7 @@ use Illuminate\Validation\ValidationException;
 
 class OnlineSaleImportService
 {
-    public function import(UploadedFile $ordersFile, UploadedFile $incomeFile): array
+    public function import(UploadedFile $ordersFile, UploadedFile $incomeFile, int $storeId): array
     {
         $orderRows = collect(SpreadsheetRowReader::read($ordersFile))
             ->map(fn (array $row) => $this->normalizeOrderRow($row))
@@ -40,6 +40,7 @@ class OnlineSaleImportService
         }
 
         $products = Product::query()
+            ->where('store_id', $storeId)
             ->orderByRaw('LENGTH(nama_product) DESC')
             ->get(['id_product', 'nama_product'])
             ->map(function (Product $product) {
@@ -57,8 +58,8 @@ class OnlineSaleImportService
             'total_orders' => $orderRows->count(),
         ];
 
-        DB::transaction(function () use ($orderRows, $incomeRows, $products, &$summary): void {
-            OnlineSale::query()->delete();
+        DB::transaction(function () use ($orderRows, $incomeRows, $products, $storeId, &$summary): void {
+            OnlineSale::query()->where('store_id', $storeId)->delete();
 
             foreach ($orderRows as $orderId => $groupedRows) {
                 $rowsForOrder = collect($groupedRows)->values();
@@ -99,6 +100,7 @@ class OnlineSaleImportService
                 $allocatedItems = $this->allocateSettlement($groupedItems, $unitPrice, $totalSettlement);
 
                 $sale = OnlineSale::query()->create([
+                    'store_id' => $storeId,
                     'order_id' => $orderId,
                     'order_status' => $firstRow['order_status'],
                     'order_substatus' => $firstRow['order_substatus'],
@@ -113,6 +115,7 @@ class OnlineSaleImportService
 
                 foreach ($allocatedItems as $item) {
                     $sale->items()->create([
+                        'store_id' => $storeId,
                         'id_product' => $item['id_product'],
                         'raw_product_name' => $item['raw_product_name'],
                         'nama_product' => $item['nama_product'],

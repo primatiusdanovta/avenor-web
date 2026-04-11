@@ -17,12 +17,14 @@ class ProductController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless(SalesRole::isFieldRole($user?->role), 403);
+        abort_unless(in_array($user?->role, SalesRole::mobileRoles(), true), 403);
+        $storeId = MarketingMobileSupport::currentStoreId($user);
 
         $attendanceContext = MarketingMobileSupport::attendanceContext($user);
 
         $products = Product::query()
             ->with(['fragranceDetails', 'images'])
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
             ->where('stock', '>', 0)
             ->orderBy('nama_product')
             ->get(['id_product', 'nama_product', 'stock', 'harga', 'gambar', 'deskripsi'])
@@ -43,14 +45,17 @@ class ProductController extends Controller
             ])
             ->values();
 
-        $onhands = ProductOnhand::query()
-            ->with('user')
-            ->where('user_id', $user->id_user)
-            ->orderByDesc('assignment_date')
-            ->orderByDesc('id_product_onhand')
-            ->get()
-            ->map(fn (ProductOnhand $onhand) => MarketingMobileSupport::transformOnhand($onhand))
-            ->values();
+        $onhands = MarketingMobileSupport::isSmoothiesSweetieUser($user)
+            ? collect()
+            : ProductOnhand::query()
+                ->with('user')
+                ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
+                ->where('user_id', $user->id_user)
+                ->orderByDesc('assignment_date')
+                ->orderByDesc('id_product_onhand')
+                ->get()
+                ->map(fn (ProductOnhand $onhand) => MarketingMobileSupport::transformOnhand($onhand))
+                ->values();
 
         $todayReturnItems = $onhands
             ->filter(fn (array $onhand) => $onhand['take_status'] !== 'ditolak' && (
@@ -78,7 +83,15 @@ class ProductController extends Controller
 
     public function take(Request $request): JsonResponse
     {
+        abort_if(
+            MarketingMobileSupport::isSmoothiesSweetieUser($request->user()),
+            404,
+            'Fitur onhand dinonaktifkan untuk store Smoothies Sweetie.'
+        );
+
+        $storeId = MarketingMobileSupport::currentStoreId($request->user());
         $attendance = Attendance::query()
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
             ->where('user_id', $request->user()->id_user)
             ->whereDate('attendance_date', now()->toDateString())
             ->first();
@@ -97,6 +110,7 @@ class ProductController extends Controller
         ]);
 
         $pendingRequest = ProductOnhand::query()
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
             ->where('user_id', $request->user()->id_user)
             ->where('id_product', $validated['id_product'])
             ->whereDate('assignment_date', now()->toDateString())
@@ -107,7 +121,9 @@ class ProductController extends Controller
             return response()->json(['message' => 'Masih ada antrian yang belum disetujui.'], 422);
         }
 
-        $product = Product::query()->findOrFail($validated['id_product']);
+        $product = Product::query()
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
+            ->findOrFail($validated['id_product']);
 
         if ($product->stock <= 0) {
             return response()->json(['message' => 'Stock kosong, silakan hubungi admin.'], 422);
@@ -118,6 +134,7 @@ class ProductController extends Controller
         }
 
         $onhand = ProductOnhand::query()->create([
+            'store_id' => $storeId,
             'user_id' => $request->user()->id_user,
             'id_product' => $product->id_product,
             'nama_product' => $product->nama_product,
@@ -142,8 +159,15 @@ class ProductController extends Controller
 
     public function requestReturn(Request $request, int $onhand): JsonResponse
     {
+        abort_if(
+            MarketingMobileSupport::isSmoothiesSweetieUser($request->user()),
+            404,
+            'Fitur onhand dinonaktifkan untuk store Smoothies Sweetie.'
+        );
+
         $onhand = ProductOnhand::query()
             ->with('user')
+            ->when(MarketingMobileSupport::currentStoreId($request->user()), fn ($query, $storeId) => $query->where('store_id', $storeId))
             ->where('id_product_onhand', $onhand)
             ->where('user_id', $request->user()->id_user)
             ->firstOrFail();
@@ -186,3 +210,4 @@ class ProductController extends Controller
         ]);
     }
 }
+

@@ -2,17 +2,19 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DefaultsToAvenorStore;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Attendance extends Model
 {
-    use HasFactory;
+    use DefaultsToAvenorStore, HasFactory;
 
     public $timestamps = false;
 
     protected $fillable = [
+        'store_id',
         'user_id',
         'attendance_date',
         'check_in',
@@ -41,5 +43,10 @@ class Attendance extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id', 'id_user');
+    }
+
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 }

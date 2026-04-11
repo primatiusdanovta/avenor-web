@@ -226,7 +226,7 @@ const filteredExpenses = computed(() => props.expenses.filter((item) => {
 }));
 
 const toCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 2 }).format(value || 0);
-const badgeClass = (category) => category === 'bahan_baku' ? 'badge-primary' : 'badge-warning';
+const badgeClass = (category) => category === 'bahan_baku' ? 'expense-badge expense-badge--primary' : 'expense-badge expense-badge--warning';
 
 const resetCreateForm = (form) => {
     form.reset();
@@ -312,6 +312,21 @@ const confirmDelete = () => {
     width: 100%;
     min-width: 0;
     white-space: nowrap;
+}
+
+.expense-badge {
+    color: #1f2937;
+    border: 1px solid transparent;
+}
+
+.expense-badge--primary {
+    background: #dbeafe;
+    border-color: #93c5fd;
+}
+
+.expense-badge--warning {
+    background: #fef3c7;
+    border-color: #fbbf24;
 }
 
 @media (max-width: 575.98px) {

@@ -2,15 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DefaultsToAvenorStore;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class OnlineSaleItem extends Model
 {
-    use HasFactory;
+    use DefaultsToAvenorStore, HasFactory;
 
     protected $fillable = [
+        'store_id',
         'online_sale_id',
         'id_product',
         'raw_product_name',
@@ -39,5 +41,10 @@ class OnlineSaleItem extends Model
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'id_product', 'id_product');
+    }
+
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 }

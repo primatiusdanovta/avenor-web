@@ -15,6 +15,7 @@ use App\Http\Controllers\ConsignmentController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ExtraToppingController;
 use App\Http\Controllers\GlobalSettingController;
 use App\Http\Controllers\HppController;
 use App\Http\Controllers\MasterGatewayController;
@@ -34,8 +35,11 @@ use App\Http\Controllers\RawMaterialController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SalesTargetController;
 use App\Http\Controllers\SeoSettingController;
+use App\Http\Controllers\SopController;
+use App\Http\Controllers\StoreController;
 use App\Http\Controllers\SuperAdminUserController;
 use App\Http\Controllers\TechnicalSeoController;
+use App\Http\Controllers\PermissionRoleController;
 use App\Support\ProductLandingData;
 use Illuminate\Support\Facades\Route;
 
@@ -84,6 +88,14 @@ Route::prefix($administratorPrefix)->group(function () {
 
     Route::middleware('auth')->group(function () {
         Route::get('/dashboard', DashboardController::class)->name('dashboard');
+        Route::get('/stores', [StoreController::class, 'index'])->name('stores.index');
+        Route::post('/stores', [StoreController::class, 'store'])->name('stores.store');
+        Route::put('/stores/{store}', [StoreController::class, 'update'])->name('stores.update');
+        Route::post('/stores/switch', [StoreController::class, 'switch'])->name('stores.switch');
+        Route::get('/roles', [PermissionRoleController::class, 'index'])->name('roles.index');
+        Route::post('/roles', [PermissionRoleController::class, 'store'])->name('roles.store');
+        Route::put('/roles/{role}', [PermissionRoleController::class, 'update'])->name('roles.update');
+        Route::delete('/roles/{role}', [PermissionRoleController::class, 'destroy'])->name('roles.destroy');
         Route::get('/users', [SuperAdminUserController::class, 'index'])->name('users.manage');
         Route::post('/users', [SuperAdminUserController::class, 'store'])->name('users.store');
         Route::put('/users/{user}', [SuperAdminUserController::class, 'update'])->name('users.update');
@@ -125,12 +137,13 @@ Route::prefix($administratorPrefix)->group(function () {
             Route::post('/articles', [ArticleController::class, 'store'])->name('articles.store');
             Route::put('/articles/{article}', [ArticleController::class, 'update'])->name('articles.update');
             Route::delete('/articles/{article}', [ArticleController::class, 'destroy'])->name('articles.destroy');
-            Route::get('/notifications', [MarketingNotificationController::class, 'index'])->name('notifications.index');
-            Route::post('/notifications', [MarketingNotificationController::class, 'store'])->name('notifications.store');
-            Route::put('/notifications/{notification}', [MarketingNotificationController::class, 'update'])->name('notifications.update');
-            Route::post('/notifications/{notification}/publish', [MarketingNotificationController::class, 'publish'])->name('notifications.publish');
-            Route::delete('/notifications/{notification}', [MarketingNotificationController::class, 'destroy'])->name('notifications.destroy');
         });
+
+        Route::get('/notifications', [MarketingNotificationController::class, 'index'])->name('notifications.index');
+        Route::post('/notifications', [MarketingNotificationController::class, 'store'])->name('notifications.store');
+        Route::put('/notifications/{notification}', [MarketingNotificationController::class, 'update'])->name('notifications.update');
+        Route::post('/notifications/{notification}/publish', [MarketingNotificationController::class, 'publish'])->name('notifications.publish');
+        Route::delete('/notifications/{notification}', [MarketingNotificationController::class, 'destroy'])->name('notifications.destroy');
 
         Route::get('/approvals', [ApprovalController::class, 'index'])->name('approvals.index');
         Route::get('/hpp', [HppController::class, 'index'])->name('hpp.index');
@@ -141,6 +154,14 @@ Route::prefix($administratorPrefix)->group(function () {
         Route::post('/raw-materials/restock', [RawMaterialController::class, 'restock'])->name('raw-materials.restock');
         Route::put('/raw-materials/{rawMaterial}', [RawMaterialController::class, 'update'])->name('raw-materials.update');
         Route::delete('/raw-materials/{rawMaterial}', [RawMaterialController::class, 'destroy'])->name('raw-materials.destroy');
+        Route::get('/extra-toppings', [ExtraToppingController::class, 'index'])->name('extra-toppings.index');
+        Route::post('/extra-toppings', [ExtraToppingController::class, 'store'])->name('extra-toppings.store');
+        Route::put('/extra-toppings/{extraTopping}', [ExtraToppingController::class, 'update'])->name('extra-toppings.update');
+        Route::delete('/extra-toppings/{extraTopping}', [ExtraToppingController::class, 'destroy'])->name('extra-toppings.destroy');
+        Route::get('/sops', [SopController::class, 'index'])->name('sops.index');
+        Route::post('/sops', [SopController::class, 'store'])->name('sops.store');
+        Route::put('/sops/{sop}', [SopController::class, 'update'])->name('sops.update');
+        Route::delete('/sops/{sop}', [SopController::class, 'destroy'])->name('sops.destroy');
 
         Route::get('/sales-targets', [SalesTargetController::class, 'index'])->name('sales-targets.index');
         Route::put('/sales-targets/{role}', [SalesTargetController::class, 'update'])->name('sales-targets.update');
@@ -205,12 +226,14 @@ Route::prefix($administratorPrefix)->group(function () {
         Route::delete('/content-creators/{contentCreator}', [ContentCreatorController::class, 'destroy'])->name('content-creators.destroy');
 
         Route::get('/offline-sales', [OfflineSaleController::class, 'index'])->name('offline-sales.index');
+        Route::get('/queue-board', [OfflineSaleController::class, 'queueBoard'])->name('queue-board');
         Route::post('/offline-sales', [OfflineSaleController::class, 'store'])->name('offline-sales.store');
         Route::put('/offline-sales/{sale}', [OfflineSaleController::class, 'update'])->name('offline-sales.update');
         Route::delete('/offline-sales/{sale}', [OfflineSaleController::class, 'destroy'])->name('offline-sales.destroy');
         Route::post('/offline-sales/{sale}/approve', [OfflineSaleController::class, 'approve'])->name('offline-sales.approve');
         Route::post('/offline-sales/{sale}/reject', [OfflineSaleController::class, 'reject'])->name('offline-sales.reject');
         Route::get('/offline-sales/{sale}/proof', [OfflineSaleController::class, 'showProof'])->name('offline-sales.proof');
+        Route::post('/queue-board/close', [OfflineSaleController::class, 'closeQueue'])->name('queue-board.close');
 
         Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
     });

@@ -2,15 +2,18 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DefaultsToAvenorStore;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class OnlineSale extends Model
 {
-    use HasFactory;
+    use DefaultsToAvenorStore, HasFactory;
 
     protected $fillable = [
+        'store_id',
         'order_id',
         'order_status',
         'order_substatus',
@@ -36,5 +39,10 @@ class OnlineSale extends Model
     public function items(): HasMany
     {
         return $this->hasMany(OnlineSaleItem::class);
+    }
+
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 }

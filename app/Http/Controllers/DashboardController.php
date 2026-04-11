@@ -14,6 +14,7 @@ use App\Models\RawMaterial;
 use App\Models\SalesTarget;
 use App\Models\User;
 use App\Support\MarketingBonusSupport;
+use App\Support\StoreFeature;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -25,6 +26,8 @@ class DashboardController extends Controller
     public function __invoke(Request $request): Response
     {
         $user = $request->user();
+        $this->authorizePermission($request, 'dashboard.view');
+        $storeId = $this->currentStoreId($request);
         [$monthStart, $monthEnd, $dashboardFilters] = $this->resolveDashboardPeriod($request);
         $quickActions = [['label' => 'Reload Dashboard', 'href' => route('dashboard')]];
         $roleHighlights = [];
@@ -90,7 +93,7 @@ class DashboardController extends Controller
             'quickActions' => $quickActions,
             'roleHighlights' => $roleHighlights,
             'dashboardFilters' => $dashboardFilters,
-            'dashboardData' => $this->buildDashboardData($user, $monthStart, $monthEnd, $dashboardFilters['type'] ?? 'all'),
+            'dashboardData' => $this->buildDashboardData($user, $monthStart, $monthEnd, $dashboardFilters['type'] ?? 'all', $storeId),
             'salesAppDownload' => $user->role === 'marketing'
                 ? [
                     'url' => data_get(GlobalSetting::masterSocialHub(), 'sales_app_apk_url'),
@@ -98,19 +101,20 @@ class DashboardController extends Controller
                 ]
                 : null,
             'inventorySummary' => $user->role === 'superadmin' ? [
-                'products' => Product::count(),
-                'rawMaterials' => RawMaterial::count(),
-                'promos' => Promo::query()->whereDate('masa_aktif', '>=', today())->count(),
-                'expenses' => Expense::count(),
-                'pendingReturns' => ProductOnhand::query()->where('return_status', 'pending')->count(),
-                'pendingSales' => OfflineSale::query()->where('approval_status', 'pending')->count(),
+                'products' => Product::query()->where('store_id', $storeId)->count(),
+                'rawMaterials' => RawMaterial::query()->where('store_id', $storeId)->count(),
+                'promos' => Promo::query()->where('store_id', $storeId)->whereDate('masa_aktif', '>=', today())->count(),
+                'expenses' => Expense::query()->where('store_id', $storeId)->count(),
+                'pendingReturns' => ProductOnhand::query()->where('store_id', $storeId)->where('return_status', 'pending')->count(),
+                'pendingSales' => OfflineSale::query()->where('store_id', $storeId)->where('approval_status', 'pending')->count(),
             ] : null,
         ]);
     }
 
-    private function buildDashboardData(User $user, Carbon $monthStart, Carbon $monthEnd, string $salesType = 'all'): array
+    private function buildDashboardData(User $user, Carbon $monthStart, Carbon $monthEnd, string $salesType = 'all', ?int $storeId = null): array
     {
         $offlineSales = OfflineSale::query()
+            ->where('store_id', $storeId)
             ->with(['user', 'product.hppCalculation'])
             ->whereBetween('created_at', [$monthStart, $monthEnd])
             ->where('approval_status', '!=', 'ditolak')
@@ -119,6 +123,7 @@ class DashboardController extends Controller
 
         if (in_array($user->role, ['superadmin', 'admin'], true)) {
             $onlineSaleItems = OnlineSaleItem::query()
+                ->where('store_id', $storeId)
                 ->with(['product.hppCalculation'])
                 ->whereBetween('created_at', [$monthStart, $monthEnd])
                 ->get();
@@ -136,9 +141,13 @@ class DashboardController extends Controller
         $filteredOfflineSales = $includeOffline ? $offlineSales : collect();
         $filteredOnlineSaleItems = $includeOnline ? $onlineSaleItems : collect();
         $operationalExpenseTotal = round((float) Expense::query()
+            ->where('store_id', $this->currentStoreId(request()))
             ->where('category', 'operasional')
             ->whereBetween('expense_date', [$monthStart->copy()->toDateString(), $monthEnd->copy()->toDateString()])
             ->sum('amount'), 2);
+        $wasteLossTotal = round((float) RawMaterial::query()
+            ->where('store_id', $this->currentStoreId(request()))
+            ->sum('waste_loss_amount'), 2);
 
         $offlineGross = round((float) $filteredOfflineSales->sum('harga'), 2);
         $onlineGross = round((float) $filteredOnlineSaleItems->sum('harga'), 2);
@@ -147,7 +156,7 @@ class DashboardController extends Controller
         $offlineGrossProfit = round($offlineGross - $offlineHppTotal, 2);
         $onlineGrossProfit = round($onlineGross - $onlineHppTotal, 2);
         $revenueTotal = round($offlineGross + $onlineGross, 2);
-        $grossProfitTotal = round($offlineGrossProfit + $onlineGrossProfit, 2);
+        $grossProfitTotal = round($offlineGrossProfit + $onlineGrossProfit - $wasteLossTotal, 2);
         $netProfitTotal = round($grossProfitTotal - $operationalExpenseTotal, 2);
         $npmBase = round($revenueTotal - $netProfitTotal, 2);
         $npmPercent = $revenueTotal > 0 ? round(($npmBase / $revenueTotal) * 100, 2) : 0;
@@ -169,6 +178,7 @@ class DashboardController extends Controller
         $topMarketing = $this->buildTopSellers($filteredOfflineSales, 'marketing');
         $topResellers = $this->buildTopSellers($filteredOfflineSales, 'sales_field_executive');
         $onDutyCount = Attendance::query()
+            ->where('store_id', $this->currentStoreId(request()))
             ->whereDate('attendance_date', now()->toDateString())
             ->whereNotNull('check_in')
             ->whereNull('check_out')
@@ -180,8 +190,8 @@ class DashboardController extends Controller
             'period_label' => $monthStart->copy()->locale('id')->translatedFormat('F Y'),
             'active_filter_type' => $salesType,
             'kpis' => [
-                'marketing_count' => User::query()->where('role', 'marketing')->count(),
-                'seller_count' => User::query()->where('role', 'sales_field_executive')->count(),
+                'marketing_count' => User::query()->where('role', 'marketing')->whereHas('stores', fn ($query) => $query->where('stores.id', $this->currentStoreId(request())))->count(),
+                'seller_count' => User::query()->where('role', 'sales_field_executive')->whereHas('stores', fn ($query) => $query->where('stores.id', $this->currentStoreId(request())))->count(),
                 'on_duty_marketing' => $onDutyCount,
                 'product_sold_total' => (int) $filteredOfflineSales->sum('quantity') + (int) $filteredOnlineSaleItems->sum('quantity'),
                 'product_sold_offline' => (int) $filteredOfflineSales->sum('quantity'),
@@ -194,6 +204,7 @@ class DashboardController extends Controller
                 'gross_profit_total' => $grossProfitTotal,
                 'net_profit_total' => $netProfitTotal,
                 'operational_expense_total' => $operationalExpenseTotal,
+                'waste_loss_total' => $wasteLossTotal,
                 'npm_base' => $npmBase,
                 'npm_percent' => $npmPercent,
             ],
@@ -417,12 +428,14 @@ class DashboardController extends Controller
     private function buildMarketingKpi(int $userId, Carbon $periodStart, Carbon $periodEnd): array
     {
         $salesQuantity = (int) OfflineSale::query()
+            ->where('store_id', $this->currentStoreId(request()))
             ->where('id_user', $userId)
             ->where('approval_status', '!=', 'ditolak')
             ->whereBetween('created_at', [$periodStart->copy()->startOfDay(), $periodEnd->copy()->endOfDay()])
             ->sum('quantity');
 
         $attendances = Attendance::query()
+            ->where('store_id', $this->currentStoreId(request()))
             ->where('user_id', $userId)
             ->whereBetween('attendance_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
             ->whereNotNull('check_in')
@@ -444,7 +457,8 @@ class DashboardController extends Controller
             return max(($checkOut - $checkIn) / 3600, 0);
         }), 2);
 
-        $salesTarget = (int) (SalesTarget::query()->firstWhere('role', 'marketing')?->monthly_target_qty ?? 100);
+        $salesTargetRole = StoreFeature::isSmoothiesSweetie(request()) ? 'karyawan' : 'marketing';
+        $salesTarget = (int) (SalesTarget::query()->firstWhere('role', $salesTargetRole)?->monthly_target_qty ?? 100);
         $attendanceTarget = 24;
         $hoursTarget = 8;
         $averageHoursPerDay = $attendanceDays > 0 ? round($totalHours / $attendanceDays, 2) : 0.0;

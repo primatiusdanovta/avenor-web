@@ -24,6 +24,24 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue']);
 const editorRef = ref(null);
+const hasHtmlTag = (value) => /<\/?[a-z][\s\S]*>/i.test(String(value || ''));
+const escapeHtml = (value) => String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+const normalizeEditorValue = (value) => {
+    if (!value) {
+        return '';
+    }
+
+    if (hasHtmlTag(value)) {
+        return value;
+    }
+
+    return escapeHtml(value).replace(/\n/g, '<br>');
+};
 
 const actions = [
     { label: 'Paragraph', command: 'formatBlock', value: 'p' },
@@ -42,8 +60,10 @@ const syncEditor = (value) => {
         return;
     }
 
-    if (editorRef.value.innerHTML !== value) {
-        editorRef.value.innerHTML = value || '';
+    const normalizedValue = normalizeEditorValue(value);
+
+    if (editorRef.value.innerHTML !== normalizedValue) {
+        editorRef.value.innerHTML = normalizedValue;
     }
 };
 

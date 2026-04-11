@@ -31,8 +31,8 @@ class AuthenticateMobileToken
             return $this->unauthorized('Token tidak valid.');
         }
 
-        if ($user->status !== 'aktif' || ! SalesRole::isFieldRole($user->role)) {
-            return $this->unauthorized('Akun tidak diizinkan mengakses aplikasi sales lapangan.');
+        if ($user->status !== 'aktif' || ! in_array($user->role, SalesRole::mobileRoles(), true)) {
+            return $this->unauthorized('Akun tidak diizinkan mengakses aplikasi mobile.');
         }
 
         if ($accessToken->expires_at && $accessToken->expires_at->isPast()) {
@@ -59,3 +59,5 @@ class AuthenticateMobileToken
         ], 401);
     }
 }
+
+

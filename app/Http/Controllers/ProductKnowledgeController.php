@@ -12,8 +12,12 @@ class ProductKnowledgeController extends Controller
 {
     public function index(Request $request): Response
     {
+        $storeId = $this->currentStoreId($request);
+        $isSmoothiesSweetie = $this->isSmoothiesSweetieStore($request);
+
         $products = Product::query()
             ->with(['fragranceDetails', 'images'])
+            ->where('store_id', $storeId)
             ->orderByDesc('created_at')
             ->orderByDesc('id_product')
             ->get()
@@ -36,24 +40,27 @@ class ProductKnowledgeController extends Controller
             ])
             ->values();
 
-        $filters = FragranceDetail::query()
-            ->orderBy('jenis')
-            ->orderBy('detail')
-            ->get()
-            ->groupBy('jenis')
-            ->map(fn ($items, $jenis) => [
-                'jenis' => $jenis,
-                'details' => $items->map(fn (FragranceDetail $detail) => [
-                    'id_fd' => $detail->id_fd,
-                    'detail' => $detail->detail,
-                    'deskripsi' => $detail->deskripsi,
-                ])->values(),
-            ])
-            ->values();
+        $filters = $isSmoothiesSweetie
+            ? collect()
+            : FragranceDetail::query()
+                ->orderBy('jenis')
+                ->orderBy('detail')
+                ->get()
+                ->groupBy('jenis')
+                ->map(fn ($items, $jenis) => [
+                    'jenis' => $jenis,
+                    'details' => $items->map(fn (FragranceDetail $detail) => [
+                        'id_fd' => $detail->id_fd,
+                        'detail' => $detail->detail,
+                        'deskripsi' => $detail->deskripsi,
+                    ])->values(),
+                ])
+                ->values();
 
         return Inertia::render('Products/Knowledge', [
             'products' => $products,
             'fragranceFilters' => $filters,
+            'isSmoothiesSweetie' => $isSmoothiesSweetie,
         ]);
     }
 }

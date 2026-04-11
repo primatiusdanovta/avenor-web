@@ -19,7 +19,9 @@ class ProductOnhandManagementController extends Controller
 {
     public function index(Request $request): Response
     {
-        abort_unless($request->user()?->role === 'superadmin', 403);
+        abort_unless($request->user()?->hasPermission('products.approve'), 403);
+        $this->abortIfStoreDisablesOnhandAndConsignment($request);
+        $storeId = $this->currentStoreId($request);
 
         $filters = [
             'search' => trim((string) $request->string('search')),
@@ -29,6 +31,7 @@ class ProductOnhandManagementController extends Controller
 
         $users = User::query()
             ->whereIn('role', ['marketing', 'sales_field_executive'])
+            ->whereHas('stores', fn ($query) => $query->where('stores.id', $storeId))
             ->orderBy('nama')
             ->get(['id_user', 'nama', 'role'])
             ->map(fn (User $user) => [
@@ -40,6 +43,7 @@ class ProductOnhandManagementController extends Controller
             ->values();
 
         $products = Product::query()
+            ->where('store_id', $storeId)
             ->orderBy('nama_product')
             ->get(['id_product', 'nama_product', 'stock'])
             ->map(fn (Product $product) => [
@@ -51,6 +55,7 @@ class ProductOnhandManagementController extends Controller
             ->values();
 
         $onhands = ProductOnhand::query()
+            ->where('store_id', $storeId)
             ->with(['user:id_user,nama,role', 'product:id_product,nama_product,stock'])
             ->withCount('offlineSales')
             ->when($filters['user_id'], fn ($query, $userId) => $query->where('user_id', $userId))
@@ -88,15 +93,18 @@ class ProductOnhandManagementController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        abort_unless($request->user()?->role === 'superadmin', 403);
+        abort_unless($request->user()?->hasPermission('products.approve'), 403);
+        $this->abortIfStoreDisablesOnhandAndConsignment($request);
+        $storeId = $this->currentStoreId($request);
 
         $validated = $this->validatePayload($request);
         $user = $this->resolveTargetUser((int) $validated['user_id']);
 
-        DB::transaction(function () use ($validated, $user, $request): void {
+        DB::transaction(function () use ($validated, $user, $request, $storeId): void {
             $product = Product::query()
                 ->lockForUpdate()
                 ->findOrFail($validated['id_product']);
+            abort_unless((int) $product->store_id === $storeId, 404);
 
             $lockedStock = $this->lockedStockForTakeStatus(
                 $validated['take_status'],
@@ -115,6 +123,7 @@ class ProductOnhandManagementController extends Controller
             }
 
             $onhand = ProductOnhand::query()->create([
+                'store_id' => $storeId,
                 'user_id' => $user->id_user,
                 'id_product' => $product->id_product,
                 'nama_product' => $product->nama_product,
@@ -145,7 +154,9 @@ class ProductOnhandManagementController extends Controller
 
     public function update(Request $request, ProductOnhand $onhand): RedirectResponse
     {
-        abort_unless($request->user()?->role === 'superadmin', 403);
+        abort_unless($request->user()?->hasPermission('products.approve'), 403);
+        $this->abortIfStoreDisablesOnhandAndConsignment($request);
+        $this->ensureStoreMatch($request, $onhand);
 
         $validated = $this->validatePayload($request);
         $user = $this->resolveTargetUser((int) $validated['user_id']);
@@ -258,7 +269,9 @@ class ProductOnhandManagementController extends Controller
 
     public function updateSoldQuantity(Request $request, ProductOnhand $onhand): RedirectResponse
     {
-        abort_unless($request->user()?->role === 'superadmin', 403);
+        abort_unless($request->user()?->hasPermission('products.approve'), 403);
+        $this->abortIfStoreDisablesOnhandAndConsignment($request);
+        $this->ensureStoreMatch($request, $onhand);
 
         $validated = $request->validate([
             'sold_quantity' => ['required', 'integer', 'min:0'],
@@ -301,7 +314,9 @@ class ProductOnhandManagementController extends Controller
 
     public function destroy(Request $request, ProductOnhand $onhand): RedirectResponse
     {
-        abort_unless($request->user()?->role === 'superadmin', 403);
+        abort_unless($request->user()?->hasPermission('products.approve'), 403);
+        $this->abortIfStoreDisablesOnhandAndConsignment($request);
+        $this->ensureStoreMatch($request, $onhand);
 
         DB::transaction(function () use ($onhand): void {
             $onhand = ProductOnhand::query()
@@ -342,9 +357,11 @@ class ProductOnhandManagementController extends Controller
 
     private function validatePayload(Request $request): array
     {
+        $storeId = $this->currentStoreId($request);
+
         return $request->validate([
             'user_id' => ['required', 'integer'],
-            'id_product' => ['required', 'integer', 'exists:products,id_product'],
+            'id_product' => ['required', 'integer', Rule::exists('products', 'id_product')->where(fn ($query) => $query->where('store_id', $storeId))],
             'quantity' => ['required', 'integer', 'min:1'],
             'assignment_date' => ['required', 'date'],
             'take_status' => ['required', Rule::in(['pending', 'disetujui', 'ditolak'])],
@@ -360,6 +377,8 @@ class ProductOnhandManagementController extends Controller
                 'user_id' => 'User onhand harus marketing atau sales field executive.',
             ]);
         }
+
+        abort_unless($user->stores()->where('stores.id', $this->currentStoreId(request()))->exists(), 404);
 
         return $user;
     }

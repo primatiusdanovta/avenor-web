@@ -6,9 +6,11 @@ use App\Models\FragranceDetail;
 use App\Models\GlobalSetting;
 use App\Models\MarketingLocation;
 use App\Models\OfflineSale;
+use App\Models\PermissionRole;
 use App\Models\Product;
 use App\Models\ProductOnhand;
 use App\Models\SalesTarget;
+use App\Models\Store;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
@@ -20,23 +22,29 @@ class DatabaseSeeder extends Seeder
 
     public function run(): void
     {
+        $avenorStoreId = $this->avenorStoreId();
+        $this->seedStoreBranding();
+        $roleIds = PermissionRole::query()->pluck('id', 'key');
         $users = [
-            ['nama' => 'superadmin', 'status' => 'aktif', 'role' => 'superadmin', 'password' => 'Superadmin123!'],
-            ['nama' => 'admin', 'status' => 'aktif', 'role' => 'admin', 'password' => 'Admin123!'],
-            ['nama' => 'marketing', 'status' => 'aktif', 'role' => 'marketing', 'password' => 'Marketing123!'],
-            ['nama' => 'field executive', 'status' => 'aktif', 'role' => 'sales_field_executive', 'password' => 'FieldExecutive123!'],
+            ['nama' => 'superadmin', 'status' => 'aktif', 'role' => 'superadmin', 'password' => 'Superadmin123!', 'permission_role_id' => $roleIds['superadmin'] ?? null],
+            ['nama' => 'admin', 'status' => 'aktif', 'role' => 'admin', 'password' => 'Admin123!', 'permission_role_id' => $roleIds['admin_full_access'] ?? null],
+            ['nama' => 'marketing', 'status' => 'aktif', 'role' => 'marketing', 'password' => 'Marketing123!', 'permission_role_id' => $roleIds['marketing_default'] ?? null],
+            ['nama' => 'field executive', 'status' => 'aktif', 'role' => 'sales_field_executive', 'password' => 'FieldExecutive123!', 'permission_role_id' => $roleIds['sales_field_default'] ?? null],
         ];
 
         foreach ($users as $user) {
-            User::query()->updateOrCreate(
+            $createdUser = User::query()->updateOrCreate(
                 ['nama' => $user['nama']],
                 [
                     'status' => $user['status'],
                     'role' => $user['role'],
+                    'permission_role_id' => $user['permission_role_id'],
                     'password' => $user['password'],
                     'created_at' => now(),
                 ],
             );
+
+            $createdUser->stores()->syncWithoutDetaching([$avenorStoreId => ['is_primary' => true]]);
         }
 
         foreach (['marketing', 'sales_field_executive'] as $role) {
@@ -121,13 +129,14 @@ class DatabaseSeeder extends Seeder
 
         foreach ($products as $product) {
             Product::query()->updateOrCreate(
-                ['nama_product' => $product['nama_product']],
+                ['store_id' => $this->avenorStoreId(), 'nama_product' => $product['nama_product']],
                 [
+                    'store_id' => $this->avenorStoreId(),
                     'harga' => $product['harga'],
                     'harga_modal' => 0,
-                    'stock' => Product::query()->where('nama_product', $product['nama_product'])->value('stock') ?? 0,
+                    'stock' => Product::query()->where('store_id', $this->avenorStoreId())->where('nama_product', $product['nama_product'])->value('stock') ?? 0,
                     'deskripsi' => $product['deskripsi'],
-                    'created_at' => Product::query()->where('nama_product', $product['nama_product'])->value('created_at') ?? now(),
+                    'created_at' => Product::query()->where('store_id', $this->avenorStoreId())->where('nama_product', $product['nama_product'])->value('created_at') ?? now(),
                 ],
             );
         }
@@ -207,6 +216,7 @@ class DatabaseSeeder extends Seeder
                     $createdAt = $saleDate->copy()->setTime($hour, $minute, $second);
 
                     OfflineSale::query()->create([
+                        'store_id' => $this->avenorStoreId(),
                         'transaction_code' => sprintf('SEEDED-OFFLINE-%s-%04d', $saleDate->format('Ym'), $sequence),
                         'id_user' => $marketing->id_user,
                         'id_product' => $product->id_product,
@@ -373,6 +383,7 @@ class DatabaseSeeder extends Seeder
         ProductOnhand::query()->whereIn('user_id', [$marketing->id_user, $fieldExecutive->id_user])->delete();
 
         MarketingLocation::query()->create([
+            'store_id' => $this->avenorStoreId(),
             'user_id' => $marketing->id_user,
             'latitude' => -6.2088,
             'longitude' => 106.8456,
@@ -381,6 +392,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         MarketingLocation::query()->create([
+            'store_id' => $this->avenorStoreId(),
             'user_id' => $fieldExecutive->id_user,
             'latitude' => -6.2,
             'longitude' => 106.8166,
@@ -389,6 +401,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         ProductOnhand::query()->create([
+            'store_id' => $this->avenorStoreId(),
             'user_id' => $marketing->id_user,
             'id_product' => $solair->id_product,
             'nama_product' => $solair->nama_product,
@@ -408,6 +421,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         ProductOnhand::query()->create([
+            'store_id' => $this->avenorStoreId(),
             'user_id' => $fieldExecutive->id_user,
             'id_product' => $sevon->id_product,
             'nama_product' => $sevon->nama_product,
@@ -461,5 +475,35 @@ class DatabaseSeeder extends Seeder
         }
 
         return array_key_first($weights);
+    }
+
+    private function avenorStoreId(): int
+    {
+        return (int) (Store::query()->where('code', 'avenor_perfume')->value('id') ?? 1);
+    }
+
+    private function seedStoreBranding(): void
+    {
+        Store::query()
+            ->where('code', 'avenor_perfume')
+            ->update([
+                'settings' => [
+                    'brand_title' => 'Avenor Perfume',
+                    'brand_image' => '/img/avenor_hitam.png',
+                    'favicon' => '/img/avenor_hitam.png',
+                    'web_title' => 'Avenor Perfume',
+                ],
+            ]);
+
+        Store::query()
+            ->where('code', 'smoothies_sweetie')
+            ->update([
+                'settings' => [
+                    'brand_title' => 'Smoothies Sweetie',
+                    'brand_image' => '/img/sweetie.png',
+                    'favicon' => '/img/sweetie.png',
+                    'web_title' => 'Smoothies Sweetie',
+                ],
+            ]);
     }
 }

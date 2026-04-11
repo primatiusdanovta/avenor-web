@@ -16,7 +16,8 @@ class DashboardController extends Controller
     public function __invoke(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless(SalesRole::isFieldRole($user?->role), 403);
+        abort_unless(in_array($user?->role, SalesRole::mobileRoles(), true), 403);
+        $storeId = MarketingMobileSupport::currentStoreId($user);
 
         $monthStart = Carbon::now()->startOfMonth();
         $monthEnd = Carbon::now()->endOfMonth();
@@ -25,6 +26,7 @@ class DashboardController extends Controller
         $targetSummary = MarketingMobileSupport::buildTargetSummary($user, $monthStart, $monthEnd);
 
         $recentSales = OfflineSale::query()
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
             ->where('id_user', $user->id_user)
             ->orderByDesc('created_at')
             ->limit(5)
@@ -40,14 +42,17 @@ class DashboardController extends Controller
             ])
             ->values();
 
-        $onhands = ProductOnhand::query()
-            ->with('user')
-            ->where('user_id', $user->id_user)
-            ->whereDate('assignment_date', now()->toDateString())
-            ->orderByDesc('id_product_onhand')
-            ->get()
-            ->map(fn (ProductOnhand $onhand) => MarketingMobileSupport::transformOnhand($onhand))
-            ->values();
+        $onhands = MarketingMobileSupport::isSmoothiesSweetieUser($user)
+            ? collect()
+            : ProductOnhand::query()
+                ->with('user')
+                ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
+                ->where('user_id', $user->id_user)
+                ->whereDate('assignment_date', now()->toDateString())
+                ->orderByDesc('id_product_onhand')
+                ->get()
+                ->map(fn (ProductOnhand $onhand) => MarketingMobileSupport::transformOnhand($onhand))
+                ->values();
 
         $activeOnhands = $onhands
             ->filter(fn (array $onhand) => MarketingMobileSupport::countsAsActiveOnhand($onhand))
@@ -68,6 +73,7 @@ class DashboardController extends Controller
                 'pending_return_count' => $onhands->where('return_status', 'pending')->count(),
                 'pending_take_count' => $onhands->where('take_status', 'pending')->count(),
                 'approved_sales_count' => OfflineSale::query()
+                    ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
                     ->where('id_user', $user->id_user)
                     ->where('approval_status', 'disetujui')
                     ->whereBetween('created_at', [$monthStart->copy()->startOfDay(), $monthEnd->copy()->endOfDay()])
@@ -78,3 +84,4 @@ class DashboardController extends Controller
         ]);
     }
 }
+

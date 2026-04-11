@@ -22,7 +22,7 @@
                                 <td>{{ toCurrency(item.total_hpp) }}</td>
                                 <td>
                                     <div v-for="detail in item.items" :key="`${item.id_hpp}-${detail.id_rm}`" class="text-sm">
-                                        {{ detail.nama_rm }} - {{ detail.satuan === 'ML' ? `${detail.presentase}%` : `${formatNumber(detail.presentase)} pcs` }}
+                                        {{ detail.nama_rm }} - {{ detail.satuan === 'ML' ? `${detail.presentase}%` : `${formatNumber(detail.presentase)} ${detail.satuan}` }}
                                         | pakai {{ formatNumber(detail.usage_quantity) }} {{ detail.satuan }}
                                         | stock {{ formatNumber(detail.total_stock) }} {{ detail.satuan }}
                                         | {{ toCurrency(detail.harga_final) }}
@@ -49,6 +49,10 @@
             <div class="form-group mb-0">
                 <label>Product</label>
                 <Select2Input v-model="form.id_product" :options="products" value-key="id_product" label-key="option_label" placeholder="Pilih product" />
+            </div>
+            <div v-if="activeProductVariants.length" class="form-group mb-0">
+                <label>Preview Varian ML</label>
+                <Select2Input v-model="selectedVariantId" :options="activeProductVariants" value-key="id" label-key="option_label" placeholder="Pilih varian" />
             </div>
 
             <div v-for="(item, index) in form.items" :key="item.key" class="border rounded p-3 bg-light">
@@ -109,17 +113,25 @@ const props = defineProps({ products: Array, rawMaterials: Array, calculations: 
 const emptyItem = () => ({ key: `${Date.now()}-${Math.random()}`, id_rm: '', presentase: '' });
 const form = useForm({ id_product: '', items: [emptyItem()] });
 const formMode = ref('create');
+const selectedVariantId = ref('');
 const showFormModal = ref(false);
 const showDeleteModal = ref(false);
 const deleteTarget = ref(null);
 const rawMaterialMap = computed(() => Object.fromEntries(props.rawMaterials.map((item) => [String(item.id_rm), item])));
+const activeProduct = computed(() => props.products.find((item) => Number(item.id_product) === Number(form.id_product)) || null);
+const activeProductVariants = computed(() => (activeProduct.value?.variants || []).map((variant) => ({
+    ...variant,
+    option_label: `${variant.name} | ${toCurrency(variant.price)}${variant.total_satuan_ml ? ` | ${formatNumber(variant.total_satuan_ml)} ml` : ''}`,
+})));
+const selectedVariant = computed(() => activeProductVariants.value.find((variant) => Number(variant.id) === Number(selectedVariantId.value)) || activeProductVariants.value.find((variant) => variant.is_default) || activeProductVariants.value[0] || null);
 
 const itemState = (item) => {
     const rawMaterial = rawMaterialMap.value[String(item.id_rm)] ?? null;
     const hargaSatuan = Number(rawMaterial?.harga_satuan || 0);
     const inputValue = Number(item.presentase || 0);
     const isMl = String(rawMaterial?.satuan || '').trim().toUpperCase() === 'ML';
-    const usageQuantity = isMl ? ((inputValue / 100) * 50) : inputValue;
+    const mlBase = Number(selectedVariant.value?.total_satuan_ml || 50);
+    const usageQuantity = isMl ? ((inputValue / 100) * mlBase) : inputValue;
     return {
         satuan: rawMaterial?.satuan || '-',
         hargaSatuan,
@@ -143,6 +155,7 @@ const resetForm = () => {
     form.id_product = '';
     form.items = [emptyItem()];
     formMode.value = 'create';
+    selectedVariantId.value = '';
 };
 const openCreateModal = () => {
     resetForm();
@@ -152,6 +165,8 @@ const openEditModal = (item) => {
     formMode.value = 'edit';
     form.id_product = item.id_product;
     form.items = item.items.map((detail) => ({ key: `${detail.id_rm}-${Math.random()}`, id_rm: String(detail.id_rm), presentase: detail.presentase }));
+    const defaultVariant = item.variants?.find((variant) => variant.is_default) || item.variants?.[0] || null;
+    selectedVariantId.value = defaultVariant?.id ? String(defaultVariant.id) : '';
     showFormModal.value = true;
 };
 const closeFormModal = () => {

@@ -73,6 +73,7 @@ class HandleInertiaRequests extends Middleware
                 $navigation[] = ['label' => 'Notifications', 'href' => route('notifications.index'), 'icon' => 'fas fa-bell'];
             }
             $navigation[] = ['label' => 'Product Knowledge', 'href' => route('products.knowledge'), 'icon' => 'fas fa-book-open'];
+            $navigation[] = ['label' => 'Queue Board', 'href' => route('queue-board'), 'icon' => 'fas fa-list-ol'];
         }
 
         if (SalesRole::isFieldRole($user?->role)) {
@@ -80,6 +81,7 @@ class HandleInertiaRequests extends Middleware
             $navigation[] = ['label' => 'Products', 'href' => route('products.index'), 'icon' => 'fas fa-box-open'];
             $navigation[] = ['label' => 'Product Knowledge', 'href' => route('products.knowledge'), 'icon' => 'fas fa-book-open'];
             $navigation[] = ['label' => 'Penjualan Offline', 'href' => route('offline-sales.index'), 'icon' => 'fas fa-shopping-bag'];
+            $navigation[] = ['label' => 'Queue Board', 'href' => route('queue-board'), 'icon' => 'fas fa-list-ol'];
             if ($user?->role === SalesRole::SALES_FIELD_EXECUTIVE) {
                 $navigation[] = ['label' => 'Consign', 'href' => route('consignments.index'), 'icon' => 'fas fa-store'];
             }
@@ -128,6 +130,7 @@ class HandleInertiaRequests extends Middleware
                 'success' => fn () => $request->session()->get('success'),
                 'warning' => fn () => $request->session()->get('warning'),
                 'error' => fn () => $request->session()->get('error'),
+                'saleSummary' => fn () => $request->session()->get('saleSummary'),
             ],
         ];
     }

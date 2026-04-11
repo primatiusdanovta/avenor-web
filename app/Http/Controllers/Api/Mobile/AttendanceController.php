@@ -16,10 +16,12 @@ class AttendanceController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless(SalesRole::isFieldRole($user?->role), 403);
+        abort_unless(in_array($user?->role, SalesRole::mobileRoles(), true), 403);
+        $storeId = MarketingMobileSupport::currentStoreId($user);
 
         $context = MarketingMobileSupport::attendanceContext($user);
         $recentAttendances = Attendance::query()
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
             ->where('user_id', $user->id_user)
             ->latest('attendance_date')
             ->limit(8)
@@ -36,17 +38,21 @@ class AttendanceController extends Controller
             ])
             ->values();
 
-        $todayOnhands = ProductOnhand::query()
-            ->with('user')
-            ->where('user_id', $user->id_user)
-            ->whereDate('assignment_date', now()->toDateString())
-            ->where('take_status', 'disetujui')
-            ->orderByDesc('id_product_onhand')
-            ->get()
-            ->map(fn (ProductOnhand $onhand) => MarketingMobileSupport::transformOnhand($onhand))
-            ->values();
+        $todayOnhands = MarketingMobileSupport::isSmoothiesSweetieUser($user)
+            ? collect()
+            : ProductOnhand::query()
+                ->with('user')
+                ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
+                ->where('user_id', $user->id_user)
+                ->whereDate('assignment_date', now()->toDateString())
+                ->where('take_status', 'disetujui')
+                ->orderByDesc('id_product_onhand')
+                ->get()
+                ->map(fn (ProductOnhand $onhand) => MarketingMobileSupport::transformOnhand($onhand))
+                ->values();
 
         $latestLocation = optional(MarketingLocation::query()
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
             ->where('user_id', $user->id_user)
             ->latest('recorded_at')
             ->first(), fn ($location) => [
@@ -71,9 +77,12 @@ class AttendanceController extends Controller
 
     public function checkOut(Request $request): JsonResponse
     {
+        $storeId = MarketingMobileSupport::currentStoreId($request->user());
         $blockingItems = SalesRole::defaultRequireReturnBeforeCheckout($request->user()->role)
+            && ! MarketingMobileSupport::isSmoothiesSweetieUser($request->user())
             ? ProductOnhand::query()
                 ->with('user')
+                ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
                 ->where('user_id', $request->user()->id_user)
                 ->whereDate('assignment_date', now()->toDateString())
                 ->where('take_status', 'disetujui')
@@ -100,6 +109,7 @@ class AttendanceController extends Controller
         ]);
 
         MarketingLocation::create([
+            'store_id' => MarketingMobileSupport::currentStoreId($request->user()),
             'user_id' => $request->user()->id_user,
             'latitude' => $validated['latitude'],
             'longitude' => $validated['longitude'],
@@ -122,7 +132,9 @@ class AttendanceController extends Controller
         ]);
 
         $now = now();
+        $storeId = MarketingMobileSupport::currentStoreId($request->user());
         $attendance = Attendance::query()->firstOrNew([
+            'store_id' => $storeId,
             'user_id' => $request->user()->id_user,
             'attendance_date' => $now->toDateString(),
         ]);
@@ -163,6 +175,7 @@ class AttendanceController extends Controller
         $attendance->save();
 
         MarketingLocation::create([
+            'store_id' => $storeId,
             'user_id' => $request->user()->id_user,
             'latitude' => $validated['latitude'],
             'longitude' => $validated['longitude'],
@@ -181,3 +194,4 @@ class AttendanceController extends Controller
         ]);
     }
 }
+

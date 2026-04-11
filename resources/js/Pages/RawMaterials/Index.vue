@@ -21,7 +21,7 @@
                 <div class="card-header"><h3 class="card-title">Daftar Raw Material</h3></div>
                 <div class="card-body p-0 table-responsive">
                     <table class="table table-hover mb-0">
-                        <thead><tr><th>Nama</th><th>Satuan</th><th>Harga Pack</th><th>Harga Total</th><th>Qty/Pack</th><th>Harga Satuan</th><th>Stock Pack</th><th>Total Quantity</th><th>Dibuat</th><th class="action-column">Aksi</th></tr></thead>
+                        <thead><tr><th>Nama</th><th>Satuan</th><th>Harga Pack</th><th>Harga Total</th><th>Qty/Pack</th><th>Harga Satuan</th><th>Stock Pack</th><th>Total Quantity</th><th>Waste</th><th>Kerugian</th><th>Dibuat</th><th class="action-column">Aksi</th></tr></thead>
                         <tbody>
                             <tr v-for="item in materials" :key="item.id_rm">
                                 <td><button type="button" class="btn btn-link p-0 font-weight-bold text-left" @click="openEditModal(item)">{{ item.nama_rm }}</button></td>
@@ -32,6 +32,8 @@
                                 <td>{{ toCurrency(item.harga_satuan) }} / {{ item.satuan }}</td>
                                 <td>{{ formatNumber(item.stock) }}</td>
                                 <td>{{ formatNumber(item.total_quantity) }} / {{ item.satuan }}</td>
+                                <td>{{ formatNumber(item.waste_materials) }} {{ item.satuan }} ({{ formatPercent(item.waste_percentage) }})</td>
+                                <td>{{ toCurrency(item.waste_loss_amount) }} ({{ formatPercent(item.waste_loss_percentage) }})</td>
                                 <td>{{ item.created_at }}</td>
                                 <td>
                                     <div class="action-group">
@@ -40,7 +42,7 @@
                                     </div>
                                 </td>
                             </tr>
-                            <tr v-if="!materials.length"><td colspan="10" class="text-center text-muted">Belum ada raw material.</td></tr>
+                            <tr v-if="!materials.length"><td colspan="12" class="text-center text-muted">Belum ada raw material.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -58,11 +60,14 @@
             <div class="form-group mb-0"><label>Quantity per Pack</label><input v-model="createForm.quantity" type="number" min="0.01" step="0.01" class="form-control" placeholder="0" :class="{ 'is-invalid': createForm.errors.quantity }"><div v-if="createForm.errors.quantity" class="invalid-feedback d-block">{{ createForm.errors.quantity }}</div></div>
             <div class="form-group mb-0"><label>Satuan</label><Select2Input v-model="createForm.satuan" :options="satuanOptions" placeholder="Pilih satuan" /><div v-if="createForm.errors.satuan" class="text-danger small mt-1">{{ createForm.errors.satuan }}</div></div>
             <div class="form-group mb-0"><label>Stock Pack</label><input v-model="createForm.stock" type="number" min="0" step="0.01" class="form-control" placeholder="0" :class="{ 'is-invalid': createForm.errors.stock }"><div v-if="createForm.errors.stock" class="invalid-feedback d-block">{{ createForm.errors.stock }}</div></div>
+            <div class="form-group mb-0"><label>Waste Material</label><input v-model="createForm.waste_materials" type="number" min="0" step="0.01" class="form-control" placeholder="0" :class="{ 'is-invalid': createForm.errors.waste_materials }"><div v-if="createForm.errors.waste_materials" class="invalid-feedback d-block">{{ createForm.errors.waste_materials }}</div></div>
             <div class="alert alert-info mb-0">
                 <div><strong>Harga Total:</strong> {{ toCurrency(createPreview.hargaTotal) }}</div>
                 <div><strong>Harga Satuan:</strong> {{ toCurrency(createPreview.hargaSatuan) }}</div>
                 <div><strong>Stock Pack:</strong> {{ formatNumber(createForm.stock) }}</div>
                 <div><strong>Total Quantity:</strong> {{ formatNumber(createPreview.totalQuantity) }} {{ createPreview.satuan }}</div>
+                <div><strong>Waste:</strong> {{ formatNumber(createPreview.wasteMaterials) }} {{ createPreview.satuan }} ({{ formatPercent(createPreview.wastePercentage) }})</div>
+                <div><strong>Kerugian Waste:</strong> {{ toCurrency(createPreview.wasteLossAmount) }} ({{ formatPercent(createPreview.wasteLossPercentage) }})</div>
             </div>
         </div>
         <template #footer>
@@ -100,11 +105,14 @@
             <div class="form-group mb-0"><label>Quantity per Pack</label><input v-model="editForm.quantity" type="number" min="0.01" step="0.01" class="form-control" :class="{ 'is-invalid': editForm.errors.quantity }"><div v-if="editForm.errors.quantity" class="invalid-feedback d-block">{{ editForm.errors.quantity }}</div></div>
             <div class="form-group mb-0"><label>Satuan</label><Select2Input v-model="editForm.satuan" :options="satuanOptions" placeholder="Pilih satuan" /><div v-if="editForm.errors.satuan" class="text-danger small mt-1">{{ editForm.errors.satuan }}</div></div>
             <div class="form-group mb-0"><label>Stock Pack</label><input v-model="editForm.stock" type="number" min="0" step="0.01" class="form-control" :class="{ 'is-invalid': editForm.errors.stock }"><div v-if="editForm.errors.stock" class="invalid-feedback d-block">{{ editForm.errors.stock }}</div></div>
+            <div class="form-group mb-0"><label>Waste Material</label><input v-model="editForm.waste_materials" type="number" min="0" step="0.01" class="form-control" :class="{ 'is-invalid': editForm.errors.waste_materials }"><div v-if="editForm.errors.waste_materials" class="invalid-feedback d-block">{{ editForm.errors.waste_materials }}</div></div>
             <div class="alert alert-warning mb-0">
                 <div><strong>Harga Total:</strong> {{ toCurrency(editPreview.hargaTotal) }}</div>
                 <div><strong>Harga Satuan:</strong> {{ toCurrency(editPreview.hargaSatuan) }}</div>
                 <div><strong>Stock Pack:</strong> {{ formatNumber(editForm.stock) }}</div>
                 <div><strong>Total Quantity:</strong> {{ formatNumber(editPreview.totalQuantity) }} {{ editPreview.satuan }}</div>
+                <div><strong>Waste:</strong> {{ formatNumber(editPreview.wasteMaterials) }} {{ editPreview.satuan }} ({{ formatPercent(editPreview.wastePercentage) }})</div>
+                <div><strong>Kerugian Waste:</strong> {{ toCurrency(editPreview.wasteLossAmount) }} ({{ formatPercent(editPreview.wasteLossPercentage) }})</div>
             </div>
         </div>
         <template #footer>
@@ -133,9 +141,9 @@ import BootstrapModal from '../../Components/BootstrapModal.vue';
 import { adminUrl } from '../../utils/admin';
 
 const props = defineProps({ materials: Array });
-const satuanOptions = ['pcs', 'ML'];
-const createForm = useForm({ nama_rm: '', harga: '', quantity: 1, satuan: '', stock: 0 });
-const editForm = useForm({ id_rm: null, nama_rm: '', harga: '', quantity: 1, satuan: '', stock: 0 });
+const satuanOptions = ['pcs', 'ML', 'gram', 'kg'];
+const createForm = useForm({ nama_rm: '', harga: '', quantity: 1, satuan: '', stock: 0, waste_materials: 0 });
+const editForm = useForm({ id_rm: null, nama_rm: '', harga: '', quantity: 1, satuan: '', stock: 0, waste_materials: 0 });
 const restockForm = useForm({ id_rm: '', stock: 0 });
 const showCreateModal = ref(false);
 const showEditModal = ref(false);
@@ -150,11 +158,19 @@ const previewFor = (form) => computed(() => {
     const harga = Number(form.harga || 0);
     const quantity = Number(form.quantity || 0);
     const stock = Number(form.stock || 0);
+    const wasteMaterials = Number(form.waste_materials || 0);
+    const hargaSatuan = quantity > 0 ? harga / quantity : 0;
+    const hargaTotal = stock * harga;
+    const totalQuantity = stock * quantity;
 
     return {
-        hargaSatuan: quantity > 0 ? harga / quantity : 0,
-        hargaTotal: stock * harga,
-        totalQuantity: stock * quantity,
+        hargaSatuan,
+        hargaTotal,
+        totalQuantity,
+        wasteMaterials,
+        wastePercentage: totalQuantity > 0 ? (wasteMaterials / totalQuantity) * 100 : 0,
+        wasteLossAmount: wasteMaterials * hargaSatuan,
+        wasteLossPercentage: hargaTotal > 0 ? ((wasteMaterials * hargaSatuan) / hargaTotal) * 100 : 0,
         satuan: form.satuan || '-',
     };
 });
@@ -169,6 +185,7 @@ const restockPreview = computed(() => {
 
 const toCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 2 }).format(value || 0);
 const formatNumber = (value) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(Number(value || 0));
+const formatPercent = (value) => `${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(Number(value || 0))}%`;
 
 const openCreateModal = () => {
     createForm.reset();
@@ -194,6 +211,7 @@ const openEditModal = (item) => {
         quantity: item.quantity,
         satuan: item.satuan,
         stock: item.stock,
+        waste_materials: item.waste_materials,
     });
     showEditModal.value = true;
 };

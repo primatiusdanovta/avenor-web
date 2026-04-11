@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\GlobalSetting;
 use App\Models\MobileAccessToken;
 use App\Models\User;
+use App\Support\MarketingMobileSupport;
 use App\Support\SalesRole;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -55,6 +56,13 @@ class AuthController extends Controller
                 'nama' => $user->nama,
                 'role' => $user->role,
                 'status' => $user->status,
+                'store' => optional(MarketingMobileSupport::currentStore($user), fn ($store) => [
+                    'id' => $store->id,
+                    'code' => $store->code,
+                    'name' => $store->name,
+                    'display_name' => $store->display_name,
+                    'settings' => $store->settings ?? [],
+                ]),
             ],
         ]);
     }
@@ -73,6 +81,13 @@ class AuthController extends Controller
                 'require_return_before_checkout' => (bool) $user->require_return_before_checkout,
                 'sales_qr_url' => data_get($socialHub, 'sales_qr_url'),
                 'sales_qr_name' => data_get($socialHub, 'sales_qr_name'),
+                'store' => optional(MarketingMobileSupport::currentStore($user), fn ($store) => [
+                    'id' => $store->id,
+                    'code' => $store->code,
+                    'name' => $store->name,
+                    'display_name' => $store->display_name,
+                    'settings' => $store->settings ?? [],
+                ]),
             ],
         ]);
     }

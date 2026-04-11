@@ -57,6 +57,7 @@
                             </div>
                         </div>
                     </form>
+
                 </div>
             </div>
         </div>
@@ -65,7 +66,6 @@
 
 <script setup>
 import { Head, useForm } from '@inertiajs/vue3';
-import { adminUrl } from '../../utils/admin';
 import { onMounted, ref } from 'vue';
 
 const props = defineProps({ branding: Object, captcha: Object });
@@ -134,4 +134,3 @@ onMounted(() => {
     justify-content: center;
 }
 </style>
-

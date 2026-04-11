@@ -60,7 +60,7 @@
         </div>
     </div>
 
-    <div class="card card-outline card-warning">
+    <div v-if="!isSmoothiesSweetie" class="card card-outline card-warning">
         <div class="card-header"><h3 class="card-title">Barang Yang Dibawa Hari Ini</h3></div>
         <div class="card-body p-0 table-responsive">
             <table class="table table-striped mb-0">
@@ -132,6 +132,7 @@ const props = defineProps({
     todayAttendance: { type: Object, default: null },
     recentAttendances: Array,
     carriedProducts: Array,
+    isSmoothiesSweetie: Boolean,
     latestLocation: { type: Object, default: undefined },
 });
 

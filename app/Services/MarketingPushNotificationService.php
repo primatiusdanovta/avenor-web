@@ -31,6 +31,9 @@ class MarketingPushNotificationService
             ->get()
             ->filter(fn (MobileAccessToken $token) => $token->user?->status === 'aktif'
                 && $token->user?->role === $notification->target_role)
+            ->filter(fn (MobileAccessToken $token) => $token->user?->stores()
+                ->where('stores.id', $notification->store_id)
+                ->exists())
             ->pluck('push_token')
             ->filter()
             ->unique()

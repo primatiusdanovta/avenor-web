@@ -22,6 +22,7 @@ class ConsignmentController extends Controller
 {
     public function index(Request $request): Response
     {
+        $this->abortIfStoreDisablesOnhandAndConsignment($request);
         abort_unless(
             in_array($request->user()->role, ['superadmin', 'admin', SalesRole::SALES_FIELD_EXECUTIVE], true),
             403
@@ -94,6 +95,7 @@ class ConsignmentController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
+        $this->abortIfStoreDisablesOnhandAndConsignment($request);
         abort_unless($request->user()->role === 'superadmin', 403);
 
         $validated = $this->validatePayload($request);
@@ -135,6 +137,7 @@ class ConsignmentController extends Controller
 
     public function update(Request $request, Consignment $consignment): RedirectResponse
     {
+        $this->abortIfStoreDisablesOnhandAndConsignment($request);
         abort_unless($request->user()->role === 'superadmin', 403);
 
         $validated = $this->validatePayload($request, true);
@@ -197,6 +200,7 @@ class ConsignmentController extends Controller
 
     public function destroy(Request $request, Consignment $consignment): RedirectResponse
     {
+        $this->abortIfStoreDisablesOnhandAndConsignment($request);
         abort_unless($request->user()->role === 'superadmin', 403);
 
         $proofPath = $consignment->handover_proof_photo;
@@ -232,6 +236,7 @@ class ConsignmentController extends Controller
 
     public function updateItem(Request $request, ConsignmentItem $item): RedirectResponse
     {
+        $this->abortIfStoreDisablesOnhandAndConsignment($request);
         abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
 
         $validated = $request->validate([

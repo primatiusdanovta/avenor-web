@@ -19,11 +19,13 @@ class MarketingNotificationController extends Controller
 
     public function index(Request $request): Response
     {
-        abort_unless($request->user()?->role === 'superadmin', 403);
+        $this->authorizePermission($request, 'notifications.view');
+        $storeId = $this->currentStoreId($request);
 
         MarketingNotificationSupport::publishDueNotifications();
 
         $notifications = MarketingNotification::query()
+            ->where('store_id', $storeId)
             ->with('creator')
             ->orderByRaw("case when status = 'published' then 0 when status = 'scheduled' then 1 else 2 end")
             ->orderByDesc('published_at')
@@ -51,13 +53,14 @@ class MarketingNotificationController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        abort_unless($request->user()?->role === 'superadmin', 403);
+        $this->authorizePermission($request, 'notifications.manage');
 
         $validated = $this->validatePayload($request);
 
         $isScheduled = $validated['delivery_type'] === 'scheduled';
 
         $notification = MarketingNotification::query()->create([
+            'store_id' => $this->currentStoreId($request),
             'created_by' => $request->user()->id_user,
             'title' => $validated['title'],
             'body' => $validated['body'],
@@ -79,7 +82,8 @@ class MarketingNotificationController extends Controller
 
     public function update(Request $request, MarketingNotification $notification): RedirectResponse
     {
-        abort_unless($request->user()?->role === 'superadmin', 403);
+        $this->authorizePermission($request, 'notifications.manage');
+        $this->ensureStoreMatch($request, $notification);
 
         $validated = $this->validatePayload($request);
         $isScheduled = $validated['delivery_type'] === 'scheduled';
@@ -98,7 +102,8 @@ class MarketingNotificationController extends Controller
 
     public function publish(Request $request, MarketingNotification $notification): RedirectResponse
     {
-        abort_unless($request->user()?->role === 'superadmin', 403);
+        $this->authorizePermission($request, 'notifications.manage');
+        $this->ensureStoreMatch($request, $notification);
 
         $notification->update([
             'status' => 'published',
@@ -113,7 +118,8 @@ class MarketingNotificationController extends Controller
 
     public function destroy(Request $request, MarketingNotification $notification): RedirectResponse
     {
-        abort_unless($request->user()?->role === 'superadmin', 403);
+        $this->authorizePermission($request, 'notifications.manage');
+        $this->ensureStoreMatch($request, $notification);
 
         $notification->delete();
 

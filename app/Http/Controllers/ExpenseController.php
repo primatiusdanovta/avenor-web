@@ -12,9 +12,11 @@ class ExpenseController extends Controller
 {
     public function index(Request $request): Response
     {
-        $this->authorizeManagement($request);
+        $this->authorizePermission($request, 'expenses.view');
+        $storeId = $this->currentStoreId($request);
 
         $expenses = Expense::query()
+            ->where('store_id', $storeId)
             ->with('creator')
             ->orderByDesc('expense_date')
             ->orderByDesc('id')
@@ -35,20 +37,21 @@ class ExpenseController extends Controller
         return Inertia::render('Expenses/Index', [
             'expenses' => $expenses,
             'summary' => [
-                'bahan_baku' => round((float) Expense::query()->where('category', 'bahan_baku')->sum('amount'), 2),
-                'operasional' => round((float) Expense::query()->where('category', 'operasional')->sum('amount'), 2),
-                'total' => round((float) Expense::query()->sum('amount'), 2),
+                'bahan_baku' => round((float) Expense::query()->where('store_id', $storeId)->where('category', 'bahan_baku')->sum('amount'), 2),
+                'operasional' => round((float) Expense::query()->where('store_id', $storeId)->where('category', 'operasional')->sum('amount'), 2),
+                'total' => round((float) Expense::query()->where('store_id', $storeId)->sum('amount'), 2),
             ],
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
-        $this->authorizeManagement($request);
+        $this->authorizePermission($request, 'expenses.manage');
 
         $validated = $this->validatePayload($request);
 
         Expense::query()->create([
+            'store_id' => $this->currentStoreId($request),
             'category' => $validated['category'],
             'title' => $validated['title'],
             'amount' => $validated['amount'],
@@ -62,7 +65,8 @@ class ExpenseController extends Controller
 
     public function update(Request $request, Expense $expense): RedirectResponse
     {
-        $this->authorizeManagement($request);
+        $this->authorizePermission($request, 'expenses.manage');
+        $this->ensureStoreMatch($request, $expense);
 
         $validated = $this->validatePayload($request);
 
@@ -79,16 +83,12 @@ class ExpenseController extends Controller
 
     public function destroy(Request $request, Expense $expense): RedirectResponse
     {
-        $this->authorizeManagement($request);
+        $this->authorizePermission($request, 'expenses.manage');
+        $this->ensureStoreMatch($request, $expense);
 
         $expense->delete();
 
         return redirect()->route('expenses.index')->with('success', 'Pengeluaran berhasil dihapus.');
-    }
-
-    private function authorizeManagement(Request $request): void
-    {
-        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
     }
 
     private function validatePayload(Request $request): array

@@ -5,10 +5,15 @@ namespace App\Http\Controllers\Api\Mobile;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Customer;
+use App\Models\ExtraTopping;
+use App\Models\GlobalSetting;
 use App\Models\OfflineSale;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Promo;
+use App\Models\Sop;
 use App\Support\MarketingMobileSupport;
+use App\Support\RawMaterialUsage;
 use App\Support\SalesRole;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -24,40 +29,82 @@ class OfflineSaleController extends Controller
     public function index(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless(SalesRole::isFieldRole($user?->role), 403);
+        abort_unless(in_array($user?->role, SalesRole::mobileRoles(), true), 403);
+        $storeId = MarketingMobileSupport::currentStoreId($user);
 
         $sales = OfflineSale::query()
             ->with('customer')
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
             ->where('id_user', $user->id_user)
             ->orderByDesc('created_at')
             ->orderByDesc('id_penjualan_offline')
             ->get();
 
         $transactions = $this->transformTransactions($sales);
-
-        $products = Product::query()
-            ->select('products.id_product', 'products.nama_product', 'products.harga')
-            ->join('product_onhands', 'product_onhands.id_product', '=', 'products.id_product')
-            ->where('product_onhands.user_id', $user->id_user)
-            ->where('product_onhands.take_status', 'disetujui')
-            ->groupBy('products.id_product', 'products.nama_product', 'products.harga')
-            ->get()
-            ->map(function (Product $product) use ($user) {
-                $onhand = MarketingMobileSupport::resolveOnhandForSale($user->id_user, $product->id_product);
-                $remaining = $onhand ? MarketingMobileSupport::availableForOnhand($onhand) : 0;
-
-                return [
+        $products = MarketingMobileSupport::isSmoothiesSweetieUser($user)
+            ? Product::query()
+                ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
+                ->orderBy('nama_product')
+                ->get(['id_product', 'nama_product', 'harga'])
+                ->map(fn (Product $product) => [
                     'id_product' => $product->id_product,
                     'nama_product' => $product->nama_product,
                     'harga' => (float) $product->harga,
-                    'remaining' => $remaining,
-                    'option_label' => $product->nama_product . ' | Sisa ' . $remaining,
-                ];
-            })
-            ->filter(fn (array $product) => $product['remaining'] > 0)
-            ->values();
+                    'remaining' => null,
+                    'option_label' => $product->nama_product,
+                    'variants' => ProductVariant::query()
+                        ->where('product_id', $product->id_product)
+                        ->orderByDesc('is_default')
+                        ->orderBy('name')
+                        ->get()
+                        ->map(fn (ProductVariant $variant) => [
+                            'id' => $variant->id,
+                            'name' => $variant->name,
+                            'price' => (float) $variant->price,
+                            'total_satuan_ml' => (float) $variant->total_satuan_ml,
+                            'is_default' => (bool) $variant->is_default,
+                        ])
+                        ->values(),
+                ])
+                ->values()
+            : Product::query()
+                ->select('products.id_product', 'products.nama_product', 'products.harga')
+                ->join('product_onhands', 'product_onhands.id_product', '=', 'products.id_product')
+                ->when($storeId, fn ($query) => $query->where('products.store_id', $storeId)->where('product_onhands.store_id', $storeId))
+                ->where('product_onhands.user_id', $user->id_user)
+                ->where('product_onhands.take_status', 'disetujui')
+                ->groupBy('products.id_product', 'products.nama_product', 'products.harga')
+                ->get()
+                ->map(function (Product $product) use ($user) {
+                    $onhand = MarketingMobileSupport::resolveOnhandForSale($user->id_user, $product->id_product);
+                    $remaining = $onhand ? MarketingMobileSupport::availableForOnhand($onhand) : 0;
+
+                    return [
+                        'id_product' => $product->id_product,
+                        'nama_product' => $product->nama_product,
+                        'harga' => (float) $product->harga,
+                        'remaining' => $remaining,
+                        'option_label' => $product->nama_product . ' | Sisa ' . $remaining,
+                        'variants' => ProductVariant::query()
+                            ->where('product_id', $product->id_product)
+                            ->orderByDesc('is_default')
+                            ->orderBy('name')
+                            ->get()
+                            ->map(fn (ProductVariant $variant) => [
+                                'id' => $variant->id,
+                                'name' => $variant->name,
+                                'price' => (float) $variant->price,
+                                'total_satuan_ml' => (float) $variant->total_satuan_ml,
+                                'is_default' => (bool) $variant->is_default,
+                            ])
+                            ->values(),
+                    ];
+                })
+                ->filter(fn (array $product) => $product['remaining'] > 0)
+                ->values();
 
         $promos = Promo::query()
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
             ->whereDate('masa_aktif', '>=', today())
             ->orderBy('nama_promo')
             ->get()
@@ -77,13 +124,36 @@ class OfflineSaleController extends Controller
             'sales' => $transactions,
             'products' => $products,
             'promos' => $promos,
+            'extra_toppings' => ExtraTopping::query()
+                ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get()
+                ->map(fn (ExtraTopping $item) => [
+                    'id' => $item->id,
+                    'name' => $item->name,
+                    'price' => (float) $item->price,
+                ])
+                ->values(),
+            'sops' => Sop::query()
+                ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
+                ->orderBy('title')
+                ->get()
+                ->map(fn (Sop $item) => [
+                    'id_sop' => $item->id_sop,
+                    'title' => $item->title,
+                    'detail' => $item->detail,
+                ])
+                ->values(),
+            'qris_image_url' => data_get(GlobalSetting::masterSocialHub(), 'sales_qr_url'),
+            'is_smoothies_sweetie' => MarketingMobileSupport::isSmoothiesSweetieUser($user),
         ]);
     }
 
     public function findCustomer(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless(SalesRole::isFieldRole($user?->role), 403);
+        abort_unless(in_array($user?->role, SalesRole::mobileRoles(), true), 403);
 
         $phone = MarketingMobileSupport::normalizePhone($request->query('phone'));
 
@@ -92,6 +162,7 @@ class OfflineSaleController extends Controller
         }
 
         $customer = Customer::query()
+            ->when(MarketingMobileSupport::currentStoreId($user), fn ($query, $storeId) => $query->where('store_id', $storeId))
             ->where('no_telp', $phone)
             ->first();
 
@@ -109,9 +180,10 @@ class OfflineSaleController extends Controller
     public function store(Request $request): JsonResponse
     {
         $user = $request->user();
-        abort_unless(SalesRole::isFieldRole($user?->role), 403);
+        abort_unless(in_array($user?->role, SalesRole::mobileRoles(), true), 403);
 
         $attendance = Attendance::query()
+            ->when(MarketingMobileSupport::currentStoreId($user), fn ($query, $storeId) => $query->where('store_id', $storeId))
             ->where('user_id', $user->id_user)
             ->whereDate('attendance_date', now()->toDateString())
             ->first();
@@ -124,41 +196,58 @@ class OfflineSaleController extends Controller
             return response()->json(['message' => 'Marketing yang sudah check out tidak bisa melakukan penjualan lagi hari ini.'], 422);
         }
 
-        $validated = $this->validateTransactionPayload($request);
-        [$products, $promo, $lineSubtotals, $onhands, $totalQuantity, $subtotal] = $this->prepareTransactionContext($validated, $user->id_user);
+        $validated = $this->validateTransactionPayload($request, ! MarketingMobileSupport::isSmoothiesSweetieUser($user));
+        [$products, $promo, $lineSubtotals, $onhands, $totalQuantity, $subtotal, $storeId, $variants, $extraToppings] = $this->prepareTransactionContext($validated, $user->id_user);
         $this->validatePromoEligibility($promo, $totalQuantity, $subtotal);
 
         $path = $request->file('bukti_pembelian')?->store('offline-sales', 'public');
         $timestamp = now();
         $transactionCode = $this->generateTransactionCode();
+        $saleNumber = $this->generateSaleNumber($storeId, $timestamp);
         $discounts = $this->allocateDiscounts($lineSubtotals, (float) ($promo?->potongan ?? 0));
 
-        DB::transaction(function () use ($validated, $user, $products, $promo, $path, $timestamp, $discounts, $lineSubtotals, $onhands, $transactionCode): void {
-            $customer = $this->resolveCustomer($validated, $timestamp);
+        DB::transaction(function () use ($validated, $user, $products, $promo, $path, $timestamp, $discounts, $lineSubtotals, $onhands, $transactionCode, $saleNumber, $storeId, $variants, $extraToppings): void {
+            $customer = $this->resolveCustomer($validated, $timestamp, $storeId);
 
             foreach ($validated['items'] as $index => $item) {
                 $product = $products->get($item['id_product']);
+                $variant = $variants[(int) ($item['product_variant_id'] ?? 0)] ?? null;
+                $selectedExtraToppings = collect($item['extra_topping_ids'] ?? [])
+                    ->map(fn ($id) => $extraToppings[(int) $id] ?? null)
+                    ->filter()
+                    ->values();
+                $extraToppingTotal = round($selectedExtraToppings->sum('price') * (int) $item['quantity'], 2);
                 $lineSubtotal = $lineSubtotals[$index] ?? 0;
                 $lineDiscount = $discounts[$index] ?? 0;
 
                 OfflineSale::query()->create([
+                    'store_id' => $storeId,
                     'transaction_code' => $transactionCode,
+                    'sale_number' => $saleNumber,
                     'id_user' => $user->id_user,
                     'id_pelanggan' => $customer?->id_pelanggan,
                     'id_product' => $product?->id_product,
-                    'id_product_onhand' => $onhands[(int) $item['id_product']]?->id_product_onhand,
+                    'product_variant_id' => $variant?->id,
+                    'product_variant_name' => $variant?->name,
+                    'unit_price' => (float) ($variant?->price ?? $product?->harga ?? 0),
+                    'extra_topping_total' => $extraToppingTotal,
+                    'extra_toppings' => $selectedExtraToppings->map(fn ($topping) => ['id' => $topping->id, 'name' => $topping->name, 'price' => (float) $topping->price])->all(),
+                    'payment_method' => $validated['payment_method'] ?? 'Cash',
+                    'payment_status' => 'paid',
+                    'paid_at' => $timestamp,
+                    'id_product_onhand' => $onhands[(int) $item['id_product']]?->id_product_onhand ?? null,
                     'promo_id' => $promo?->id,
                     'nama' => $user->nama,
-                    'nama_product' => $product?->nama_product,
+                    'nama_product' => trim(($product?->nama_product ?? '') . ($variant?->name ? ' - ' . $variant->name : '')),
                     'quantity' => (int) $item['quantity'],
                     'harga' => max($lineSubtotal - $lineDiscount, 0),
-                    'total_hpp' => (float) ($product?->hppCalculation?->total_hpp ?? $product?->harga_modal ?? 0),
+                    'total_hpp' => $this->resolveProductHpp($product, $variant),
                     'kode_promo' => $promo?->kode_promo,
                     'promo' => $promo?->nama_promo,
                     'bukti_pembelian' => $path,
-                    'approval_status' => 'pending',
-                    'approved_by' => null,
-                    'approved_at' => null,
+                    'approval_status' => MarketingMobileSupport::isSmoothiesSweetieUser($user) ? 'disetujui' : 'pending',
+                    'approved_by' => MarketingMobileSupport::isSmoothiesSweetieUser($user) ? $user->id_user : null,
+                    'approved_at' => MarketingMobileSupport::isSmoothiesSweetieUser($user) ? $timestamp : null,
                     'created_at' => $timestamp,
                 ]);
             }
@@ -188,6 +277,7 @@ class OfflineSaleController extends Controller
 
                 return [
                     'transaction_code' => $first->transaction_code,
+                    'sale_number' => $first->sale_number,
                     'id_penjualan_offline' => $first->id_penjualan_offline,
                     'nama_customer' => $first->customer?->nama,
                     'no_telp' => $first->customer?->no_telp,
@@ -195,6 +285,8 @@ class OfflineSaleController extends Controller
                     'promo_id' => $first->promo_id,
                     'promo' => $first->promo,
                     'kode_promo' => $first->kode_promo,
+                    'payment_method' => $first->payment_method,
+                    'payment_status' => $first->payment_status,
                     'approval_status' => $first->approval_status,
                     'bukti_pembelian_url' => $first->bukti_pembelian ? route('api.mobile.offline-sales.proof', ['sale' => $first]) : null,
                     'created_at' => optional($first->created_at)->format('Y-m-d H:i:s'),
@@ -204,6 +296,14 @@ class OfflineSaleController extends Controller
                         'id_penjualan_offline' => $sale->id_penjualan_offline,
                         'id_product' => $sale->id_product,
                         'nama_product' => $sale->nama_product,
+                        'product_variant_id' => $sale->product_variant_id,
+                        'product_variant_name' => $sale->product_variant_name,
+                        'extra_topping_ids' => collect($sale->extra_toppings ?? [])->pluck('id')->values()->all(),
+                        'extra_toppings' => collect($sale->extra_toppings ?? [])->map(fn ($topping) => [
+                            'id' => $topping['id'] ?? null,
+                            'name' => $topping['name'] ?? null,
+                            'price' => (float) ($topping['price'] ?? 0),
+                        ])->values()->all(),
                         'quantity' => (int) $sale->quantity,
                         'harga' => (float) $sale->harga,
                     ])->values(),
@@ -213,7 +313,7 @@ class OfflineSaleController extends Controller
             ->values();
     }
 
-    private function validateTransactionPayload(Request $request): array
+    private function validateTransactionPayload(Request $request, bool $requireReceipt = true): array
     {
         $request->merge([
             'customer_no_telp' => MarketingMobileSupport::normalizePhone($request->input('customer_no_telp')),
@@ -224,20 +324,39 @@ class OfflineSaleController extends Controller
             'customer_no_telp' => ['nullable', 'string', 'max:30'],
             'customer_tiktok_instagram' => ['nullable', 'string', 'max:255'],
             'items' => ['required', 'array', 'min:1'],
-            'items.*.id_product' => ['required', 'distinct', 'exists:products,id_product'],
+            'items.*.id_product' => ['required', 'exists:products,id_product'],
+            'items.*.product_variant_id' => ['nullable', 'exists:product_variants,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'items.*.extra_topping_ids' => ['nullable', 'array'],
+            'items.*.extra_topping_ids.*' => ['integer', 'exists:extra_toppings,id'],
             'promo_id' => ['nullable', 'exists:promos,id'],
-            'bukti_pembelian' => ['required', 'image', 'max:4096'],
+            'bukti_pembelian' => [$requireReceipt ? 'required' : 'nullable', 'image', 'max:4096'],
+            'payment_method' => ['nullable', 'in:Cash,Qris'],
         ], [
-            'items.*.id_product.distinct' => 'Product tidak boleh dipilih lebih dari sekali dalam satu transaksi.',
         ]);
     }
 
     private function prepareTransactionContext(array $validated, int $userId): array
     {
         $productIds = collect($validated['items'])->pluck('id_product')->all();
-        $products = Product::query()->with('hppCalculation')->whereIn('id_product', $productIds)->get()->keyBy('id_product');
-        $promo = empty($validated['promo_id']) ? null : Promo::query()->findOrFail($validated['promo_id']);
+        $user = \App\Models\User::query()->find($userId);
+        $storeId = $user ? MarketingMobileSupport::currentStoreId($user) : null;
+        $products = Product::query()
+            ->with('hppCalculation')
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
+            ->whereIn('id_product', $productIds)
+            ->get()
+            ->keyBy('id_product');
+        $promo = empty($validated['promo_id'])
+            ? null
+            : Promo::query()
+                ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
+                ->findOrFail($validated['promo_id']);
+        $requiresOnhand = $user ? ! MarketingMobileSupport::isSmoothiesSweetieUser($user) : true;
+        $variantIds = collect($validated['items'])->pluck('product_variant_id')->filter()->map(fn ($id) => (int) $id)->all();
+        $variants = ProductVariant::query()->whereIn('id', $variantIds)->get()->keyBy('id')->all();
+        $extraToppingIds = collect($validated['items'])->flatMap(fn ($item) => $item['extra_topping_ids'] ?? [])->filter()->map(fn ($id) => (int) $id)->all();
+        $extraToppings = ExtraTopping::query()->whereIn('id', $extraToppingIds)->get()->keyBy('id')->all();
 
         $lineSubtotals = [];
         $onhands = [];
@@ -247,30 +366,36 @@ class OfflineSaleController extends Controller
         foreach ($validated['items'] as $item) {
             $product = $products->get($item['id_product']);
             $quantity = (int) $item['quantity'];
-            $lineSubtotal = (float) ($product?->harga ?? 0) * $quantity;
+            $variant = $variants[(int) ($item['product_variant_id'] ?? 0)] ?? null;
+            $unitPrice = (float) ($variant?->price ?? $product?->harga ?? 0);
+            $extraToppingTotal = collect($item['extra_topping_ids'] ?? [])
+                ->sum(fn ($id) => (float) ($extraToppings[(int) $id]?->price ?? 0)) * $quantity;
+            $lineSubtotal = ($unitPrice * $quantity) + $extraToppingTotal;
 
             $lineSubtotals[] = $lineSubtotal;
             $totalQuantity += $quantity;
             $subtotal += $lineSubtotal;
 
-            $onhand = MarketingMobileSupport::resolveOnhandForSale($userId, (int) $item['id_product']);
+            if ($requiresOnhand) {
+                $onhand = MarketingMobileSupport::resolveOnhandForSale($userId, (int) $item['id_product']);
 
-            if (! $onhand) {
-                throw ValidationException::withMessages([
-                    'items' => 'Ada product yang belum tersedia di on hand untuk dijual.',
-                ]);
+                if (! $onhand) {
+                    throw ValidationException::withMessages([
+                        'items' => 'Ada product yang belum tersedia di on hand untuk dijual.',
+                    ]);
+                }
+
+                if ($quantity > MarketingMobileSupport::availableForOnhand($onhand)) {
+                    throw ValidationException::withMessages([
+                        'items' => 'Quantity penjualan melebihi barang yang dibawa.',
+                    ]);
+                }
+
+                $onhands[(int) $item['id_product']] = $onhand;
             }
-
-            if ($quantity > MarketingMobileSupport::availableForOnhand($onhand)) {
-                throw ValidationException::withMessages([
-                    'items' => 'Quantity penjualan melebihi barang yang dibawa.',
-                ]);
-            }
-
-            $onhands[(int) $item['id_product']] = $onhand;
         }
 
-        return [$products, $promo, $lineSubtotals, $onhands, $totalQuantity, $subtotal];
+        return [$products, $promo, $lineSubtotals, $onhands, $totalQuantity, $subtotal, $storeId, $variants, $extraToppings];
     }
 
     private function validatePromoEligibility(?Promo $promo, int $totalQuantity, float $subtotal): void
@@ -292,7 +417,7 @@ class OfflineSaleController extends Controller
         }
     }
 
-    private function resolveCustomer(array $validated, Carbon $timestamp): ?Customer
+    private function resolveCustomer(array $validated, Carbon $timestamp, ?int $storeId): ?Customer
     {
         $nama = trim((string) ($validated['customer_nama'] ?? ''));
         $noTelp = $validated['customer_no_telp'] ?? null;
@@ -303,13 +428,19 @@ class OfflineSaleController extends Controller
         }
 
         $payload = [
+            'store_id' => $storeId,
             'nama' => $nama !== '' ? $nama : null,
             'no_telp' => $noTelp ?: null,
             'tiktok_instagram' => $social !== '' ? $social : null,
             'pembelian_terakhir' => $timestamp,
         ];
 
-        $customer = $noTelp ? Customer::query()->where('no_telp', $noTelp)->first() : null;
+        $customer = $noTelp
+            ? Customer::query()
+                ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
+                ->where('no_telp', $noTelp)
+                ->first()
+            : null;
 
         if ($customer) {
             $updates = ['pembelian_terakhir' => $timestamp];
@@ -364,4 +495,44 @@ class OfflineSaleController extends Controller
     {
         return 'TRX-' . now()->format('YmdHis') . '-' . strtoupper(Str::random(8));
     }
+
+    private function resolveProductHpp(?Product $product, ?ProductVariant $variant = null): float
+    {
+        if (! $product) {
+            return 0;
+        }
+
+        $product->loadMissing('hppCalculation.items');
+
+        if ($product->hppCalculation?->items?->isNotEmpty()) {
+            return round((float) $product->hppCalculation->items->sum(function ($item) use ($variant) {
+                return RawMaterialUsage::calculateItemCost(
+                    (float) $item->presentase,
+                    (float) $item->harga_satuan,
+                    (string) $item->satuan,
+                    (float) ($variant?->total_satuan_ml ?? 50)
+                );
+            }), 2);
+        }
+
+        return (float) ($product->hppCalculation?->total_hpp ?? $product->harga_modal ?? 0);
+    }
+
+    private function generateSaleNumber(?int $storeId, Carbon $timestamp): ?string
+    {
+        if (! $storeId) {
+            return null;
+        }
+
+        $nextNumber = OfflineSale::query()
+            ->where('store_id', $storeId)
+            ->whereDate('created_at', $timestamp->toDateString())
+            ->select('sale_number')
+            ->distinct()
+            ->get()
+            ->count() + 1;
+
+        return $timestamp->format('d/m/Y') . ' - ' . $nextNumber;
+    }
 }
+

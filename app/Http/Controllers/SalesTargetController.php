@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\SalesTarget;
+use App\Support\StoreFeature;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -23,7 +24,7 @@ class SalesTargetController extends Controller
     {
         $this->authorizeSuperadmin($request);
 
-        abort_unless(in_array($role, ['marketing', 'sales_field_executive'], true), 404);
+        abort_unless(in_array($role, $this->availableRoles($request), true), 404);
 
         $validated = $request->validate([
             'daily_target_qty' => ['required', 'integer', 'min:0'],
@@ -49,7 +50,7 @@ class SalesTargetController extends Controller
 
     private function targetsForView()
     {
-        return collect(['marketing', 'sales_field_executive'])
+        return collect($this->availableRoles(request()))
             ->map(function (string $role) {
                 $target = SalesTarget::query()->firstWhere('role', $role);
 
@@ -65,6 +66,15 @@ class SalesTargetController extends Controller
                 ];
             })
             ->values();
+    }
+
+    private function availableRoles(Request $request): array
+    {
+        if (StoreFeature::isSmoothiesSweetie($request)) {
+            return ['karyawan'];
+        }
+
+        return ['marketing', 'sales_field_executive'];
     }
 }
 

@@ -2,7 +2,7 @@
     <Head title="Product Knowledge" />
 
     <div class="knowledge-page">
-        <div class="card card-outline card-primary mb-3">
+        <div v-if="!isSmoothiesSweetie" class="card card-outline card-primary mb-3">
             <div class="card-header"><h3 class="card-title">Filter Product Knowledge</h3></div>
             <div class="card-body">
                 <div class="row">
@@ -42,7 +42,8 @@
                     </div>
                     <div class="card-body text-center d-flex flex-column justify-content-center">
                         <h5 class="card-title mb-3">{{ product.nama_product }}</h5>
-                        <div class="d-flex flex-wrap justify-content-center">
+                        <div v-if="isSmoothiesSweetie" class="text-muted mb-0 knowledge-description" v-html="renderRichText(product.deskripsi, 'Belum ada deskripsi product.')"></div>
+                        <div v-else class="d-flex flex-wrap justify-content-center">
                             <span v-for="detail in product.fragrance_details" :key="`${product.id_product}-${detail.id_fd}`" class="badge border mr-1 mb-1 knowledge-badge">
                                 {{ detail.detail }}
                             </span>
@@ -60,7 +61,7 @@
         <div v-if="activeProduct" class="text-center">
             <img v-if="activeProduct.gambar" :src="activeProduct.gambar" :alt="activeProduct.nama_product" class="img-fluid rounded border knowledge-preview-image mb-3">
             <div v-else class="knowledge-preview-empty rounded border mb-3 d-flex align-items-center justify-content-center text-muted">No Image</div>
-            <p class="text-left mb-0">{{ activeProduct.deskripsi || 'Belum ada deskripsi product.' }}</p>
+            <div class="text-left mb-0 knowledge-description" v-html="renderRichText(activeProduct.deskripsi, 'Belum ada deskripsi product.')"></div>
         </div>
         <template #footer>
             <button type="button" class="btn btn-secondary" @click="activeProduct = null">Tutup</button>
@@ -76,9 +77,24 @@ import BootstrapModal from '../../Components/BootstrapModal.vue';
 
 defineOptions({ layout: AppLayout });
 
-const props = defineProps({ products: Array, fragranceFilters: Array });
+const props = defineProps({ products: Array, fragranceFilters: Array, isSmoothiesSweetie: Boolean });
 const selectedDetail = ref([]);
 const activeProduct = ref(null);
+const escapeHtml = (value) => String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+const renderRichText = (value, fallback = '') => {
+    if (!value) {
+        return fallback ? `<p class="mb-0">${escapeHtml(fallback)}</p>` : '';
+    }
+
+    return /<\/?[a-z][\s\S]*>/i.test(value)
+        ? value
+        : `<p class="mb-0">${escapeHtml(value).replace(/\n/g, '<br>')}</p>`;
+};
 
 const detailOptions = computed(() => props.fragranceFilters.flatMap((group) => group.details.map((detail) => ({ jenis: group.jenis, detail: detail.detail }))));
 const filteredProducts = computed(() => props.products.filter((product) => {
@@ -181,5 +197,10 @@ const detailDisplayLabel = (detail) => {
     opacity: 0;
     transform: translateY(10px);
 }
-</style>
 
+.knowledge-description :deep(p:last-child),
+.knowledge-description :deep(ul:last-child),
+.knowledge-description :deep(ol:last-child) {
+    margin-bottom: 0;
+}
+</style>

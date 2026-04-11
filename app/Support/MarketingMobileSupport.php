@@ -6,15 +6,34 @@ use App\Models\Attendance;
 use App\Models\OfflineSale;
 use App\Models\ProductOnhand;
 use App\Models\SalesTarget;
+use App\Models\Store;
 use App\Models\User;
 use App\Support\ProductOnhandStock;
 use Carbon\Carbon;
 
 class MarketingMobileSupport
 {
+    public static function currentStore(User $user): ?Store
+    {
+        return $user->stores()->wherePivot('is_primary', true)->first()
+            ?? $user->stores()->first();
+    }
+
+    public static function currentStoreId(User $user): ?int
+    {
+        return self::currentStore($user)?->id;
+    }
+
+    public static function isSmoothiesSweetieUser(User $user): bool
+    {
+        return StoreFeature::isSmoothiesSweetie(self::currentStore($user));
+    }
+
     public static function attendanceContext(User $user): array
     {
+        $storeId = self::currentStoreId($user);
         $todayAttendance = Attendance::query()
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
             ->where('user_id', $user->id_user)
             ->whereDate('attendance_date', now()->toDateString())
             ->first();
@@ -23,7 +42,9 @@ class MarketingMobileSupport
         $attendanceBlockedReason = null;
 
         if (! $todayAttendance?->check_in) {
-            $attendanceBlockedReason = 'Sales lapangan wajib check in terlebih dahulu sebelum mengambil barang.';
+            $attendanceBlockedReason = self::isSmoothiesSweetieUser($user)
+                ? 'Karyawan wajib check in terlebih dahulu sebelum melakukan penjualan.'
+                : 'Sales lapangan wajib check in terlebih dahulu sebelum mengambil barang.';
         } elseif ($todayAttendance?->check_out) {
             $attendanceBlockedReason = 'User yang sudah check out tidak bisa request barang lagi hari ini.';
         }
@@ -47,13 +68,17 @@ class MarketingMobileSupport
 
     public static function buildMarketingKpi(int $userId, Carbon $periodStart, Carbon $periodEnd): array
     {
+        $user = User::query()->find($userId);
+        $storeId = $user ? self::currentStoreId($user) : null;
         $salesQuantity = (int) OfflineSale::query()
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
             ->where('id_user', $userId)
             ->where('approval_status', '!=', 'ditolak')
             ->whereBetween('created_at', [$periodStart->copy()->startOfDay(), $periodEnd->copy()->endOfDay()])
             ->sum('quantity');
 
         $attendances = Attendance::query()
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
             ->where('user_id', $userId)
             ->whereBetween('attendance_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
             ->whereNotNull('check_in')
@@ -75,7 +100,7 @@ class MarketingMobileSupport
             return max(($checkOut - $checkIn) / 3600, 0);
         }), 2);
 
-        $salesTarget = (int) (SalesTarget::query()->firstWhere('role', User::query()->find($userId)?->role ?? 'marketing')?->monthly_target_qty ?? 100);
+        $salesTarget = (int) (SalesTarget::query()->firstWhere('role', $user?->role ?? 'marketing')?->monthly_target_qty ?? 100);
         $attendanceTarget = 24;
         $hoursTarget = 8;
         $averageHoursPerDay = $attendanceDays > 0 ? round($totalHours / $attendanceDays, 2) : 0.0;
@@ -104,7 +129,8 @@ class MarketingMobileSupport
             $user,
             $periodStart,
             $periodEnd,
-            SalesTarget::query()->firstWhere('role', $user->role)
+            SalesTarget::query()->firstWhere('role', $user->role),
+            self::currentStoreId($user)
         );
     }
 
@@ -200,6 +226,11 @@ class MarketingMobileSupport
 
     public static function resolveOnhandForSale(int $userId, int $productId): ?ProductOnhand
     {
+        $user = User::query()->find($userId);
+        if ($user && self::isSmoothiesSweetieUser($user)) {
+            return null;
+        }
+
         return ProductOnhand::query()
             ->with('user')
             ->where('user_id', $userId)
@@ -251,6 +282,5 @@ class MarketingMobileSupport
             default => $status,
         };
     }
-
 }
 

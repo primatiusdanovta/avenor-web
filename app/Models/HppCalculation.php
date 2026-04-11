@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DefaultsToAvenorStore;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,13 +10,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class HppCalculation extends Model
 {
-    use HasFactory;
+    use DefaultsToAvenorStore, HasFactory;
 
     protected $primaryKey = 'id_hpp';
 
     public $timestamps = false;
 
     protected $fillable = [
+        'store_id',
         'id_product',
         'total_hpp',
         'created_at',
@@ -39,5 +41,10 @@ class HppCalculation extends Model
     public function items(): HasMany
     {
         return $this->hasMany(HppCalculationItem::class, 'id_hpp', 'id_hpp');
+    }
+
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 }

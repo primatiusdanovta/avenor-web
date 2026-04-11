@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\DefaultsToAvenorStore;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,12 +10,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ProductOnhand extends Model
 {
-    use HasFactory;
+    use DefaultsToAvenorStore, HasFactory;
 
     protected $primaryKey = 'id_product_onhand';
     public $timestamps = false;
 
     protected $fillable = [
+        'store_id',
         'user_id',
         'id_product',
         'nama_product',
@@ -65,6 +67,11 @@ class ProductOnhand extends Model
     public function consignmentItems(): HasMany
     {
         return $this->hasMany(ConsignmentItem::class, 'product_onhand_id', 'id_product_onhand');
+    }
+
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 }
 
