@@ -67,6 +67,7 @@
 <script setup>
 import { Head, useForm } from '@inertiajs/vue3';
 import { onMounted, ref } from 'vue';
+import { adminUrl } from '@/utils/admin';
 
 const props = defineProps({ branding: Object, captcha: Object });
 
