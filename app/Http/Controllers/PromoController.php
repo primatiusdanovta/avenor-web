@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Promo;
+use App\Support\SalesRole;
+use App\Support\StoreFeature;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -14,7 +16,9 @@ class PromoController extends Controller
 {
     public function index(Request $request): Response
     {
-        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
+        $isSmoothiesSweetie = StoreFeature::isSmoothiesSweetie($request);
+        $isAllowedRole = in_array($request->user()->role, ['superadmin', 'admin'], true) || ($isSmoothiesSweetie && $request->user()->role === SalesRole::OWNER);
+        abort_unless($isAllowedRole, 403);
 
         $promos = Promo::query()
             ->orderByDesc('created_at')
@@ -88,7 +92,9 @@ class PromoController extends Controller
 
     private function authorizeManagement(Request $request): void
     {
-        abort_unless(in_array($request->user()->role, ['superadmin', 'admin'], true), 403);
+        $isSmoothiesSweetie = StoreFeature::isSmoothiesSweetie($request);
+        $isAllowedRole = in_array($request->user()->role, ['superadmin', 'admin'], true) || ($isSmoothiesSweetie && $request->user()->role === SalesRole::OWNER);
+        abort_unless($isAllowedRole, 403);
     }
 
     private function generateCode(string $namaPromo): string

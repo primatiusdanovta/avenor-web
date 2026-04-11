@@ -2,6 +2,7 @@
     <Head title="Dashboard" />
 
     <div class="dashboard-page">
+        <!-- Inventory Alert -->
         <div v-if="showInventoryAlert && hasInventoryAlerts" class="alert alert-warning alert-dismissible fade show" role="alert">
             <button type="button" class="btn-close" aria-label="Close" @click="showInventoryAlert = false"></button>
             <div class="fw-bold mb-2">Peringatan stock minimum</div>
@@ -15,6 +16,7 @@
             </div>
         </div>
 
+        <!-- Sales App Download -->
         <div v-if="isMarketing && salesAppDownload" class="row">
             <div class="col-12">
                 <div class="card card-outline card-success">
@@ -43,7 +45,8 @@
             </div>
         </div>
 
-        <div v-if="dashboardFilters && isSuperadmin" class="row">
+        <!-- Dashboard Filter -->
+        <div v-if="dashboardFilters && (isSuperadmin || isOwner)" class="row">
             <div class="col-12">
                 <div class="card card-outline card-secondary">
                     <div class="card-header"><h3 class="card-title">Filter Dashboard</h3></div>
@@ -76,7 +79,8 @@
             </div>
         </div>
 
-        <template v-if="dashboardData?.mode === 'manager' && isSuperadmin">
+        <!-- Manager Content -->
+        <template v-if="dashboardData?.mode === 'manager' && (isSuperadmin || isOwner)">
             <div class="row">
                 <div class="col-xl-6 col-md-6 mb-3">
                     <div class="card card-outline card-primary h-100">
@@ -101,7 +105,6 @@
                         <div class="card-body">
                             <div class="text-muted small text-uppercase mb-2">Revenue</div>
                             <div class="h4 mb-1">{{ toCurrency(dashboardData.kpis.revenue_total) }}</div>
-                            
                         </div>
                     </div>
                 </div>
@@ -110,7 +113,6 @@
                         <div class="card-body">
                             <div class="text-muted small text-uppercase mb-2">Gross Profit</div>
                             <div class="h4 mb-1">{{ toCurrency(dashboardData.kpis.gross_profit_total) }}</div>
-                            
                         </div>
                     </div>
                 </div>
@@ -119,234 +121,30 @@
                         <div class="card-body">
                             <div class="text-muted small text-uppercase mb-2">Net Profit</div>
                             <div class="h4 mb-1">{{ toCurrency(dashboardData.kpis.net_profit_total) }}</div>
-                            
                         </div>
                     </div>
                 </div>
             </div>
         </template>
 
-        <div v-if="!(dashboardData?.mode === 'manager' && isSuperadmin)" class="row">
-            <div v-if="inventorySummary" class="col-md-12 col-lg-6">
-                <div class="card card-outline card-warning h-100">
-                    <div class="card-header"><h3 class="card-title">Ringkasan Inventory</h3></div>
-                    <div class="card-body">
-                        <p class="mb-1"><strong>Total Product:</strong> {{ inventorySummary.products }}</p>
-                        <p class="mb-1"><strong>Raw Material:</strong> {{ inventorySummary.rawMaterials ?? 0 }}</p>
-                        <p class="mb-1"><strong>Promo Aktif:</strong> {{ inventorySummary.promos }}</p>
-                        <p class="mb-1"><strong>Pending Return:</strong> {{ inventorySummary.pendingReturns }}</p>
-                        <p class="mb-0"><strong>Pending Sales:</strong> {{ inventorySummary.pendingSales }}</p>
-                    </div>
-                </div>
-            </div>
-            <div :class="inventorySummary ? 'col-lg-6' : 'col-12'" v-if="dashboardData?.mode === 'manager'">
-                <div class="card card-outline card-dark h-100">
-                    <div class="card-header"><h3 class="card-title">Tim Saat Ini</h3></div>
-                    <div class="card-body">
-                        <p class="mb-1"><strong>Periode:</strong> {{ dashboardData.period_label }}</p>
-                        <p class="mb-1"><strong>Total Marketing:</strong> {{ dashboardData.kpis.marketing_count }}</p>
-                        <p class="mb-1"><strong>Total Sales Field Executive:</strong> {{ dashboardData.kpis.seller_count }}</p>
-                        <p class="mb-1"><strong>Marketing On Duty:</strong> {{ dashboardData.kpis.on_duty_marketing }}</p>
-                        <p class="mb-1"><strong>Net Profit Offline Selling:</strong> {{ toCurrency(dashboardData.kpis.net_profit_offline_total) }}</p>
-                        <p class="mb-0"><strong>Net Profit Online Selling:</strong> {{ toCurrency(dashboardData.kpis.net_profit_online_total) }}</p>
-                    </div>
-                </div>
-            </div>
-            <div :class="inventorySummary ? 'col-lg-6' : 'col-12'" v-else>
-                <div class="card card-outline card-dark h-100">
-                    <div class="card-header"><h3 class="card-title">Ringkasan Bulan Ini</h3></div>
-                    <div class="card-body">
-                        <p class="mb-1"><strong>Periode:</strong> {{ dashboardData.period_label }}</p>
-                        <p class="mb-1"><strong>Hari Hadir:</strong> {{ dashboardData.kpis.attendance_days }}</p>
-                        <p class="mb-1"><strong>Total Revenue:</strong> {{ toCurrency(dashboardData.kpis.monthly_revenue) }}</p>
-                        <p class="mb-1"><strong>Total Jam Kerja:</strong> {{ dashboardData.kpis.monthly_hours }} jam</p>
-                        <p v-if="isMarketing && dashboardData.kpis.total_kpi !== null" class="mb-1"><strong>Total KPI:</strong> {{ dashboardData.kpis.total_kpi.toFixed(2) }}</p>
-                        <p class="mb-0"><strong>Total Transaksi:</strong> {{ dashboardData.kpis.monthly_transactions }}</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <template v-if="dashboardData?.mode === 'manager'">
-            <div v-if="showOfflineManagerContent" class="row">
-                <div class="col-md-12 col-lg-6">
-                    <div class="card card-outline card-success h-100">
-                        <div class="card-header"><h3 class="card-title">Gross Profit Offline Selling</h3></div>
-                        <div class="card-body">
-                            <SimpleBarChart :labels="dashboardData.gross_profit_offline_chart.labels" :values="dashboardData.gross_profit_offline_chart.values" color="#198754" empty-message="Belum ada gross profit offline di bulan ini." />
-                            <div class="text-right font-weight-bold mt-3">{{ toCurrency(dashboardData.gross_profit_offline_chart.total) }}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-12 col-lg-6">
-                    <div class="card card-outline card-info h-100">
-                        <div class="card-header"><h3 class="card-title">Net Profit Offline Selling</h3></div>
-                        <div class="card-body">
-                            <SimpleBarChart :labels="dashboardData.net_profit_offline_chart.labels" :values="dashboardData.net_profit_offline_chart.values" color="#0d6efd" empty-message="Belum ada net profit offline di bulan ini." />
-                            <div class="text-right font-weight-bold mt-3">{{ toCurrency(dashboardData.net_profit_offline_chart.total) }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div v-if="showOnlineManagerContent" class="row">
-                <div class="col-md-12 col-lg-6">
-                    <div class="card card-outline card-warning h-100">
-                        <div class="card-header"><h3 class="card-title">Gross Profit Online Selling</h3></div>
-                        <div class="card-body">
-                            <SimpleBarChart :labels="dashboardData.gross_profit_online_chart.labels" :values="dashboardData.gross_profit_online_chart.values" color="#fd7e14" empty-message="Belum ada gross profit online di bulan ini." />
-                            <div class="text-right font-weight-bold mt-3">{{ toCurrency(dashboardData.gross_profit_online_chart.total) }}</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-12 col-lg-6">
-                    <div class="card card-outline card-primary h-100">
-                        <div class="card-header"><h3 class="card-title">Net Profit Online Selling</h3></div>
-                        <div class="card-body">
-                            <SimpleBarChart :labels="dashboardData.net_profit_online_chart.labels" :values="dashboardData.net_profit_online_chart.values" color="#6610f2" empty-message="Belum ada net profit online di bulan ini." />
-                            <div class="text-right font-weight-bold mt-3">{{ toCurrency(dashboardData.net_profit_online_chart.total) }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div v-if="showOfflineManagerContent" class="row">
-                <div class="col-md-12 col-lg-6">
-                    <div class="card card-outline card-primary h-100">
-                        <div class="card-header"><h3 class="card-title">5 Product Terlaris Offline Sales</h3></div>
-                        <div class="card-body"><SimplePieChart :labels="dashboardData.top_products_offline_chart.labels" :values="dashboardData.top_products_offline_chart.values" /></div>
-                    </div>
-                </div>
-                <div class="col-md-12 col-lg-6">
-                    <div class="card card-outline card-secondary h-100">
-                        <div class="card-header"><h3 class="card-title">Top 5 Product Offline Sales</h3></div>
-                        <div class="card-body p-0 table-responsive">
-                            <table class="table table-hover mb-0">
-                                <thead><tr><th>Produk</th><th>Qty</th><th>Revenue</th></tr></thead>
-                                <tbody>
-                                    <tr v-for="item in dashboardData.top_products_offline_table" :key="item.label"><td>{{ item.label }}</td><td>{{ item.quantity }}</td><td>{{ toCurrency(item.revenue) }}</td></tr>
-                                    <tr v-if="!dashboardData.top_products_offline_table.length"><td colspan="3" class="text-center text-muted">Belum ada data produk offline terjual.</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div v-if="showOnlineManagerContent" class="row">
-                <div class="col-md-12 col-lg-6">
-                    <div class="card card-outline card-warning h-100">
-                        <div class="card-header"><h3 class="card-title">5 Product Terlaris Online Selling</h3></div>
-                        <div class="card-body"><SimplePieChart :labels="dashboardData.top_products_online_chart.labels" :values="dashboardData.top_products_online_chart.values" /></div>
-                    </div>
-                </div>
-                <div class="col-md-12 col-lg-6">
-                    <div class="card card-outline card-dark h-100">
-                        <div class="card-header"><h3 class="card-title">Top 5 Product Online Selling</h3></div>
-                        <div class="card-body p-0 table-responsive">
-                            <table class="table table-hover mb-0">
-                                <thead><tr><th>Produk</th><th>Qty</th><th>Revenue</th></tr></thead>
-                                <tbody>
-                                    <tr v-for="item in dashboardData.top_products_online_table" :key="item.label"><td>{{ item.label }}</td><td>{{ item.quantity }}</td><td>{{ toCurrency(item.revenue) }}</td></tr>
-                                    <tr v-if="!dashboardData.top_products_online_table.length"><td colspan="3" class="text-center text-muted">Belum ada data produk online terjual.</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div v-if="showOfflineManagerContent || showOnlineManagerContent" class="row">
-                <div v-if="showOfflineManagerContent" class="col-md-12 col-lg-6">
-                    <div class="card card-outline card-primary">
-                        <div class="card-header"><h3 class="card-title">Top 10 Marketing</h3></div>
-                        <div class="card-body p-0 table-responsive">
-                            <table class="table table-striped mb-0">
-                                <thead><tr><th>Nama</th><th>Qty</th><th>Revenue</th></tr></thead>
-                                <tbody>
-                                    <tr v-for="item in dashboardData.top_marketing" :key="item.name"><td>{{ item.name }}</td><td>{{ item.quantity }}</td><td>{{ toCurrency(item.revenue) }}</td></tr>
-                                    <tr v-if="!dashboardData.top_marketing.length"><td colspan="3" class="text-center text-muted">Belum ada data marketing.</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                <div v-if="showOnlineManagerContent" class="col-md-12 col-lg-6">
-                    <div class="card card-outline card-warning">
-                        <div class="card-header"><h3 class="card-title">Top 10 Sales Field Executive</h3></div>
-                        <div class="card-body p-0 table-responsive">
-                            <table class="table table-striped mb-0">
-                                <thead><tr><th>Nama</th><th>Qty</th><th>Revenue</th></tr></thead>
-                                <tbody>
-                                    <tr v-for="item in dashboardData.top_resellers" :key="item.name"><td>{{ item.name }}</td><td>{{ item.quantity }}</td><td>{{ toCurrency(item.revenue) }}</td></tr>
-                                    <tr v-if="!dashboardData.top_resellers.length"><td colspan="3" class="text-center text-muted">Belum ada data sales field executive.</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </template>
-
+        <!-- Marketing/Other Content -->
         <template v-else>
-            <div v-if="isMarketing && dashboardData.marketing_kpi" class="row">
-                <div class="col-md-4">
-                    <div class="card card-outline card-primary h-100"><div class="card-body"><div class="text-muted small">KPI Penjualan</div><div class="h4 mb-0">{{ dashboardData.marketing_kpi.sales_score.toFixed(2) }} / 70</div><div class="small text-muted mt-2">{{ dashboardData.marketing_kpi.quantity_sold }}/{{ dashboardData.marketing_kpi.sales_target }} pcs</div></div></div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card card-outline card-warning h-100"><div class="card-body"><div class="text-muted small">KPI Kehadiran</div><div class="h4 mb-0">{{ dashboardData.marketing_kpi.attendance_score.toFixed(2) }} / 20</div><div class="small text-muted mt-2">{{ dashboardData.marketing_kpi.attendance_days }}/{{ dashboardData.marketing_kpi.attendance_target }} hari</div></div></div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card card-outline card-info h-100"><div class="card-body"><div class="text-muted small">KPI Jam Kerja</div><div class="h4 mb-0">{{ dashboardData.marketing_kpi.hours_score.toFixed(2) }} / 10</div><div class="small text-muted mt-2">{{ dashboardData.marketing_kpi.average_hours_per_day.toFixed(2) }}/{{ dashboardData.marketing_kpi.hours_target }} jam per hari</div></div></div>
-                </div>
-            </div>
-
-            <div class="row">
-                <div class="col-md-12 col-lg-6">
-                    <div class="card card-outline card-primary h-100">
-                        <div class="card-header"><h3 class="card-title">Target Penjualan {{ dashboardData.target_summary.period_label }}</h3></div>
+            <div v-if="isMarketing && dashboardData?.marketing_kpi" class="row">
+                <div class="col-12">
+                    <div class="card card-outline card-warning h-100">
+                        <div class="card-header"><h3 class="card-title">Ringkasan Inventory</h3></div>
                         <div class="card-body">
-                            <p class="mb-1"><strong>Bulan Saat Ini:</strong> {{ dashboardData.target_summary.period_label }}</p>
-                            <p class="mb-1"><strong>Target Harian Terpenuhi:</strong> {{ dashboardData.target_summary.daily.achieved_count }} / {{ dashboardData.target_summary.daily.total_periods }} hari</p>
-                            <p class="mb-1 text-muted">Qty target harian {{ dashboardData.target_summary.daily.target_qty }} | Bonus harian {{ toCurrency(dashboardData.target_summary.daily.bonus) }}</p>
-                            <p class="mb-1"><strong>Target Mingguan Terpenuhi:</strong> {{ dashboardData.target_summary.weekly.achieved_count }} / {{ dashboardData.target_summary.weekly.total_periods }} minggu</p>
-                            <p class="mb-1 text-muted">Qty target mingguan {{ dashboardData.target_summary.weekly.target_qty }} | Bonus tercapai {{ toCurrency(dashboardData.target_summary.weekly.bonus) }}</p>
-                            <p class="mb-1"><strong>Target Bulanan:</strong> {{ dashboardData.target_summary.monthly.met ? 'Terpenuhi' : 'Belum Terpenuhi' }} ({{ dashboardData.target_summary.monthly.total_quantity }}/{{ dashboardData.target_summary.monthly.target_qty }})</p>
-                            <p class="mb-1 text-muted">Bonus bulanan tercapai {{ toCurrency(dashboardData.target_summary.monthly.bonus) }}</p>
-                            <p class="mb-0"><strong>Bonus anda saat ini:</strong> {{ toCurrency(dashboardData.target_summary.bonus_total) }}</p>
-                            <div v-if="dashboardData.target_summary.reminder" class="alert alert-warning mt-3 mb-0">{{ dashboardData.target_summary.reminder }}</div>
+                            <p class="mb-1"><strong>Total Product:</strong> {{ inventorySummary.products }}</p>
+                            <p class="mb-1"><strong>Raw Material:</strong> {{ inventorySummary.rawMaterials ?? 0 }}</p>
+                            <p class="mb-1"><strong>Promo Aktif:</strong> {{ inventorySummary.promos }}</p>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-12 col-lg-6">
-                    <div class="card card-outline card-secondary h-100">
-                        <div class="card-header"><h3 class="card-title">History Penjualan {{ dashboardData.previous_target_summary.period_label }}</h3></div>
-                        <div class="card-body">
-                            <p class="mb-1"><strong>Target Harian Terpenuhi:</strong> {{ dashboardData.previous_target_summary.daily.achieved_count }} / {{ dashboardData.previous_target_summary.daily.total_periods }} hari</p>
-                            <p class="mb-1 text-muted">Qty target harian {{ dashboardData.previous_target_summary.daily.target_qty }} | Bonus harian {{ toCurrency(dashboardData.previous_target_summary.daily.bonus) }}</p>
-                            <p class="mb-1"><strong>Target Mingguan Terpenuhi:</strong> {{ dashboardData.previous_target_summary.weekly.achieved_count }} / {{ dashboardData.previous_target_summary.weekly.total_periods }} minggu</p>
-                            <p class="mb-1 text-muted">Qty target mingguan {{ dashboardData.previous_target_summary.weekly.target_qty }} | Bonus tercapai {{ toCurrency(dashboardData.previous_target_summary.weekly.bonus) }}</p>
-                            <p class="mb-1"><strong>Target Bulanan:</strong> {{ dashboardData.previous_target_summary.monthly.met ? 'Terpenuhi' : 'Belum Terpenuhi' }} ({{ dashboardData.previous_target_summary.monthly.total_quantity }}/{{ dashboardData.previous_target_summary.monthly.target_qty }})</p>
-                            <p class="mb-1 text-muted">Bonus bulanan tercapai {{ toCurrency(dashboardData.previous_target_summary.monthly.bonus) }}</p>
-                            <p class="mb-0"><strong>Bonus bulan lalu:</strong> {{ toCurrency(dashboardData.previous_target_summary.bonus_total) }}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="row">
-                <div v-if="dashboardData.attendance_chart.values.length" class="col-md-12 col-lg-6 col-xl-4 mb-3"><div class="card card-outline card-primary h-100"><div class="card-header"><h3 class="card-title">Grafik Absensi</h3></div><div class="card-body"><SimpleBarChart :labels="dashboardData.attendance_chart.labels" :values="dashboardData.attendance_chart.values" color="#fd7e14" empty-message="Belum ada data absensi." /></div></div></div>
-                <div v-if="dashboardData.sales_chart.values.length" class="col-md-12 col-lg-6 col-xl-4 mb-3"><div class="card card-outline card-success h-100"><div class="card-header"><h3 class="card-title">Grafik Penjualan</h3></div><div class="card-body"><SimpleBarChart :labels="dashboardData.sales_chart.labels" :values="dashboardData.sales_chart.values" color="#198754" empty-message="Belum ada data penjualan." /></div></div></div>
-                <div v-if="dashboardData.hours_chart.values.length" class="col-md-12 col-lg-6 col-xl-4 mb-3"><div class="card card-outline card-info h-100"><div class="card-header"><h3 class="card-title">Jam Kerja per Hari</h3></div><div class="card-body"><SimpleBarChart :labels="dashboardData.hours_chart.labels" :values="dashboardData.hours_chart.values" color="#0dcaf0" empty-message="Belum ada data jam kerja." /></div></div></div>
-            </div>
-
-            <div class="row">
-                <div class="col-md-12 col-lg-6"><div class="card card-outline card-primary h-100"><div class="card-header"><h3 class="card-title">5 Produk Terlaris</h3></div><div class="card-body"><SimplePieChart :labels="dashboardData.top_products_chart.labels" :values="dashboardData.top_products_chart.values" /></div></div></div>
-                <div class="col-md-12 col-lg-6"><div class="card card-outline card-secondary h-100"><div class="card-header"><h3 class="card-title">Top 5 Produk Anda</h3></div><div class="card-body p-0 table-responsive"><table class="table table-hover mb-0"><thead><tr><th>Produk</th><th>Qty</th><th>Revenue</th></tr></thead><tbody><tr v-for="item in dashboardData.top_products_table" :key="item.label"><td>{{ item.label }}</td><td>{{ item.quantity }}</td><td>{{ toCurrency(item.revenue) }}</td></tr><tr v-if="!dashboardData.top_products_table.length"><td colspan="3" class="text-center text-muted">Belum ada data produk terjual.</td></tr></tbody></table></div></div></div>
             </div>
         </template>
     </div>
 </template>
+
 
 <script setup>
 import { computed, defineComponent, h, ref, watch } from 'vue';
@@ -428,6 +226,7 @@ const formatCompact = (value) => new Intl.NumberFormat('id-ID', { notation: 'com
 const formatStock = (value) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(Number(value || 0));
 const toPercent = (value) => `${Number(value || 0).toFixed(2)}%`;
 const isSuperadmin = computed(() => props.summary?.currentRole === 'superadmin');
+const isOwner = computed(() => props.summary?.currentRole === 'owner');
 const isMarketing = computed(() => props.summary?.currentRole === 'marketing');
 const filterForm = useForm({ type: props.dashboardFilters?.type ?? 'all', month: props.dashboardFilters?.month ?? new Date().getMonth() + 1, year: props.dashboardFilters?.year ?? new Date().getFullYear() });
 const selectedDashboardPeriodLabel = computed(() => {

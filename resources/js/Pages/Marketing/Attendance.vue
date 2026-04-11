@@ -17,18 +17,18 @@
                 <div class="card-body">
                     <div class="form-group">
                         <label>Status</label>
-                        <Select2Input v-model="attendanceForm.status" :options="statuses" placeholder="Pilih status" />
+                        <Select2Input v-model="attendanceForm.status" :options="statuses" placeholder="Pilih status" :disabled="isFormDisabled" />
                     </div>
                     <div class="form-group">
                         <label>Catatan</label>
-                        <textarea v-model="attendanceForm.notes" class="form-control" rows="4" placeholder="Catatan absensi hari ini"></textarea>
+                        <textarea v-model="attendanceForm.notes" class="form-control" rows="4" placeholder="Catatan absensi hari ini" :disabled="isFormDisabled"></textarea>
                     </div>
                     <div v-if="locationError" class="alert alert-danger py-2">{{ locationError }}</div>
                     <div class="d-flex flex-wrap">
-                        <button type="button" class="btn btn-success mr-2 mb-2" :disabled="attendanceForm.processing" @click="confirmAction('check-in')">Check In Sekarang</button>
+                        <button type="button" class="btn btn-success mr-2 mb-2" :disabled="attendanceForm.processing || isFormDisabled" @click="confirmAction('check-in')">Check In Sekarang</button>
                         <button type="button" class="btn btn-danger mb-2" :disabled="attendanceForm.processing" @click="confirmAction('check-out')">Check Out Sekarang</button>
                     </div>
-                    <p class="text-muted text-sm mt-3 mb-0">Tanggal, jam, dan koordinat diambil otomatis saat tombol dijalankan.</p>
+                    <p class="text-muted text-sm mt-3 mb-0">{{ isFormDisabled ? 'Anda sudah check-in hari ini, form tidak bisa diubah.' : 'Tanggal, jam, dan koordinat diambil otomatis saat tombol dijalankan.' }}</p>
                 </div>
             </div>
         </div>
@@ -38,7 +38,11 @@
                 <div class="card-body">
                     <div v-if="todayAttendance">
                         <p><strong>Tanggal:</strong> {{ todayAttendance.date }}</p>
-                        <p><strong>Status:</strong> {{ todayAttendance.status }}</p>
+                        <p>
+                            <strong>Status:</strong> 
+                            {{ todayAttendance.status }}
+                            <span v-if="getLateBadge()" class="badge badge-warning ml-2">{{ getLateBadge() }}</span>
+                        </p>
                         <p><strong>Check In:</strong> {{ todayAttendance.check_in || '-' }}</p>
                         <p><strong>Check Out:</strong> {{ todayAttendance.check_out || '-' }}</p>
                         <p><strong>Lokasi Check In:</strong> {{ todayAttendance.check_in_location }}</p>
@@ -89,7 +93,12 @@
                 <tbody>
                     <tr v-for="item in recentAttendances" :key="item.id">
                         <td>{{ item.attendance_date }}</td>
-                        <td>{{ item.status }}</td>
+                        <td>
+                            {{ item.status }}
+                            <span v-if="item.check_in && (Number(item.check_in.split(':')[0]) > 11 || (Number(item.check_in.split(':')[0]) === 11 && Number(item.check_in.split(':')[1]) > 0))" class="badge badge-warning">
+                                Terlambat {{ Math.round(((Number(item.check_in.split(':')[0]) + Number(item.check_in.split(':')[1]) / 60) - 11) * 60) }} menit
+                            </span>
+                        </td>
                         <td>{{ item.check_in || '-' }}</td>
                         <td>{{ item.check_out || '-' }}</td>
                         <td>{{ item.check_in_location }}</td>
@@ -118,7 +127,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { Deferred, Head, useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import { adminUrl } from '../../utils/admin';
@@ -137,7 +146,25 @@ const props = defineProps({
 });
 
 const page = usePage();
-const statuses = ['hadir', 'terlambat', 'izin', 'sakit'];
+const statuses = ref([]);
+
+// Compute statuses based on todayAttendance state
+const computeStatuses = () => {
+    const hasCheckedIn = props.todayAttendance?.check_in;
+    const status = props.todayAttendance?.status || 'hadir';
+    
+    // If status is izin or sakit without checkout, label as "izin terlambat" for selection
+    if ((status === 'izin' || status === 'sakit') && !props.todayAttendance?.check_out) {
+        statuses.value = ['hadir', 'terlambat', 'izin', 'izin terlambat', 'sakit'];
+    } else {
+        statuses.value = ['hadir', 'terlambat', 'izin', 'sakit'];
+    }
+};
+
+watch(() => props.todayAttendance, () => {
+    computeStatuses();
+}, { immediate: true, deep: true });
+
 const attendanceForm = useForm({ status: 'hadir', notes: '', latitude: null, longitude: null });
 const locationError = ref('');
 const confirmMessage = ref('');
@@ -145,6 +172,20 @@ const errorMessage = ref('');
 const pendingAction = ref(null);
 const showConfirmModal = ref(false);
 const showErrorModal = ref(false);
+const isFormDisabled = computed(() => Boolean(props.todayAttendance?.check_in));
+
+const getLateBadge = () => {
+    if (!props.todayAttendance?.check_in) return null;
+    const checkInTime = props.todayAttendance.check_in;
+    const [hours, minutes] = checkInTime.split(':').map(Number);
+    const checkInHour = hours + minutes / 60;
+    
+    if (checkInHour > 11) {
+        const lateMinutes = Math.round((checkInHour - 11) * 60);
+        return `Terlambat ${lateMinutes} menit`;
+    }
+    return null;
+};
 
 const openErrorModal = (message) => {
     errorMessage.value = message;

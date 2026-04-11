@@ -14,6 +14,7 @@ use App\Models\RawMaterial;
 use App\Models\SalesTarget;
 use App\Models\User;
 use App\Support\MarketingBonusSupport;
+use App\Support\SalesRole;
 use App\Support\StoreFeature;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -74,6 +75,18 @@ class DashboardController extends Controller
                 ['title' => 'Approval Operasional', 'description' => 'Admin menyetujui penjualan offline, pengambilan barang, dan pengembalian barang dari field team.'],
                 ['title' => 'Profit Dashboard', 'description' => 'Admin melihat gross profit, net profit, ranking penjualan, serta produk terlaris bulan berjalan.'],
             ];
+        } elseif ($user->role === SalesRole::OWNER) {
+            $quickActions[] = ['label' => 'Produk', 'href' => route('products.index')];
+            $quickActions[] = ['label' => 'Raw Material', 'href' => route('raw-materials.index')];
+            $quickActions[] = ['label' => 'HPP', 'href' => route('hpp.index')];
+            $quickActions[] = ['label' => 'Promo', 'href' => route('promos.index')];
+            $quickActions[] = ['label' => 'Penjualan Offline', 'href' => route('offline-sales.index')];
+            $quickActions[] = ['label' => 'Pengeluaran', 'href' => route('expenses.index')];
+            $quickActions[] = ['label' => 'Report', 'href' => route('reports.index')];
+            $roleHighlights = [
+                ['title' => 'Dashboard Penjualan', 'description' => 'Lihat seluruh metrik pendapatan, gross profit, net profit, dan performa penjualan toko Anda.'],
+                ['title' => 'Detail Produk & Barang', 'description' => 'Monitor stock produk, raw material, hpp calculation, dan performa penjualan produk terlaris.'],
+            ];
         } else {
             $quickActions[] = ['label' => 'Products', 'href' => route('products.index')];
             $quickActions[] = ['label' => 'Penjualan Offline', 'href' => route('offline-sales.index')];
@@ -100,7 +113,7 @@ class DashboardController extends Controller
                     'name' => data_get(GlobalSetting::masterSocialHub(), 'sales_app_apk_name'),
                 ]
                 : null,
-            'inventorySummary' => $user->role === 'superadmin' ? [
+            'inventorySummary' => in_array($user->role, ['superadmin', SalesRole::OWNER], true) ? [
                 'products' => Product::query()->where('store_id', $storeId)->count(),
                 'rawMaterials' => RawMaterial::query()->where('store_id', $storeId)->count(),
                 'promos' => Promo::query()->where('store_id', $storeId)->whereDate('masa_aktif', '>=', today())->count(),
@@ -121,7 +134,7 @@ class DashboardController extends Controller
             ->when(in_array($user->role, ['marketing', 'sales_field_executive'], true), fn ($query) => $query->where('id_user', $user->id_user))
             ->get();
 
-        if (in_array($user->role, ['superadmin', 'admin'], true)) {
+        if (in_array($user->role, ['superadmin', 'admin', SalesRole::OWNER], true)) {
             $onlineSaleItems = OnlineSaleItem::query()
                 ->where('store_id', $storeId)
                 ->with(['product.hppCalculation'])

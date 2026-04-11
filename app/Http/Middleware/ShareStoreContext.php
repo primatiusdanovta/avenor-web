@@ -135,9 +135,9 @@ class ShareStoreContext
         if ($user->hasPermission('products.view') || $user->hasPermission('products.manage')) {
             $salesFeatureChildren = array_values(array_filter([
                 ! $isSmoothiesSweetie && $user->hasPermission('products.approve') ? ['label' => 'Approvals', 'href' => route('approvals.index'), 'icon' => 'far fa-circle nav-icon'] : null,
-                $user->role === 'superadmin' ? ['label' => 'Target Penjualan', 'href' => route('sales-targets.index'), 'icon' => 'far fa-circle nav-icon'] : null,
+                (in_array($user->role, ['superadmin', 'admin'], true) || ($isSmoothiesSweetie && $user->role === SalesRole::OWNER)) ? ['label' => 'Target Penjualan', 'href' => route('sales-targets.index'), 'icon' => 'far fa-circle nav-icon'] : null,
                 ! $isSmoothiesSweetie && in_array($user->role, ['superadmin', 'admin', SalesRole::SALES_FIELD_EXECUTIVE], true) ? ['label' => 'Consign', 'href' => route('consignments.index'), 'icon' => 'far fa-circle nav-icon'] : null,
-                in_array($user->role, ['superadmin', 'admin'], true) ? ['label' => 'Promos', 'href' => route('promos.index'), 'icon' => 'far fa-circle nav-icon'] : null,
+                (in_array($user->role, ['superadmin', 'admin'], true) || ($isSmoothiesSweetie && $user->role === SalesRole::OWNER)) ? ['label' => 'Promos', 'href' => route('promos.index'), 'icon' => 'far fa-circle nav-icon'] : null,
                 $user->hasPermission('extra_toppings.view') ? ['label' => 'Extra Topping', 'href' => route('extra-toppings.index'), 'icon' => 'far fa-circle nav-icon'] : null,
             ]));
             if ($salesFeatureChildren !== []) {
