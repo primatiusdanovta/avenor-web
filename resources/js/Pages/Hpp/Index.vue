@@ -22,9 +22,9 @@
                                 <td>{{ toCurrency(item.total_hpp) }}</td>
                                 <td>
                                     <div v-for="detail in item.items" :key="`${item.id_hpp}-${detail.id_rm}`" class="text-sm">
-                                        {{ detail.nama_rm }} - {{ detail.satuan === 'ML' ? `${detail.presentase}%` : `${formatNumber(detail.presentase)} ${detail.satuan}` }}
-                                        | pakai {{ formatNumber(detail.usage_quantity) }} {{ detail.satuan }}
-                                        | stock {{ formatNumber(detail.total_stock) }} {{ detail.satuan }}
+                                        {{ detail.nama_rm }} - {{ formatNumber(detail.presentase) }} {{ detail.usage_display_unit }}
+                                        | pakai {{ formatNumber(detail.usage_quantity) }} {{ detail.usage_display_unit }}
+                                        | stock {{ formatNumber(detail.total_stock_display) }} {{ detail.total_stock_unit }}
                                         | {{ toCurrency(detail.harga_final) }}
                                     </div>
                                 </td>
@@ -68,9 +68,9 @@
                     <label>{{ itemLabel(item) }}</label>
                     <input v-model="item.presentase" type="number" min="0.01" step="0.01" class="form-control">
                 </div>
-                <div class="small text-muted">Harga Satuan: {{ toCurrency(itemState(item).hargaSatuan) }} / {{ itemState(item).satuan }}</div>
-                <div class="small text-muted">Pemakaian per Product: {{ formatNumber(itemState(item).usageQuantity) }} {{ itemState(item).satuan }}</div>
-                <div class="small text-muted">Total Stock RM: {{ formatNumber(itemState(item).totalStock) }} {{ itemState(item).satuan }}</div>
+                <div class="small text-muted">Harga Satuan: {{ toCurrency(itemState(item).hargaSatuan) }} / {{ itemState(item).usageUnit }}</div>
+                <div class="small text-muted">Pemakaian per Product: {{ formatNumber(itemState(item).usageQuantity) }} {{ itemState(item).usageUnit }}<span v-if="itemState(item).usageSecondary"> ({{ itemState(item).usageSecondary }})</span></div>
+                <div class="small text-muted">Total Stock RM: {{ formatNumber(itemState(item).totalStockDisplay) }} {{ itemState(item).stockUnit }}</div>
                 <div class="small text-muted">Harga Final: {{ toCurrency(itemState(item).hargaFinal) }}</div>
             </div>
 
@@ -127,23 +127,31 @@ const selectedVariant = computed(() => activeProductVariants.value.find((variant
 
 const itemState = (item) => {
     const rawMaterial = rawMaterialMap.value[String(item.id_rm)] ?? null;
-    const hargaSatuan = Number(rawMaterial?.harga_satuan || 0);
+    const hargaSatuanRaw = Number(rawMaterial?.harga_satuan || 0);
     const inputValue = Number(item.presentase || 0);
     const isMl = String(rawMaterial?.satuan || '').trim().toUpperCase() === 'ML';
+    const isKg = String(rawMaterial?.satuan || '').trim().toUpperCase() === 'KG';
     const mlBase = Number(selectedVariant.value?.total_satuan_ml || 50);
     const usageQuantity = isMl ? ((inputValue / 100) * mlBase) : inputValue;
+    const hargaSatuan = isKg ? (hargaSatuanRaw / 1000) : hargaSatuanRaw;
     return {
         satuan: rawMaterial?.satuan || '-',
+        usageUnit: rawMaterial?.usage_input_unit || rawMaterial?.satuan || '-',
         hargaSatuan,
         usageQuantity,
-        totalStock: Number(rawMaterial?.total_quantity || 0),
+        usageSecondary: isKg ? `${formatNumber(inputValue / 1000)} kg` : '',
+        totalStockDisplay: Number(rawMaterial?.display_total_quantity || 0),
+        stockUnit: rawMaterial?.stock_display_unit || rawMaterial?.satuan || '-',
         hargaFinal: usageQuantity * hargaSatuan,
     };
 };
 
 const itemLabel = (item) => {
     const satuan = String(rawMaterialMap.value[String(item.id_rm)]?.satuan || '').trim().toUpperCase();
-    return satuan === 'ML' ? 'Presentase (%)' : 'Pemakaian (pcs)';
+    if (satuan === 'KG') return 'Pemakaian (gram)';
+    if (satuan === 'ML') return 'Pemakaian (ML)';
+    if (satuan === 'GRAM') return 'Pemakaian (Gram)';
+    return 'Pemakaian (pcs)';
 };
 const totalHpp = computed(() => form.items.reduce((total, item) => total + itemState(item).hargaFinal, 0));
 const toCurrency = (value) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 2 }).format(value || 0);

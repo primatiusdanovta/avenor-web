@@ -48,7 +48,54 @@ Future<void> main() async {
   };
 
   await initializeDateFormatting('id_ID');
-  runApp(const SmoothiesSweetieApp());
+  ErrorWidget.builder = (details) => Material(
+        color: const Color(0xFFF7F1E8),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.error_outline_rounded,
+                  size: 44,
+                  color: Color(0xFFC05D3B),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Aplikasi mengalami kendala tampilan.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF2B2117),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  details.exceptionAsString(),
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 12,
+                    color: const Color(0xFF6F665F),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+  runZonedGuarded(
+    () => runApp(const SmoothiesSweetieApp()),
+    (error, stackTrace) {
+      developer.log(
+        'Unhandled zone error',
+        name: 'SmoothiesSweetieApp',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    },
+  );
   unawaited(_initializeStartupServices());
 }
 
@@ -1107,9 +1154,8 @@ class _MarketingRootState extends State<MarketingRoot> {
 
     try {
       final meResponse = await _dio.get('/auth/me');
-      final me = (meResponse.data as Map<String, dynamic>)['user']
-              as Map<String, dynamic>? ??
-          {};
+      final mePayload = _asMap(meResponse.data);
+      final me = _asMap(mePayload['user']);
       final role = me['role']?.toString() ?? '';
 
       final futures = <Future<Response<dynamic>>>[
@@ -1134,18 +1180,17 @@ class _MarketingRootState extends State<MarketingRoot> {
       if (!mounted) return;
       setState(() {
         _me = me;
-        _dashboard = results[0].data as Map<String, dynamic>;
-        _attendance = results[1].data as Map<String, dynamic>;
-        _products = results[2].data as Map<String, dynamic>;
-        _sales = results[3].data as Map<String, dynamic>;
-        _consignments = results[4].data as Map<String, dynamic>;
-        _knowledge = results[5].data as Map<String, dynamic>;
-        _notifications = results[6].data as Map<String, dynamic>;
+        _dashboard = _asMap(results[0].data);
+        _attendance = _asMap(results[1].data);
+        _products = _asMap(results[2].data);
+        _sales = _asMap(results[3].data);
+        _consignments = _asMap(results[4].data);
+        _knowledge = _asMap(results[5].data);
+        _notifications = _asMap(results[6].data);
         _syncDerivedConsignmentInventoryState();
       });
       await NotificationScheduler.instance.syncServerNotifications(
-        ((_notifications?['notifications'] as List?) ?? [])
-            .cast<Map<String, dynamic>>(),
+        _asMapList(_notifications?['notifications']),
       );
       await _refreshNotificationBadgeState();
       await _tryPresentPendingNotification();
@@ -1729,39 +1774,24 @@ class _MarketingRootState extends State<MarketingRoot> {
       );
     }
 
-    final stats = _dashboard?['stats'] as Map<String, dynamic>? ?? {};
-    final todayAttendance =
-        _attendance?['today_attendance'] as Map<String, dynamic>? ?? {};
-    final onhands =
-        ((_products?['onhands'] as List?) ?? []).cast<Map<String, dynamic>>();
-    final historyOnhands = ((_products?['history_onhands'] as List?) ?? [])
-        .cast<Map<String, dynamic>>();
-    final availableProducts =
-        ((_products?['products'] as List?) ?? []).cast<Map<String, dynamic>>();
-    final sales =
-        ((_sales?['sales'] as List?) ?? []).cast<Map<String, dynamic>>();
-    final salesProducts =
-        ((_sales?['products'] as List?) ?? []).cast<Map<String, dynamic>>();
-    final promos =
-        ((_sales?['promos'] as List?) ?? []).cast<Map<String, dynamic>>();
-    final salesExtraToppings = ((_sales?['extra_toppings'] as List?) ?? [])
-        .cast<Map<String, dynamic>>();
-    final salesSops =
-        ((_sales?['sops'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final stats = _asMap(_dashboard?['stats']);
+    final todayAttendance = _asMap(_attendance?['today_attendance']);
+    final onhands = _asMapList(_products?['onhands']);
+    final historyOnhands = _asMapList(_products?['history_onhands']);
+    final availableProducts = _asMapList(_products?['products']);
+    final sales = _asMapList(_sales?['sales']);
+    final salesProducts = _asMapList(_sales?['products']);
+    final promos = _asMapList(_sales?['promos']);
+    final salesExtraToppings = _asMapList(_sales?['extra_toppings']);
+    final salesSops = _asMapList(_sales?['sops']);
     final isSmoothiesSweetie =
         (_sales?['is_smoothies_sweetie'] as bool?) ?? false;
     final salesQrisImageUrl = _sales?['qris_image_url']?.toString();
-    final knowledge =
-        ((_knowledge?['products'] as List?) ?? []).cast<Map<String, dynamic>>();
-    final consignProducts = ((_consignments?['products'] as List?) ?? [])
-        .cast<Map<String, dynamic>>();
-    final consignments = ((_consignments?['consignments'] as List?) ?? [])
-        .cast<Map<String, dynamic>>();
-    final notifications = ((_notifications?['notifications'] as List?) ?? [])
-        .cast<Map<String, dynamic>>();
-    final recentAttendances =
-        ((_attendance?['recent_attendances'] as List?) ?? [])
-            .cast<Map<String, dynamic>>();
+    final knowledge = _asMapList(_knowledge?['products']);
+    final consignProducts = _asMapList(_consignments?['products']);
+    final consignments = _asMapList(_consignments?['consignments']);
+    final notifications = _asMapList(_notifications?['notifications']);
+    final recentAttendances = _asMapList(_attendance?['recent_attendances']);
 
     final isSalesFieldExecutive =
         (_me?['role']?.toString() ?? '') == 'sales_field_executive';
@@ -1787,6 +1817,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         onSubmitAttendance: _submitAttendance,
       ),
       _InventoryPage(
+        isSmoothiesSweetie: isSmoothiesSweetie,
         products: availableProducts,
         onhands: onhands,
         historyOnhands: historyOnhands,
@@ -3447,6 +3478,7 @@ class _AttendancePageState extends State<_AttendancePage> {
 
 class _InventoryPage extends StatelessWidget {
   const _InventoryPage({
+    required this.isSmoothiesSweetie,
     required this.products,
     required this.onhands,
     required this.historyOnhands,
@@ -3463,6 +3495,7 @@ class _InventoryPage extends StatelessWidget {
     required this.onUpdateConsignmentItem,
   });
 
+  final bool isSmoothiesSweetie;
   final List<Map<String, dynamic>> products;
   final List<Map<String, dynamic>> onhands;
   final List<Map<String, dynamic>> historyOnhands;
@@ -3506,6 +3539,30 @@ class _InventoryPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
+        if (isSmoothiesSweetie) ...[
+          _InventoryLauncherCard(
+            title: 'Stok Tersedia',
+            subtitle: products.isEmpty
+                ? 'Belum ada product aktif untuk store Smoothies Sweetie.'
+                : 'Store Smoothies Sweetie tidak memakai alur ambil barang. Tap untuk melihat stok product yang bisa dijual.',
+            icon: Icons.inventory_2_rounded,
+            accent: const Color(0xFFC18B2F),
+            heroTag: 'inventory-sweetie-stock',
+            badgeLabel: '${products.length} product',
+            onTap: busy ? null : () => _openSweetieStockSheet(context),
+          ),
+          const SizedBox(height: 16),
+          _InventoryLauncherCard(
+            title: 'Info Alur Store',
+            subtitle:
+                'On hand, retur, dan consign dimatikan untuk Smoothies Sweetie agar alurnya sama seperti website store.',
+            icon: Icons.info_outline_rounded,
+            accent: const Color(0xFF2C8C82),
+            heroTag: 'inventory-sweetie-info',
+            badgeLabel: 'Sweetie',
+            onTap: null,
+          ),
+        ] else ...[
         _InventoryLauncherCard(
           title: 'Ambil Barang',
           subtitle: attendanceBlockedReason ??
@@ -3586,7 +3643,29 @@ class _InventoryPage extends StatelessWidget {
                 : () => _openCompletedConsignmentHistorySheet(context),
           ),
         ],
+        ],
       ],
+    );
+  }
+
+  Future<void> _openSweetieStockSheet(BuildContext context) {
+    return showMaterialModalBottomSheet<void>(
+      context: context,
+      expand: false,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _HistoryOnHandSheet(
+        items: products
+            .map((item) => {
+                  'nama_product': item['nama_product'],
+                  'quantity': item['stock'],
+                  'status_label': 'Stok toko',
+                  'assignment_date': null,
+                  'sold_quantity': 0,
+                  'remaining_quantity': item['stock'],
+                })
+            .toList(),
+        currency: currency,
+      ),
     );
   }
 
@@ -7971,6 +8050,26 @@ String _formatConsignmentDate(String? value, DateFormat formatter) {
   }
 
   return formatter.format(parsed);
+}
+
+Map<String, dynamic> _asMap(dynamic value) {
+  if (value is Map<String, dynamic>) {
+    return Map<String, dynamic>.from(value);
+  }
+  if (value is Map) {
+    return value.map(
+      (key, item) => MapEntry(key.toString(), item),
+    );
+  }
+  return <String, dynamic>{};
+}
+
+List<Map<String, dynamic>> _asMapList(dynamic value) {
+  if (value is! List) {
+    return const <Map<String, dynamic>>[];
+  }
+
+  return value.map(_asMap).where((item) => item.isNotEmpty).toList();
 }
 
 int _asInt(dynamic value, {int fallback = 0}) {

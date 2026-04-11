@@ -51,6 +51,9 @@ class HppController extends Controller
                 'satuan' => $material->satuan,
                 'harga_satuan' => (float) $material->harga_satuan,
                 'total_quantity' => (float) $material->total_quantity,
+                'display_total_quantity' => RawMaterialUsage::displayQuantity((float) $material->total_quantity, $material->satuan),
+                'stock_display_unit' => RawMaterialUsage::stockDisplayUnit($material->satuan),
+                'usage_input_unit' => RawMaterialUsage::usageInputUnit($material->satuan),
                 'option_label' => $material->nama_rm . ' | ' . $material->satuan,
             ])
             ->values();
@@ -79,9 +82,12 @@ class HppController extends Controller
                     'satuan' => $item->satuan,
                     'presentase' => (float) $item->presentase,
                     'usage_quantity' => RawMaterialUsage::calculateUsageQuantity((float) $item->presentase, $item->satuan, $this->defaultMlBaseForProduct($calculation->product)),
+                    'usage_display_unit' => RawMaterialUsage::usageInputUnit($item->satuan),
                     'harga_satuan' => (float) $item->harga_satuan,
                     'harga_final' => (float) $item->harga_final,
                     'total_stock' => (float) $item->total_stock,
+                    'total_stock_display' => RawMaterialUsage::displayQuantity((float) $item->total_stock, $item->satuan),
+                    'total_stock_unit' => RawMaterialUsage::stockDisplayUnit($item->satuan),
                 ])->values(),
             ])
             ->values();

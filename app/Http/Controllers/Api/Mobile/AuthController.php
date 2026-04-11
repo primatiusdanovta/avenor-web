@@ -24,15 +24,23 @@ class AuthController extends Controller
             'device_name' => ['nullable', 'string', 'max:120'],
         ]);
 
+        // flutter_sweetie_app: Only owner and karyawan roles with smoothies_sweetie store access
         $user = User::query()
             ->where('nama', $validated['nama'])
-            ->whereIn('role', SalesRole::mobileRoles())
+            ->whereIn('role', [SalesRole::OWNER, SalesRole::KARYAWAN])
             ->where('status', 'aktif')
             ->first();
 
         if (! $user || ! Hash::check($validated['password'], $user->password)) {
             throw ValidationException::withMessages([
                 'nama' => 'Username atau password salah, atau akun tidak aktif.',
+            ]);
+        }
+
+        // Verify user has access to smoothies_sweetie store
+        if (! MarketingMobileSupport::isSmoothiesSweetieUser($user)) {
+            throw ValidationException::withMessages([
+                'nama' => 'Akun Anda tidak memiliki akses ke Smoothies Sweetie store.',
             ]);
         }
 

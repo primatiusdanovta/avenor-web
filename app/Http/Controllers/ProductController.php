@@ -662,14 +662,18 @@ class ProductController extends Controller
             $availableQuantity = (float) $rawMaterial->total_quantity;
 
             if ($requiredQuantity > $availableQuantity) {
+                $requiredDisplayQuantity = RawMaterialUsage::displayQuantity($requiredQuantity, $rawMaterial->satuan);
+                $availableDisplayQuantity = RawMaterialUsage::displayQuantity($availableQuantity, $rawMaterial->satuan);
+                $displayUnit = RawMaterialUsage::stockDisplayUnit($rawMaterial->satuan);
+
                 throw ValidationException::withMessages([
                     'stock' => sprintf(
                         'Stock raw material %s tidak mencukupi. Dibutuhkan %s %s, tersedia %s %s.',
                         $rawMaterial->nama_rm,
-                        number_format($requiredQuantity, 2, '.', ''),
-                        $rawMaterial->satuan,
-                        number_format($availableQuantity, 2, '.', ''),
-                        $rawMaterial->satuan
+                        number_format($requiredDisplayQuantity, 2, '.', ''),
+                        $displayUnit,
+                        number_format($availableDisplayQuantity, 2, '.', ''),
+                        $displayUnit
                     ),
                 ]);
             }

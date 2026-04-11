@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\HppCalculationItem;
 use App\Models\RawMaterial;
+use App\Support\RawMaterialUsage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -27,11 +28,11 @@ class RawMaterialController extends Controller
                 'nama_rm' => $material->nama_rm,
                 'satuan' => $material->satuan,
                 'harga' => (float) $material->harga,
-                'quantity' => (float) $material->quantity,
+                'quantity' => RawMaterialUsage::displayQuantity((float) $material->quantity, $material->satuan),
                 'harga_satuan' => (float) $material->harga_satuan,
                 'stock' => (float) $material->stock,
-                'total_quantity' => (float) $material->total_quantity,
-                'waste_materials' => (float) $material->waste_materials,
+                'total_quantity' => RawMaterialUsage::displayQuantity((float) $material->total_quantity, $material->satuan),
+                'waste_materials' => RawMaterialUsage::displayQuantity((float) $material->waste_materials, $material->satuan),
                 'waste_percentage' => (float) $material->waste_percentage,
                 'waste_loss_percentage' => (float) $material->waste_loss_percentage,
                 'waste_loss_amount' => (float) $material->waste_loss_amount,
@@ -139,10 +140,11 @@ class RawMaterialController extends Controller
 
     private function buildPayload(array $validated): array
     {
-        $hargaSatuan = (float) $validated['quantity'] > 0 ? (float) $validated['harga'] / (float) $validated['quantity'] : 0;
-        $totalQuantity = round((float) $validated['stock'] * (float) $validated['quantity'], 2);
+        $normalizedQuantity = RawMaterialUsage::normalizeStoredQuantity((float) $validated['quantity'], (string) $validated['satuan']);
+        $hargaSatuan = $normalizedQuantity > 0 ? (float) $validated['harga'] / $normalizedQuantity : 0;
+        $totalQuantity = round((float) $validated['stock'] * $normalizedQuantity, 2);
         $hargaTotal = round((float) $validated['stock'] * (float) $validated['harga'], 2);
-        $wasteMaterials = round((float) ($validated['waste_materials'] ?? 0), 2);
+        $wasteMaterials = RawMaterialUsage::normalizeStoredQuantity((float) ($validated['waste_materials'] ?? 0), (string) $validated['satuan']);
         $wastePercentage = $totalQuantity > 0 ? round(($wasteMaterials / $totalQuantity) * 100, 2) : 0;
         $wasteLossAmount = round($wasteMaterials * $hargaSatuan, 2);
         $wasteLossPercentage = $hargaTotal > 0 ? round(($wasteLossAmount / $hargaTotal) * 100, 2) : 0;
@@ -151,7 +153,7 @@ class RawMaterialController extends Controller
             'nama_rm' => $validated['nama_rm'],
             'satuan' => $validated['satuan'],
             'harga' => $validated['harga'],
-            'quantity' => $validated['quantity'],
+            'quantity' => $normalizedQuantity,
             'harga_satuan' => $hargaSatuan,
             'stock' => round((float) $validated['stock'], 2),
             'total_quantity' => $totalQuantity,

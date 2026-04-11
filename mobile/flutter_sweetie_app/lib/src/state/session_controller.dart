@@ -36,10 +36,16 @@ class SessionController extends ChangeNotifier {
       token = await _sessionStore.readToken();
       _apiClient.setToken(token);
       if (token != null) {
-        await fetchMe();
-        await refreshAll();
+        try {
+          await fetchMe();
+          await refreshAll();
+        } catch (error) {
+          errorMessage = readError(error);
+          await logout(localOnly: true);
+        }
       }
-    } catch (_) {
+    } catch (error) {
+      errorMessage = readError(error);
       await logout(localOnly: true);
     } finally {
       isRestoring = false;
@@ -79,49 +85,84 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<void> fetchMe() async {
-    final response = await _apiClient.dio.get('/auth/me');
-    user = AppUser.fromJson((response.data as Map<String, dynamic>)['user'] as Map<String, dynamic>? ?? {});
+    try {
+      final response = await _apiClient.dio.get('/auth/me');
+      final responseData = response.data;
+      if (responseData is! Map<String, dynamic>) {
+        throw Exception('Invalid response format from /auth/me');
+      }
+      final userData = responseData['user'] as Map<String, dynamic>? ?? {};
+      user = AppUser.fromJson(userData);
+    } catch (error) {
+      errorMessage = readError(error);
+      rethrow;
+    }
   }
 
   Future<void> refreshAll() async {
-    await Future.wait([
-      refreshDashboard(),
-      refreshAttendance(),
-      refreshProducts(),
-      refreshSales(),
-      refreshKnowledge(),
-    ]);
-    notifyListeners();
+    try {
+      await Future.wait([
+        refreshDashboard(),
+        refreshAttendance(),
+        refreshProducts(),
+        refreshSales(),
+        refreshKnowledge(),
+      ]);
+      notifyListeners();
+    } catch (error) {
+      errorMessage = readError(error);
+      rethrow;
+    }
   }
 
   Future<void> refreshDashboard() async {
-    final response = await _apiClient.dio.get('/dashboard');
-    dashboard = response.data as Map<String, dynamic>;
-    notifyListeners();
+    try {
+      final response = await _apiClient.dio.get('/dashboard');
+      dashboard = response.data is Map<String, dynamic> ? response.data as Map<String, dynamic> : {};
+      notifyListeners();
+    } catch (error) {
+      errorMessage = readError(error);
+    }
   }
 
   Future<void> refreshAttendance() async {
-    final response = await _apiClient.dio.get('/attendance');
-    attendance = response.data as Map<String, dynamic>;
-    notifyListeners();
+    try {
+      final response = await _apiClient.dio.get('/attendance');
+      attendance = response.data is Map<String, dynamic> ? response.data as Map<String, dynamic> : {};
+      notifyListeners();
+    } catch (error) {
+      errorMessage = readError(error);
+    }
   }
 
   Future<void> refreshProducts() async {
-    final response = await _apiClient.dio.get('/products');
-    products = response.data as Map<String, dynamic>;
-    notifyListeners();
+    try {
+      final response = await _apiClient.dio.get('/products');
+      products = response.data is Map<String, dynamic> ? response.data as Map<String, dynamic> : {};
+      notifyListeners();
+    } catch (error) {
+      errorMessage = readError(error);
+    }
   }
 
   Future<void> refreshSales() async {
-    final response = await _apiClient.dio.get('/offline-sales');
-    sales = response.data as Map<String, dynamic>;
-    notifyListeners();
+    try {
+      final response = await _apiClient.dio.get('/offline-sales');
+      sales = response.data is Map<String, dynamic> ? response.data as Map<String, dynamic> : {};
+      notifyListeners();
+    } catch (error) {
+      errorMessage = readError(error);
+    }
   }
 
   Future<void> refreshKnowledge() async {
-    final response = await _apiClient.dio.get('/product-knowledge');
-    knowledge = response.data as Map<String, dynamic>;
-    notifyListeners();
+    try {
+      final response = await _apiClient.dio.get('/product-knowledge');
+      knowledge = response.data is Map<String, dynamic> ? response.data as Map<String, dynamic> : {};
+      notifyListeners();
+    } catch (error) {
+      errorMessage = readError(error);
+    }
   }
 
   Future<void> checkIn({
@@ -130,15 +171,20 @@ class SessionController extends ChangeNotifier {
     required double longitude,
     String? notes,
   }) async {
-    await _apiClient.dio.post('/attendance/check-in', data: {
-      'status': status,
-      'latitude': latitude,
-      'longitude': longitude,
-      'notes': notes,
-    });
-    await refreshAttendance();
-    await refreshDashboard();
-    await refreshProducts();
+    try {
+      await _apiClient.dio.post('/attendance/check-in', data: {
+        'status': status,
+        'latitude': latitude,
+        'longitude': longitude,
+        'notes': notes,
+      });
+      await refreshAttendance();
+      await refreshDashboard();
+      await refreshProducts();
+    } catch (error) {
+      errorMessage = readError(error);
+      rethrow;
+    }
   }
 
   Future<void> checkOut({
@@ -147,15 +193,20 @@ class SessionController extends ChangeNotifier {
     required double longitude,
     String? notes,
   }) async {
-    await _apiClient.dio.post('/attendance/check-out', data: {
-      'status': status,
-      'latitude': latitude,
-      'longitude': longitude,
-      'notes': notes,
-    });
-    await refreshAttendance();
-    await refreshDashboard();
-    await refreshProducts();
+    try {
+      await _apiClient.dio.post('/attendance/check-out', data: {
+        'status': status,
+        'latitude': latitude,
+        'longitude': longitude,
+        'notes': notes,
+      });
+      await refreshAttendance();
+      await refreshDashboard();
+      await refreshProducts();
+    } catch (error) {
+      errorMessage = readError(error);
+      rethrow;
+    }
   }
 
   Future<void> sendLocation({
@@ -163,37 +214,51 @@ class SessionController extends ChangeNotifier {
     required double longitude,
     required String source,
   }) async {
-    await _apiClient.dio.post('/attendance/location', data: {
-      'latitude': latitude,
-      'longitude': longitude,
-      'source': source,
-    });
-    await refreshAttendance();
+    try {
+      await _apiClient.dio.post('/attendance/location', data: {
+        'latitude': latitude,
+        'longitude': longitude,
+        'source': source,
+      });
+      await refreshAttendance();
+    } catch (error) {
+      errorMessage = readError(error);
+    }
   }
 
   Future<void> takeProduct({
     required int productId,
     required int quantity,
   }) async {
-    await _apiClient.dio.post('/products/take', data: {
-      'id_product': productId,
-      'quantity': quantity,
-    });
-    await refreshProducts();
-    await refreshDashboard();
-    await refreshAttendance();
+    try {
+      await _apiClient.dio.post('/products/take', data: {
+        'id_product': productId,
+        'quantity': quantity,
+      });
+      await refreshProducts();
+      await refreshDashboard();
+      await refreshAttendance();
+    } catch (error) {
+      errorMessage = readError(error);
+      rethrow;
+    }
   }
 
   Future<void> requestReturn({
     required int onhandId,
     required int quantity,
   }) async {
-    await _apiClient.dio.post('/products/onhand/$onhandId/return', data: {
-      'quantity_dikembalikan': quantity,
-    });
-    await refreshProducts();
-    await refreshDashboard();
-    await refreshAttendance();
+    try {
+      await _apiClient.dio.post('/products/onhand/$onhandId/return', data: {
+        'quantity_dikembalikan': quantity,
+      });
+      await refreshProducts();
+      await refreshDashboard();
+      await refreshAttendance();
+    } catch (error) {
+      errorMessage = readError(error);
+      rethrow;
+    }
   }
 
   Future<void> submitSale({
@@ -204,26 +269,31 @@ class SessionController extends ChangeNotifier {
     int? promoId,
     required File proofFile,
   }) async {
-    final formPayload = <String, dynamic>{
-      'customer_nama': customerName,
-      'customer_no_telp': customerPhone,
-      'customer_tiktok_instagram': customerSocial,
-      'promo_id': promoId,
-      'bukti_pembelian': await MultipartFile.fromFile(
-        proofFile.path,
-        filename: proofFile.uri.pathSegments.last,
-      ),
-    };
+    try {
+      final formPayload = <String, dynamic>{
+        'customer_nama': customerName,
+        'customer_no_telp': customerPhone,
+        'customer_tiktok_instagram': customerSocial,
+        'promo_id': promoId,
+        'bukti_pembelian': await MultipartFile.fromFile(
+          proofFile.path,
+          filename: proofFile.uri.pathSegments.last,
+        ),
+      };
 
-    for (var index = 0; index < items.length; index++) {
-      formPayload['items[$index][id_product]'] = items[index]['id_product'];
-      formPayload['items[$index][quantity]'] = items[index]['quantity'];
+      for (var index = 0; index < items.length; index++) {
+        formPayload['items[$index][id_product]'] = items[index]['id_product'];
+        formPayload['items[$index][quantity]'] = items[index]['quantity'];
+      }
+
+      await _apiClient.dio.post('/offline-sales', data: FormData.fromMap(formPayload));
+      await refreshSales();
+      await refreshDashboard();
+      await refreshProducts();
+    } catch (error) {
+      errorMessage = readError(error);
+      rethrow;
     }
-
-    await _apiClient.dio.post('/offline-sales', data: FormData.fromMap(formPayload));
-    await refreshSales();
-    await refreshDashboard();
-    await refreshProducts();
   }
 
   Future<void> logout({bool localOnly = false}) async {
