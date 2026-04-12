@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\Mobile\ConsignmentController as MobileConsignmentCo
 use App\Http\Controllers\Api\Mobile\DashboardController as MobileDashboardController;
 use App\Http\Controllers\Api\Mobile\MarketingNotificationController as MobileMarketingNotificationController;
 use App\Http\Controllers\Api\Mobile\OfflineSaleController as MobileOfflineSaleController;
+use App\Http\Controllers\Api\Mobile\OwnerModuleController as MobileOwnerModuleController;
 use App\Http\Controllers\Api\Mobile\ProductController as MobileProductController;
 use App\Http\Controllers\Api\Mobile\ProductKnowledgeController as MobileProductKnowledgeController;
 use App\Http\Controllers\Api\ProductLandingContentController;
@@ -39,5 +40,11 @@ Route::prefix('mobile')->name('api.mobile.')->group(function () {
         Route::get('/offline-sales/customer', [MobileOfflineSaleController::class, 'findCustomer'])->name('offline-sales.customer');
         Route::post('/offline-sales', [MobileOfflineSaleController::class, 'store'])->name('offline-sales.store');
         Route::get('/offline-sales/{sale}/proof', [MobileOfflineSaleController::class, 'showProof'])->name('offline-sales.proof');
+        Route::get('/queue', [MobileOfflineSaleController::class, 'queue'])->name('queue.index');
+        Route::post('/queue/close', [MobileOfflineSaleController::class, 'closeQueue'])->name('queue.close');
+        Route::get('/owner/modules/{module}', [MobileOwnerModuleController::class, 'index'])->name('owner.modules.index');
+        Route::post('/owner/modules/{module}', [MobileOwnerModuleController::class, 'store'])->name('owner.modules.store');
+        Route::put('/owner/modules/{module}/{record}', [MobileOwnerModuleController::class, 'update'])->name('owner.modules.update');
+        Route::delete('/owner/modules/{module}/{record}', [MobileOwnerModuleController::class, 'destroy'])->name('owner.modules.destroy');
     });
 });

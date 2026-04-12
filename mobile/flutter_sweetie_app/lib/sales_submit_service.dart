@@ -1,11 +1,12 @@
 part of 'main.dart';
 
 class _SalesSubmitService {
-  static Future<void> submit({
+  static Future<Map<String, dynamic>?> submit({
     required Dio dio,
     required bool mockMode,
     required Map<String, dynamic>? salesPayload,
     required Map<String, dynamic>? productsPayload,
+    required Map<String, dynamic>? queuePayload,
     required String customerName,
     required String customerPhone,
     required String customerSocial,
@@ -20,31 +21,23 @@ class _SalesSubmitService {
     required String Function(DateTime) formatYmdHis,
   }) async {
     if (mockMode) {
-      _submitMock(
+      return _submitMock(
         salesPayload: salesPayload,
         productsPayload: productsPayload,
+        queuePayload: queuePayload,
         customerName: customerName,
-        customerPhone: customerPhone,
         items: items,
         paymentMethod: paymentMethod,
         promoId: promoId,
-        proof: proof,
         onSyncMockDerivedState: onSyncMockDerivedState,
         isCountedAsOnHand: isCountedAsOnHand,
         formatYmdHis: formatYmdHis,
       );
-      return;
-    }
-
-    if (requireProof && proof == null) {
-      throw Exception('Bukti pembelian wajib diunggah.');
     }
 
     final form = FormData();
     form.fields
       ..add(MapEntry('customer_nama', customerName))
-      ..add(MapEntry('customer_no_telp', customerPhone))
-      ..add(MapEntry('customer_tiktok_instagram', customerSocial))
       ..add(MapEntry('payment_method', paymentMethod));
 
     if (promoId != null) {
@@ -78,33 +71,27 @@ class _SalesSubmitService {
       }
     }
 
-    if (proof != null) {
-      form.files.add(
-        MapEntry(
-          'bukti_pembelian',
-          await MultipartFile.fromFile(proof.path, filename: proof.name),
-        ),
-      );
-    }
-
-    await dio.post('/offline-sales', data: form);
-    await onRefreshAll();
+    final response = await dio.post('/offline-sales', data: form);
+    return response.data is Map<String, dynamic>
+        ? response.data as Map<String, dynamic>
+        : null;
   }
 
-  static void _submitMock({
+  static Map<String, dynamic> _submitMock({
     required Map<String, dynamic>? salesPayload,
     required Map<String, dynamic>? productsPayload,
+    required Map<String, dynamic>? queuePayload,
     required String customerName,
-    required String customerPhone,
     required List<_SaleItemDraft> items,
     required String paymentMethod,
     required int? promoId,
-    required XFile? proof,
     required VoidCallback onSyncMockDerivedState,
     required bool Function(Map<String, dynamic>) isCountedAsOnHand,
     required String Function(DateTime) formatYmdHis,
   }) {
     final products = ((salesPayload?['products'] as List?) ?? [])
+        .cast<Map<String, dynamic>>();
+    final catalogProducts = ((productsPayload?['products'] as List?) ?? [])
         .cast<Map<String, dynamic>>();
     final promos =
         ((salesPayload?['promos'] as List?) ?? []).cast<Map<String, dynamic>>();
@@ -158,8 +145,25 @@ class _SalesSubmitService {
       );
       final line = (unitPrice + toppingPerUnit) * item.quantity;
       subtotal += line;
-      product['remaining'] =
-          ((product['remaining'] as num?)?.toInt() ?? 0) - item.quantity;
+      final updatedRemaining = max(
+        (((product['remaining'] ?? product['stock']) as num?)?.toInt() ?? 0) -
+            item.quantity,
+        0,
+      );
+      product['remaining'] = updatedRemaining;
+      product['stock'] = updatedRemaining;
+      product['option_label'] = '${product['nama_product']} | stock $updatedRemaining';
+
+      for (final catalogProduct in catalogProducts) {
+        if (catalogProduct['id_product'] == item.productId) {
+          final stock = (catalogProduct['stock'] as num?)?.toInt() ?? 0;
+          final updatedStock = max(stock - item.quantity, 0);
+          catalogProduct['stock'] = updatedStock;
+          catalogProduct['option_label'] =
+              '${catalogProduct['nama_product']} | stock $updatedStock';
+          break;
+        }
+      }
 
       mappedItems.add({
         'id_product': item.productId,
@@ -180,52 +184,93 @@ class _SalesSubmitService {
         ((salesPayload?['sales'] as List?) ?? []).cast<Map<String, dynamic>>();
     final now = DateTime.now();
 
+    final saleNumber =
+        '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} - ${sales.length + 1}';
+    final transactionCode = 'TRX-${now.millisecondsSinceEpoch}';
+
     sales.insert(0, {
-      'transaction_code': 'TRX-${now.millisecondsSinceEpoch}',
-      'sale_number':
-          '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} - ${sales.length + 1}',
+      'transaction_code': transactionCode,
+      'sale_number': saleNumber,
       'payment_method': paymentMethod,
       'payment_status': 'paid',
-      'approval_status': 'pending',
+      'approval_status': 'disetujui',
       'nama_customer': customerName,
-      'no_telp': customerPhone,
       'promo': promo?['nama_promo'],
       'created_at': formatYmdHis(now),
       'total_quantity': items.fold<int>(0, (sum, item) => sum + item.quantity),
       'total_harga': total,
       'items': mappedItems,
-      'proof_name': proof?.name ?? 'mock-proof.jpg',
     });
 
-    final onhands = ((productsPayload?['onhands'] as List?) ?? [])
-        .cast<Map<String, dynamic>>();
-    for (final item in items) {
-      var remainingToDeduct = item.quantity;
-      for (final onhand in onhands) {
-        if (remainingToDeduct <= 0) {
-          break;
+    final queueItems =
+        ((queuePayload?['items'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final queueNumber = queueItems
+            .where((item) => item['sale_number']?.toString().startsWith(
+                      '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}',
+                    ) ==
+                true)
+            .length +
+        1;
+    queueItems.add({
+      'sale_number': saleNumber,
+      'queue_number': queueNumber,
+      'transaction_code': transactionCode,
+      'customer_name': customerName,
+      'payment_status': 'paid',
+      'created_at': formatYmdHis(now),
+      'details': mappedItems
+          .map((item) => {
+                'nama_product': item['nama_product'],
+                'quantity': item['quantity'],
+                'extra_toppings': ((item['extra_toppings'] as List?) ?? [])
+                    .cast<Map<String, dynamic>>()
+                    .map((entry) => entry['name']?.toString() ?? '')
+                    .where((name) => name.isNotEmpty)
+                    .toList(),
+              })
+          .toList(),
+    });
+
+    final onhands =
+        ((productsPayload?['onhands'] as List?) ?? []).cast<Map<String, dynamic>>();
+    if (onhands.isNotEmpty) {
+      for (final item in items) {
+        var remainingToDeduct = item.quantity;
+        for (final onhand in onhands) {
+          if (remainingToDeduct <= 0) {
+            break;
+          }
+          if (onhand['id_product'] != item.productId ||
+              !isCountedAsOnHand(onhand)) {
+            continue;
+          }
+
+          final available =
+              (onhand['remaining_quantity'] as num?)?.toInt() ?? 0;
+          final deducted =
+              available >= remainingToDeduct ? remainingToDeduct : available;
+          final remaining = available - deducted;
+
+          onhand['sold_quantity'] =
+              ((onhand['sold_quantity'] as num?)?.toInt() ?? 0) + deducted;
+          onhand['remaining_quantity'] = remaining;
+          onhand['sold_out'] = remaining == 0;
+          onhand['status_label'] = remaining == 0 ? 'Sold out' : 'Masih dibawa';
+          onhand['max_return'] = remaining;
+
+          remainingToDeduct -= deducted;
         }
-        if (onhand['id_product'] != item.productId ||
-            !isCountedAsOnHand(onhand)) {
-          continue;
-        }
-
-        final available = (onhand['remaining_quantity'] as num?)?.toInt() ?? 0;
-        final deducted =
-            available >= remainingToDeduct ? remainingToDeduct : available;
-        final remaining = available - deducted;
-
-        onhand['sold_quantity'] =
-            ((onhand['sold_quantity'] as num?)?.toInt() ?? 0) + deducted;
-        onhand['remaining_quantity'] = remaining;
-        onhand['sold_out'] = remaining == 0;
-        onhand['status_label'] = remaining == 0 ? 'Sold out' : 'Masih dibawa';
-        onhand['max_return'] = remaining;
-
-        remainingToDeduct -= deducted;
       }
     }
 
     onSyncMockDerivedState();
+
+    return {
+      'transaction_code': transactionCode,
+      'sale_number': saleNumber,
+      'created_at': formatYmdHis(now),
+      'customer_name': customerName,
+      'total_amount': total,
+    };
   }
 }

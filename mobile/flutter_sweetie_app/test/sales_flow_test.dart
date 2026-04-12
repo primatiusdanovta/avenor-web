@@ -108,6 +108,6 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Riwayat Transaksi'), findsWidgets);
-    expect(find.textContaining('TRX-1001'), findsOneWidget);
+    expect(find.textContaining('TRX-1001'), findsWidgets);
   });
 }

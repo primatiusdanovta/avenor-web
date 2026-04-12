@@ -22,6 +22,7 @@ import 'package:shimmer/shimmer.dart';
 
 import 'notification_scheduler.dart';
 part 'sales_history_sheet.dart';
+part 'owner_modules.dart';
 part 'sales_models.dart';
 part 'sales_option_sheet.dart';
 part 'sales_page.dart';
@@ -34,6 +35,10 @@ const String kApiBaseUrl = String.fromEnvironment(
 const bool kUseMock =
     bool.fromEnvironment('SWEETIE_USE_MOCK', defaultValue: false);
 const String kSweetieLogoAsset = 'assets/images/sweetie.png';
+const Color kSweetiePink = Color(0xFFD980B4);
+const Color kSweetiePurple = Color(0xFF8E79D6);
+const Color kSweetieLavender = Color(0xFFF7F0FB);
+const Color kSweetieInk = Color(0xFF342A46);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -118,7 +123,7 @@ class SmoothiesSweetieApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFFC18B2F),
+      seedColor: kSweetiePurple,
       brightness: Brightness.light,
     );
 
@@ -132,16 +137,16 @@ class SmoothiesSweetieApp extends StatelessWidget {
         theme: ThemeData(
           useMaterial3: true,
           colorScheme: scheme,
-          scaffoldBackgroundColor: const Color(0xFFF7F1E8),
+          scaffoldBackgroundColor: const Color(0xFFFDF8FE),
           textTheme: GoogleFonts.plusJakartaSansTextTheme(
             Typography.blackMountainView,
           ).apply(
-            bodyColor: const Color(0xFF2B2117),
-            displayColor: const Color(0xFF2B2117),
+            bodyColor: kSweetieInk,
+            displayColor: kSweetieInk,
           ),
           cardTheme: CardThemeData(
             color: Colors.white,
-            shadowColor: const Color(0x1A7A4E19),
+            shadowColor: const Color(0x148E79D6),
             elevation: 1.5,
             margin: EdgeInsets.zero,
             shape:
@@ -159,37 +164,36 @@ class SmoothiesSweetieApp extends StatelessWidget {
                     ? FontWeight.w700
                     : FontWeight.w500,
                 color: states.contains(WidgetState.selected)
-                    ? const Color(0xFF2B2117)
-                    : const Color(0xFF7C6751),
+                    ? kSweetieInk
+                    : const Color(0xFF766C8B),
               );
             }),
             iconTheme: WidgetStateProperty.resolveWith((states) {
               return IconThemeData(
                 size: 24,
                 color: states.contains(WidgetState.selected)
-                    ? const Color(0xFF2B2117)
-                    : const Color(0xFF7C6751),
+                    ? kSweetieInk
+                    : const Color(0xFF766C8B),
               );
             }),
-            indicatorColor: const Color(0xFFF0D7A1),
+            indicatorColor: const Color(0xFFF2E6FB),
             indicatorShape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
           ),
           inputDecorationTheme: InputDecorationTheme(
             filled: true,
-            fillColor: const Color(0xFFF9F5EE),
+            fillColor: const Color(0xFFFBF6FE),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
               borderSide: BorderSide.none,
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
-              borderSide: const BorderSide(color: Color(0xFFE8DCCB)),
+              borderSide: const BorderSide(color: Color(0xFFE9DDF5)),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(18),
-              borderSide:
-                  const BorderSide(color: Color(0xFFC18B2F), width: 1.4),
+              borderSide: const BorderSide(color: kSweetiePurple, width: 1.4),
             ),
           ),
         ),
@@ -245,6 +249,7 @@ class _MarketingRootState extends State<MarketingRoot> {
   Map<String, dynamic>? _consignments;
   Map<String, dynamic>? _knowledge;
   Map<String, dynamic>? _notifications;
+  Map<String, dynamic>? _queue;
   Map<String, dynamic>? _pendingOpenedNotification;
 
   @override
@@ -440,43 +445,9 @@ class _MarketingRootState extends State<MarketingRoot> {
           'option_label': 'Choco Banana Crunch | stock 16',
         },
       ],
-      'onhands': [
-        {
-          'id_product_onhand': 91,
-          'id_product': 1,
-          'nama_product': 'Berry Bliss Smoothie',
-          'quantity': 4,
-          'quantity_dikembalikan': 0,
-          'remaining_quantity': 3,
-          'take_status': 'disetujui',
-          'take_status_label': 'Disetujui',
-          'return_status': 'belum',
-          'return_status_label': 'Belum retur',
-          'status_label': 'Masih dibawa',
-          'assignment_date': _formatYmd(now),
-          'sold_out': false,
-          'can_checkout': false,
-          'max_return': 3,
-        },
-        {
-          'id_product_onhand': 92,
-          'id_product': 2,
-          'nama_product': 'Mango Sunshine Smoothie',
-          'quantity': 3,
-          'quantity_dikembalikan': 0,
-          'remaining_quantity': 2,
-          'take_status': 'pending',
-          'take_status_label': 'Pending',
-          'return_status': 'belum',
-          'return_status_label': 'Belum retur',
-          'status_label': 'Menunggu approval',
-          'assignment_date': _formatYmd(now),
-          'sold_out': false,
-          'can_checkout': false,
-          'max_return': 2,
-        },
-      ],
+      'onhands': <Map<String, dynamic>>[],
       'today_return_items': [],
+      'history_onhands': <Map<String, dynamic>>[],
     };
     _sales = {
       'sales': [
@@ -598,45 +569,13 @@ class _MarketingRootState extends State<MarketingRoot> {
               'Konfirmasi size, topping, dan label cup sebelum serahkan ke blender bar.',
         },
       ],
-      'qris_image_url': null,
+      'qris_image_url':
+          'https://avenorperfume.site/storage/global-settings/social-hub/sales-qr.png',
       'is_smoothies_sweetie': true,
     };
     _consignments = {
-      'products': [
-        {
-          'id_product_onhand': 91,
-          'id_product': 1,
-          'nama_product': 'Berry Bliss Smoothie',
-          'pickup_batch_code': 'PICK-20260408-U4-O91',
-          'available_quantity': 3,
-          'option_label':
-              'Berry Bliss Smoothie | batch PICK-20260408-U4-O91 | sisa 3',
-        },
-      ],
-      'consignments': [
-        {
-          'id': 11,
-          'place_name': 'Toko Melati',
-          'address': 'Jl. Melati No. 8, Jakarta Barat',
-          'consignment_date': _formatYmd(now),
-          'submitted_at':
-              _formatYmdHis(now.subtract(const Duration(minutes: 20))),
-          'handover_proof_photo_url': null,
-          'items': [
-            {
-              'id': 91,
-              'product_onhand_id': 91,
-              'product_name': 'Berry Bliss Smoothie',
-              'pickup_batch_code': 'PICK-20260408-U4-O91',
-              'quantity': 2,
-              'sold_quantity': 0,
-              'returned_quantity': 0,
-              'status': 'dititipkan',
-              'status_notes': null,
-            }
-          ],
-        }
-      ],
+      'products': <Map<String, dynamic>>[],
+      'consignments': <Map<String, dynamic>>[],
     };
     _knowledge = {
       'products': [
@@ -717,6 +656,26 @@ class _MarketingRootState extends State<MarketingRoot> {
           'body':
               'Promo BOOST25 diperpanjang sampai malam ini untuk transaksi minimal 1 item. Gunakan materi promo terbaru saat closing dan informasikan bonus sample untuk customer repeat order.',
           'published_at': _formatYmdHis(now.subtract(const Duration(hours: 3))),
+        },
+      ],
+    };
+    _queue = {
+      'items': [
+        {
+          'sale_number':
+              '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} - 1',
+          'queue_number': 1,
+          'transaction_code': 'TRX-20260402-AVN001',
+          'customer_name': 'Nadia',
+          'payment_status': 'paid',
+          'created_at': _formatYmdHis(now),
+          'details': [
+            {
+              'nama_product': 'Berry Bliss Smoothie - Reguler',
+              'quantity': 1,
+              'extra_toppings': ['Pearl Boba'],
+            }
+          ],
         },
       ],
     };
@@ -810,10 +769,14 @@ class _MarketingRootState extends State<MarketingRoot> {
         onhands.where((item) => item['take_status'] == 'pending').length;
     final pendingReturn =
         onhands.where((item) => item['return_status'] == 'pending').length;
-    final onHandCount =
-        onhands.where(_isCountedAsOnHand).fold<int>(0, (sum, item) {
-      return sum + _asInt(item['remaining_quantity']);
-    });
+    final onHandCount = onhands.isEmpty
+        ? products.fold<int>(
+            0,
+            (sum, item) => sum + _asInt(item['stock']),
+          )
+        : onhands.where(_isCountedAsOnHand).fold<int>(0, (sum, item) {
+            return sum + _asInt(item['remaining_quantity']);
+          });
 
     _dashboard = {
       'stats': {
@@ -983,6 +946,36 @@ class _MarketingRootState extends State<MarketingRoot> {
       List<Map<String, dynamic>> onhands) {
     final catalog =
         ((_products?['products'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final currentSalesProducts =
+        ((_sales?['products'] as List?) ?? []).cast<Map<String, dynamic>>();
+
+    if (onhands.isEmpty) {
+      return catalog.where((product) => _asInt(product['stock']) > 0).map((product) {
+        Map<String, dynamic>? current;
+        try {
+          current = currentSalesProducts.firstWhere(
+            (item) => item['id_product'] == product['id_product'],
+          );
+        } catch (_) {
+          current = null;
+        }
+
+        final stock = _asInt(product['stock']);
+        return {
+          'id_product': product['id_product'],
+          'nama_product': product['nama_product'],
+          'harga': product['harga'],
+          'stock': stock,
+          'remaining': stock,
+          'image_url': product['image_url'],
+          'badge_labels': product['badge_labels'],
+          'variants': ((current?['variants'] as List?) ?? const <dynamic>[])
+              .cast<Map<String, dynamic>>(),
+          'option_label': '${product['nama_product']} | stock $stock',
+        };
+      }).toList();
+    }
+
     final totals = <int, int>{};
     for (final onhand in onhands) {
       if (!_isCountedAsOnHand(onhand)) {
@@ -1008,9 +1001,12 @@ class _MarketingRootState extends State<MarketingRoot> {
         'id_product': productId,
         'nama_product': product['nama_product'],
         'harga': product['harga'],
+        'stock': product['stock'],
         'remaining': remaining,
         'image_url': product['image_url'],
         'badge_labels': product['badge_labels'],
+        'variants': ((product['variants'] as List?) ?? const <dynamic>[])
+            .cast<Map<String, dynamic>>(),
         'option_label': '${product['nama_product']} | Sisa $remaining',
       };
     }).toList();
@@ -1069,6 +1065,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     _consignments = null;
     _knowledge = null;
     _notifications = null;
+    _queue = null;
     _unreadNotificationCount = 0;
     _dio.options.headers.remove('Authorization');
   }
@@ -1174,6 +1171,7 @@ class _MarketingRootState extends State<MarketingRoot> {
               )),
         _dio.get('/product-knowledge'),
         _dio.get('/notifications'),
+        _dio.get('/queue'),
       ];
       final results = await Future.wait(futures);
 
@@ -1187,6 +1185,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         _consignments = _asMap(results[4].data);
         _knowledge = _asMap(results[5].data);
         _notifications = _asMap(results[6].data);
+        _queue = _asMap(results[7].data);
         _syncDerivedConsignmentInventoryState();
       });
       await NotificationScheduler.instance.syncServerNotifications(
@@ -1306,6 +1305,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     }
   }
 
+  // ignore: unused_element
   Future<bool> _requestTake(
       {required int productId, required int quantity}) async {
     setState(() => _busy = true);
@@ -1357,6 +1357,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     return false;
   }
 
+  // ignore: unused_element
   Future<bool> _requestReturn(
       {required int onhandId, required int quantity}) async {
     setState(() => _busy = true);
@@ -1404,11 +1405,12 @@ class _MarketingRootState extends State<MarketingRoot> {
   }) async {
     setState(() => _busy = true);
     try {
-      await _SalesSubmitService.submit(
+      final saleSummary = await _SalesSubmitService.submit(
         dio: _dio,
         mockMode: _mockMode,
         salesPayload: _sales,
         productsPayload: _products,
+        queuePayload: _queue,
         customerName: customerName,
         customerPhone: customerPhone,
         customerSocial: customerSocial,
@@ -1422,7 +1424,10 @@ class _MarketingRootState extends State<MarketingRoot> {
         isCountedAsOnHand: _isCountedAsOnHand,
         formatYmdHis: _formatYmdHis,
       );
-      _showMessage('Penjualan offline berhasil disimpan.');
+      await _refreshAll(showLoader: false);
+      if (mounted) {
+        await _showSaleSuccessDialog(saleSummary ?? const <String, dynamic>{});
+      }
     } on DioException catch (error) {
       _showMessage(_readError(error));
     } catch (error) {
@@ -1441,6 +1446,70 @@ class _MarketingRootState extends State<MarketingRoot> {
     return _picker.pickImage(source: ImageSource.gallery, imageQuality: 82);
   }
 
+  Future<void> _showSaleSuccessDialog(Map<String, dynamic> saleSummary) {
+    final amount = (saleSummary['total_amount'] as num?)?.toDouble() ??
+        (saleSummary['total_harga'] as num?)?.toDouble() ??
+        0;
+
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: kSweetieLavender,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Image.asset(kSweetieLogoAsset, fit: BoxFit.contain),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Penjualan Berhasil',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 14),
+            _InfoRow(
+              label: 'No. Penjualan',
+              value: saleSummary['sale_number']?.toString().trim().isNotEmpty ==
+                      true
+                  ? saleSummary['sale_number'].toString()
+                  : (saleSummary['transaction_code']?.toString() ?? '-'),
+            ),
+            _InfoRow(
+              label: 'Tanggal',
+              value: saleSummary['created_at']?.toString() ?? '-',
+            ),
+            _InfoRow(
+              label: 'Pemesan',
+              value: saleSummary['customer_name']?.toString().trim().isNotEmpty ==
+                      true
+                  ? saleSummary['customer_name'].toString()
+                  : 'Customer umum',
+            ),
+            _InfoRow(
+              label: 'Total',
+              value: _currency.format(amount),
+            ),
+          ],
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ignore: unused_element
   Future<XFile?> _pickConsignmentProof() async {
     if (_mockMode) {
       return XFile('mock-consignment-proof.jpg',
@@ -1449,6 +1518,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     return _picker.pickImage(source: ImageSource.camera, imageQuality: 82);
   }
 
+  // ignore: unused_element
   Future<bool> _submitConsignment({
     required String placeName,
     required String address,
@@ -1522,6 +1592,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     return false;
   }
 
+  // ignore: unused_element
   Future<bool> _updateConsignmentItem({
     required int itemId,
     required int soldQuantity,
@@ -1708,9 +1779,8 @@ class _MarketingRootState extends State<MarketingRoot> {
     );
   }
 
-  Future<void> _showSalesQrSheet() async {
-    final qrUrl = _me?['sales_qr_url']?.toString().trim() ?? '';
-
+  Future<void> _showQueueSheet() async {
+    final queueItems = _asMapList(_queue?['items']);
     if (!mounted) {
       return;
     }
@@ -1718,9 +1788,139 @@ class _MarketingRootState extends State<MarketingRoot> {
     return showMaterialModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) => _SalesQrSheet(
-        qrUrl: qrUrl,
-        qrName: _me?['sales_qr_name']?.toString(),
+      builder: (_) => _QueueSheet(
+        queueItems: queueItems,
+        onCloseQueue: _closeQueueItem,
+      ),
+    );
+  }
+
+  Future<void> _closeQueueItem(String saleNumber) async {
+    setState(() => _busy = true);
+    try {
+      if (_mockMode) {
+        final items = _asMapList(_queue?['items']);
+        items.removeWhere((item) => item['sale_number'] == saleNumber);
+        _queue = {'items': items};
+      } else {
+        await _dio.post('/queue/close', data: {'sale_number': saleNumber});
+      }
+
+      await _refreshAll(showLoader: false);
+    } on DioException catch (error) {
+      _showMessage(_readError(error));
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _refreshAttendanceForDate(DateTime date) async {
+    if (_mockMode) {
+      setState(() {
+        _attendance = {
+          ...?_attendance,
+          'selected_date': _formatYmd(date),
+        };
+      });
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      final response = await _dio.get(
+        '/attendance',
+        queryParameters: {'date': _formatYmd(date)},
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _attendance = _asMap(response.data);
+      });
+    } on DioException catch (error) {
+      _showMessage(_readError(error));
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>> _fetchOwnerModule(String module) async {
+    if (_mockMode) {
+      return _mockOwnerModule(module);
+    }
+
+    final response = await _dio.get('/owner/modules/$module');
+    return _asMap(response.data);
+  }
+
+  Future<void> _storeOwnerModule(
+    String module,
+    Map<String, dynamic> payload,
+  ) async {
+    if (_mockMode) return;
+    await _dio.post('/owner/modules/$module', data: payload);
+  }
+
+  Future<void> _updateOwnerModule(
+    String module,
+    String record,
+    Map<String, dynamic> payload,
+  ) async {
+    if (_mockMode) return;
+    await _dio.put('/owner/modules/$module/$record', data: payload);
+  }
+
+  Future<void> _deleteOwnerModule(String module, String record) async {
+    if (_mockMode) return;
+    await _dio.delete('/owner/modules/$module/$record');
+  }
+
+  Future<void> _openOwnerSalesShortcut() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _OwnerStandalonePage(
+          title: 'Kasir Owner',
+          child: SmoothiesSalesPageModule(
+            sales: _asMapList(_sales?['sales']),
+            products: _asMapList(_sales?['products']),
+            promos: _asMapList(_sales?['promos']),
+            extraToppings: _asMapList(_sales?['extra_toppings']),
+            sops: _asMapList(_sales?['sops']),
+            isSmoothiesSweetie:
+                (_sales?['is_smoothies_sweetie'] as bool?) ?? false,
+            qrisImageUrl: _sales?['qris_image_url']?.toString(),
+            busy: _busy,
+            currency: _currency,
+            dateTime: _dateTime,
+            onPickProof: _pickProof,
+            onSubmit: ({
+              required customerName,
+              required customerPhone,
+              required customerSocial,
+              required items,
+              required paymentMethod,
+              required requireProof,
+              promoId,
+              proof,
+            }) =>
+                _submitSale(
+              customerName: customerName,
+              customerPhone: customerPhone,
+              customerSocial: customerSocial,
+              items: items.cast<_SaleItemDraft>(),
+              paymentMethod: paymentMethod,
+              requireProof: requireProof,
+              promoId: promoId,
+              proof: proof,
+            ),
+            onLookupCustomer: _lookupCustomerByPhone,
+            mockMode: _mockMode,
+          ),
+        ),
       ),
     );
   }
@@ -1776,9 +1976,6 @@ class _MarketingRootState extends State<MarketingRoot> {
 
     final stats = _asMap(_dashboard?['stats']);
     final todayAttendance = _asMap(_attendance?['today_attendance']);
-    final onhands = _asMapList(_products?['onhands']);
-    final historyOnhands = _asMapList(_products?['history_onhands']);
-    final availableProducts = _asMapList(_products?['products']);
     final sales = _asMapList(_sales?['sales']);
     final salesProducts = _asMapList(_sales?['products']);
     final promos = _asMapList(_sales?['promos']);
@@ -1788,15 +1985,67 @@ class _MarketingRootState extends State<MarketingRoot> {
         (_sales?['is_smoothies_sweetie'] as bool?) ?? false;
     final salesQrisImageUrl = _sales?['qris_image_url']?.toString();
     final knowledge = _asMapList(_knowledge?['products']);
-    final consignProducts = _asMapList(_consignments?['products']);
-    final consignments = _asMapList(_consignments?['consignments']);
     final notifications = _asMapList(_notifications?['notifications']);
     final recentAttendances = _asMapList(_attendance?['recent_attendances']);
+    final employeeAttendances = _asMapList(_attendance?['employee_attendances']);
+    final role = (_me?['role']?.toString() ?? '');
+    final isOwner = role == 'owner';
 
-    final isSalesFieldExecutive =
-        (_me?['role']?.toString() ?? '') == 'sales_field_executive';
+    final employeeAttendancePage = _AttendancePage(
+      me: _me ?? const {},
+      todayAttendance: todayAttendance,
+      recentAttendances: recentAttendances,
+      employeeAttendances: employeeAttendances,
+      selectedDate: _attendance?['selected_date']?.toString(),
+      latestLocation: _attendance?['latest_location'] as Map<String, dynamic>?,
+      manualLocationLabel: _locationLabel,
+      busy: _busy,
+      onFilterDate: _refreshAttendanceForDate,
+      onSubmitAttendance: _submitAttendance,
+    );
 
-    final pages = <Widget>[
+    final salesPage = SmoothiesSalesPageModule(
+      sales: sales,
+      products: salesProducts,
+      promos: promos,
+      extraToppings: salesExtraToppings,
+      sops: salesSops,
+      isSmoothiesSweetie: isSmoothiesSweetie,
+      qrisImageUrl: salesQrisImageUrl,
+      busy: _busy,
+      currency: _currency,
+      dateTime: _dateTime,
+      onPickProof: _pickProof,
+      onSubmit: ({
+        required customerName,
+        required customerPhone,
+        required customerSocial,
+        required items,
+        required paymentMethod,
+        required requireProof,
+        promoId,
+        proof,
+      }) =>
+          _submitSale(
+        customerName: customerName,
+        customerPhone: customerPhone,
+        customerSocial: customerSocial,
+        items: items.cast<_SaleItemDraft>(),
+        paymentMethod: paymentMethod,
+        requireProof: requireProof,
+        promoId: promoId,
+        proof: proof,
+      ),
+      onLookupCustomer: _lookupCustomerByPhone,
+      mockMode: _mockMode,
+    );
+
+    final knowledgePage = _KnowledgePage(
+      products: knowledge,
+      loading: _knowledge == null && _busy,
+    );
+
+    final ownerPages = <Widget>[
       _DashboardPage(
         me: _me ?? const {},
         dashboard: _dashboard ?? const {},
@@ -1805,99 +2054,61 @@ class _MarketingRootState extends State<MarketingRoot> {
         recentAttendances: recentAttendances,
         sales: sales,
         currency: _currency,
+        isOwner: true,
         onNavigate: (index) => setState(() => _navigationIndex = index),
       ),
-      _AttendancePage(
-        todayAttendance: todayAttendance,
-        recentAttendances: recentAttendances,
-        latestLocation:
-            _attendance?['latest_location'] as Map<String, dynamic>?,
-        manualLocationLabel: _locationLabel,
-        busy: _busy,
-        onSubmitAttendance: _submitAttendance,
-      ),
-      _InventoryPage(
-        isSmoothiesSweetie: isSmoothiesSweetie,
-        products: availableProducts,
-        onhands: onhands,
-        historyOnhands: historyOnhands,
-        consignmentProducts: isSalesFieldExecutive ? consignProducts : null,
-        consignments: isSalesFieldExecutive ? consignments : null,
-        attendanceBlockedReason:
-            _products?['attendance_blocked_reason']?.toString(),
-        busy: _busy,
-        currency: _currency,
-        dateTime: _dateTime,
-        onTake: _requestTake,
-        onReturn: _requestReturn,
-        onPickConsignmentProof:
-            isSalesFieldExecutive ? _pickConsignmentProof : null,
-        onSubmitConsignment: isSalesFieldExecutive ? _submitConsignment : null,
-        onUpdateConsignmentItem:
-            isSalesFieldExecutive ? _updateConsignmentItem : null,
-      ),
-      SmoothiesSalesPageModule(
-        sales: sales,
-        products: salesProducts,
-        promos: promos,
-        extraToppings: salesExtraToppings,
-        sops: salesSops,
-        isSmoothiesSweetie: isSmoothiesSweetie,
-        qrisImageUrl: salesQrisImageUrl,
-        busy: _busy,
-        currency: _currency,
-        dateTime: _dateTime,
-        onPickProof: _pickProof,
-        onSubmit: ({
-          required customerName,
-          required customerPhone,
-          required customerSocial,
-          required items,
-          required paymentMethod,
-          required requireProof,
-          promoId,
-          proof,
-        }) =>
-            _submitSale(
-          customerName: customerName,
-          customerPhone: customerPhone,
-          customerSocial: customerSocial,
-          items: items.cast<_SaleItemDraft>(),
-          paymentMethod: paymentMethod,
-          requireProof: requireProof,
-          promoId: promoId,
-          proof: proof,
+      _OwnerCategoryPage(
+        title: 'Stock and Inventory',
+        subtitle: 'Kelola product, HPP, raw material, dan extra topping.',
+        modules: _ownerStockModules,
+        onOpenModule: (module) => _openOwnerModulePage(
+          module: module,
+          employeeAttendancePage: employeeAttendancePage,
+          knowledgePage: knowledgePage,
         ),
-        onLookupCustomer: _lookupCustomerByPhone,
-        mockMode: _mockMode,
       ),
-      _KnowledgePage(
-        products: knowledge,
-        loading: _knowledge == null && _busy,
+      _OwnerCategoryPage(
+        title: 'Karyawan',
+        subtitle: 'Pantau notifikasi, absensi karyawan, dan product knowledge.',
+        modules: _ownerEmployeeModules,
+        onOpenModule: (module) => _openOwnerModulePage(
+          module: module,
+          employeeAttendancePage: employeeAttendancePage,
+          knowledgePage: knowledgePage,
+        ),
+      ),
+      _OwnerCategoryPage(
+        title: 'Finance',
+        subtitle: 'Kelola pengeluaran, piutang, hutang, dan penjualan online.',
+        modules: _ownerFinanceModules,
+        onOpenModule: (module) => _openOwnerModulePage(
+          module: module,
+          employeeAttendancePage: employeeAttendancePage,
+          knowledgePage: knowledgePage,
+        ),
+      ),
+      _OwnerCategoryPage(
+        title: 'Pengaturan',
+        subtitle: 'Atur target penjualan, promo, users, customers, dan SOP.',
+        modules: _ownerSettingModules,
+        onOpenModule: (module) => _openOwnerModulePage(
+          module: module,
+          employeeAttendancePage: employeeAttendancePage,
+          knowledgePage: knowledgePage,
+        ),
       ),
     ];
-    final destinations = <NavigationDestination>[
-      const NavigationDestination(
-          icon: Icon(Icons.dashboard_outlined),
-          selectedIcon: Icon(Icons.dashboard),
-          label: 'Dashboard'),
-      const NavigationDestination(
-          icon: Icon(Icons.fingerprint_outlined),
-          selectedIcon: Icon(Icons.fingerprint),
-          label: 'Absensi'),
-      const NavigationDestination(
-          icon: Icon(Icons.inventory_2_outlined),
-          selectedIcon: Icon(Icons.inventory_2),
-          label: 'Inventory'),
-      const NavigationDestination(
-          icon: Icon(Icons.receipt_long_outlined),
-          selectedIcon: Icon(Icons.receipt_long),
-          label: 'Sales'),
-      const NavigationDestination(
-          icon: Icon(Icons.auto_stories_outlined),
-          selectedIcon: Icon(Icons.auto_stories),
-          label: 'Knowledge'),
+
+    final employeePages = <Widget>[
+      employeeAttendancePage,
+      salesPage,
+      knowledgePage,
     ];
+
+    final pages = isOwner ? ownerPages : employeePages;
+    final destinations = isOwner ? _ownerDestinations : _employeeDestinations;
+    final safeNavigationIndex =
+        _navigationIndex.clamp(0, max(pages.length - 1, 0)).toInt();
 
     return Scaffold(
       body: DecoratedBox(
@@ -1905,25 +2116,27 @@ class _MarketingRootState extends State<MarketingRoot> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFFF4E3C6), Color(0xFFF7F1E8), Color(0xFFF6EFE6)],
+            colors: [Color(0xFFF5EAFB), Color(0xFFFDF8FE), Color(0xFFF4F0FC)],
           ),
         ),
         child: SafeArea(
           child: Column(
             children: [
               _TopBanner(
-                title: _pageTitle(_navigationIndex),
-                subtitle: _pageSubtitle(_navigationIndex),
+                title: _pageTitle(safeNavigationIndex),
+                subtitle: _pageSubtitle(safeNavigationIndex),
                 me: _me ?? const {},
                 mockMode: _mockMode,
                 busy: _busy,
-                accent: _pageAccent(_navigationIndex),
-                icon: _pageIcon(_navigationIndex),
+                accent: _pageAccent(safeNavigationIndex),
+                icon: _pageIcon(safeNavigationIndex),
                 compact: true,
                 onRefresh: () => _refreshAll(showLoader: true),
-                onSalesQr: _showSalesQrSheet,
+                onQueue: _showQueueSheet,
                 onNotifications: () => _showNotificationsSheet(notifications),
                 notificationCount: _unreadNotificationCount,
+                showKasirShortcut: isOwner,
+                onKasir: _openOwnerSalesShortcut,
                 onLogout: _logout,
               ),
               Expanded(
@@ -1941,8 +2154,8 @@ class _MarketingRootState extends State<MarketingRoot> {
                     );
                   },
                   child: KeyedSubtree(
-                    key: ValueKey(_navigationIndex),
-                    child: pages[_navigationIndex],
+                    key: ValueKey(safeNavigationIndex),
+                    child: pages[safeNavigationIndex],
                   ),
                 ),
               ),
@@ -1968,7 +2181,7 @@ class _MarketingRootState extends State<MarketingRoot> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(28),
               child: NavigationBar(
-                selectedIndex: _navigationIndex,
+                selectedIndex: safeNavigationIndex,
                 onDestinationSelected: (index) =>
                     setState(() => _navigationIndex = index),
                 destinations: destinations,
@@ -1981,49 +2194,73 @@ class _MarketingRootState extends State<MarketingRoot> {
   }
 
   String _pageTitle(int index) {
-    if (index == 1) return 'Absensi Shift';
-    if (index == 2) return 'Katalog Produk';
-    if (index == 3) return 'Penjualan Offline';
-    if (index == 4) {
-      return 'Menu Knowledge';
+    final isOwner = (_me?['role']?.toString() ?? '') == 'owner';
+    if (isOwner) {
+      if (index == 1) return 'Stock and Inventory';
+      if (index == 2) return 'Karyawan';
+      if (index == 3) return 'Finance';
+      if (index == 4) return 'Pengaturan';
+      return 'Dashboard Owner';
     }
-    return 'Dashboard Sweetie';
+    if (index == 1) return 'Kasir';
+    if (index == 2) {
+      return 'Product Knowledge';
+    }
+    return 'Absensi';
   }
 
   String _pageSubtitle(int index) {
+    final isOwner = (_me?['role']?.toString() ?? '') == 'owner';
+    if (isOwner) {
+      if (index == 1) {
+        return 'Menu Product, HPP, Raw Material, dan Extra Topping owner.';
+      }
+      if (index == 2) {
+        return 'Notifikasi, riwayat absensi karyawan, dan panduan product.';
+      }
+      if (index == 3) {
+        return 'Pengeluaran, account receivables, account payables, dan penjualan online.';
+      }
+      if (index == 4) {
+        return 'Target penjualan, promo, users, customers, dan SOP.';
+      }
+      return 'Ringkasan keuntungan owner tanpa chart, mengikuti dashboard website.';
+    }
     if (index == 1) {
-      return 'Check in, check out, dan kirim lokasi operasional dengan cepat.';
+      return 'Input penjualan offline kasir dengan flow QRIS dan antrian seperti website.';
     }
     if (index == 2) {
-      return 'Lihat katalog menu dan pantau data produk Smoothies Sweetie dari satu menu.';
-    }
-    if (index == 3) {
-      return 'Input customer, smoothie, size, topping, dan QRIS dalam satu flow native.';
-    }
-    if (index == 4) {
       return 'Ringkasan menu, bahan, dan selling points untuk bantu pelayanan di booth.';
     }
-    return 'Ringkasan target, aktivitas, dan performa toko hari ini.';
+    return 'Check in, check out, dan kirim lokasi operasional dengan cepat.';
   }
 
   Color _pageAccent(int index) {
-    if (index == 1) return const Color(0xFFC05D3B);
-    if (index == 2) return const Color(0xFF6E8B3D);
-    if (index == 3) return const Color(0xFF8E5BD9);
-    if (index == 4) {
-      return const Color(0xFF2C8C82);
+    final isOwner = (_me?['role']?.toString() ?? '') == 'owner';
+    if (isOwner) {
+      if (index == 1) return const Color(0xFF6F90D8);
+      if (index == 2) return kSweetiePink;
+      if (index == 3) return kSweetiePurple;
+      if (index == 4) return const Color(0xFF8C8AE8);
+      return const Color(0xFFA66AE2);
     }
-    return const Color(0xFFC18B2F);
+    if (index == 1) return kSweetiePurple;
+    if (index == 2) return const Color(0xFF8C8AE8);
+    return kSweetiePink;
   }
 
   IconData _pageIcon(int index) {
-    if (index == 1) return Icons.fingerprint_rounded;
-    if (index == 2) return Icons.inventory_2_rounded;
-    if (index == 3) return Icons.receipt_long_rounded;
-    if (index == 4) {
-      return Icons.auto_stories_rounded;
+    final isOwner = (_me?['role']?.toString() ?? '') == 'owner';
+    if (isOwner) {
+      if (index == 1) return Icons.inventory_2_rounded;
+      if (index == 2) return Icons.groups_rounded;
+      if (index == 3) return Icons.account_balance_wallet_rounded;
+      if (index == 4) return Icons.settings_rounded;
+      return Icons.dashboard_rounded;
     }
-    return Icons.dashboard_rounded;
+    if (index == 1) return Icons.point_of_sale_rounded;
+    if (index == 2) return Icons.auto_stories_rounded;
+    return Icons.fingerprint_rounded;
   }
 }
 
@@ -2184,9 +2421,11 @@ class _TopBanner extends StatelessWidget {
     required this.icon,
     required this.compact,
     required this.onRefresh,
-    required this.onSalesQr,
+    required this.onQueue,
     required this.onNotifications,
     required this.notificationCount,
+    required this.showKasirShortcut,
+    required this.onKasir,
     required this.onLogout,
   });
 
@@ -2199,9 +2438,11 @@ class _TopBanner extends StatelessWidget {
   final IconData icon;
   final bool compact;
   final VoidCallback onRefresh;
-  final VoidCallback onSalesQr;
+  final VoidCallback onQueue;
   final VoidCallback onNotifications;
   final int notificationCount;
+  final bool showKasirShortcut;
+  final VoidCallback onKasir;
   final Future<void> Function() onLogout;
 
   @override
@@ -2212,16 +2453,28 @@ class _TopBanner extends StatelessWidget {
         child: Row(
           children: [
             _TopActionButton(
-              tooltip: 'Lihat QR Code',
-              onPressed: onSalesQr,
-              child: const Icon(Icons.qr_code_2_rounded),
+              tooltip: busy ? 'Memuat...' : 'Sync Data',
+              onPressed: busy ? null : onRefresh,
+              child: busy
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync_rounded),
             ),
-            const SizedBox(width: 10),
+            const Spacer(),
+            _TopActionButton(
+              tooltip: 'Antrian Penjualan',
+              onPressed: onQueue,
+              child: const Icon(Icons.format_list_numbered_rounded),
+            ),
+            const Spacer(),
             badges.Badge(
               position: badges.BadgePosition.topEnd(top: -8, end: -8),
               showBadge: notificationCount > 0,
               badgeStyle: const badges.BadgeStyle(
-                badgeColor: Color(0xFFC05D3B),
+                badgeColor: kSweetiePink,
                 padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
               ),
               badgeContent: Text(
@@ -2238,18 +2491,14 @@ class _TopBanner extends StatelessWidget {
                 child: const Icon(Icons.notifications_none_rounded),
               ),
             ),
-            const Spacer(),
-            _TopActionButton(
-              tooltip: busy ? 'Memuat...' : 'Sync Data',
-              onPressed: busy ? null : onRefresh,
-              child: busy
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.sync_rounded),
-            ),
+            if (showKasirShortcut) ...[
+              const SizedBox(width: 10),
+              _TopActionButton(
+                tooltip: 'Kasir',
+                onPressed: onKasir,
+                child: const Icon(Icons.point_of_sale_rounded),
+              ),
+            ],
             const SizedBox(width: 10),
             _TopActionButton(
               tooltip: 'Logout',
@@ -2374,6 +2623,7 @@ class _TopBanner extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _SalesQrSheet extends StatelessWidget {
   const _SalesQrSheet({
     required this.qrUrl,
@@ -2508,6 +2758,128 @@ class _SalesQrSheet extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QueueSheet extends StatelessWidget {
+  const _QueueSheet({
+    required this.queueItems,
+    required this.onCloseQueue,
+  });
+
+  final List<Map<String, dynamic>> queueItems;
+  final Future<void> Function(String saleNumber) onCloseQueue;
+
+  @override
+  Widget build(BuildContext context) {
+    return _AnimatedSheetScaffold(
+      child: SafeArea(
+        top: false,
+        child: Material(
+          color: const Color(0xFFFDF8FE),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const _SheetHandle(),
+              const _SheetHeader(
+                heroTag: 'queue-sheet',
+                accent: kSweetiePurple,
+                icon: Icons.format_list_numbered_rounded,
+                title: 'Antrian Penjualan',
+                subtitle:
+                    'Nomor penjualan, nama pemesan, dan detail produk aktif.',
+              ),
+              Flexible(
+                child: queueItems.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.fromLTRB(20, 16, 20, 28),
+                        child: Text('Tidak ada antrian aktif.'),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+                        itemCount: queueItems.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        itemBuilder: (context, index) {
+                          final item = queueItems[index];
+                          final details = ((item['details'] as List?) ?? [])
+                              .cast<Map<String, dynamic>>();
+
+                          return Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(24),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        item['sale_number']?.toString() ?? '-',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 15,
+                                        ),
+                                      ),
+                                    ),
+                                    IconButton(
+                                      tooltip: 'Tutup antrian',
+                                      onPressed: () async {
+                                        await onCloseQueue(
+                                          item['sale_number']?.toString() ?? '',
+                                        );
+                                        if (context.mounted) {
+                                          Navigator.of(context).pop();
+                                        }
+                                      },
+                                      icon: const Icon(Icons.close_rounded),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  item['customer_name']?.toString().trim()
+                                              .isNotEmpty ==
+                                          true
+                                      ? item['customer_name'].toString()
+                                      : 'Customer umum',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                ...details.map((detail) {
+                                  final toppings =
+                                      ((detail['extra_toppings'] as List?) ?? [])
+                                          .whereType<String>()
+                                          .toList();
+                                  final toppingLabel = toppings.isEmpty
+                                      ? ''
+                                      : ' - ${toppings.join(', ')}';
+
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 6),
+                                    child: Text(
+                                      '${detail['nama_product'] ?? '-'} - ${detail['quantity'] ?? 0}$toppingLabel',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
           ),
         ),
       ),
@@ -2913,6 +3285,7 @@ class _DashboardPage extends StatelessWidget {
     required this.recentAttendances,
     required this.sales,
     required this.currency,
+    required this.isOwner,
     required this.onNavigate,
   });
 
@@ -2923,10 +3296,19 @@ class _DashboardPage extends StatelessWidget {
   final List<Map<String, dynamic>> recentAttendances;
   final List<Map<String, dynamic>> sales;
   final NumberFormat currency;
+  final bool isOwner;
   final ValueChanged<int> onNavigate;
 
   @override
   Widget build(BuildContext context) {
+    if (isOwner) {
+      return _InventoryPage._buildOwnerDashboardView(
+        context,
+        dashboard: dashboard,
+        currency: currency,
+      );
+    }
+
     final now = DateTime.now();
     final periodLabel = _capitalizeMonthYear(
       DateFormat('MMMM yyyy', 'id_ID').format(now),
@@ -3302,19 +3684,27 @@ class _DashboardPage extends StatelessWidget {
 
 class _AttendancePage extends StatefulWidget {
   const _AttendancePage({
+    required this.me,
     required this.todayAttendance,
     required this.recentAttendances,
+    required this.employeeAttendances,
+    required this.selectedDate,
     required this.latestLocation,
     required this.manualLocationLabel,
     required this.busy,
+    required this.onFilterDate,
     required this.onSubmitAttendance,
   });
 
+  final Map<String, dynamic> me;
   final Map<String, dynamic> todayAttendance;
   final List<Map<String, dynamic>> recentAttendances;
+  final List<Map<String, dynamic>> employeeAttendances;
+  final String? selectedDate;
   final Map<String, dynamic>? latestLocation;
   final String? manualLocationLabel;
   final bool busy;
+  final Future<void> Function(DateTime date) onFilterDate;
   final Future<void> Function(
       {required bool checkIn,
       required String status,
@@ -3355,6 +3745,11 @@ class _AttendancePageState extends State<_AttendancePage> {
 
   @override
   Widget build(BuildContext context) {
+    final isOwner = widget.me['role']?.toString() == 'owner';
+    if (isOwner) {
+      return _buildOwnerAttendance(context);
+    }
+
     final checkInValue = widget.todayAttendance['check_in']?.toString();
     final checkOutValue = widget.todayAttendance['check_out']?.toString();
     final hasCheckedIn =
@@ -3474,6 +3869,87 @@ class _AttendancePageState extends State<_AttendancePage> {
       ],
     );
   }
+
+  Widget _buildOwnerAttendance(BuildContext context) {
+    final selectedDate = _DashboardPage._parseFlexibleDate(widget.selectedDate) ??
+        DateTime.now();
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      children: [
+        _BlockCard(
+          title: 'Riwayat Absensi Karyawan',
+          subtitle: 'Owner hanya melihat history absensi, bukan form check in/out.',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: selectedDate,
+                    firstDate: DateTime(2024),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) {
+                    await widget.onFilterDate(picked);
+                  }
+                },
+                icon: const Icon(Icons.calendar_month_rounded),
+                label: Text(
+                  'Filter tanggal ${DateFormat('dd/MM/yyyy').format(selectedDate)}',
+                ),
+              ),
+              const SizedBox(height: 14),
+              if (widget.employeeAttendances.isEmpty)
+                const Text('Belum ada data absensi karyawan pada tanggal ini.')
+              else
+                ...widget.employeeAttendances.map((item) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFBF6FE),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item['employee_name']?.toString() ?? '-',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        _InfoRow(
+                          label: 'Tanggal',
+                          value: item['attendance_date']?.toString() ?? '-',
+                        ),
+                        _InfoRow(
+                          label: 'Check In',
+                          value: item['check_in']?.toString() ?? '-',
+                        ),
+                        _InfoRow(
+                          label: 'Check Out',
+                          value: item['check_out']?.toString() ?? '-',
+                        ),
+                        _InfoRow(
+                          label: 'Status',
+                          value: item['status']?.toString() ?? '-',
+                        ),
+                        _InfoRow(
+                          label: 'Terlambat',
+                          value: '${item['late_minutes'] ?? 0} menit',
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _InventoryPage extends StatelessWidget {
@@ -3544,23 +4020,12 @@ class _InventoryPage extends StatelessWidget {
             title: 'Stok Tersedia',
             subtitle: products.isEmpty
                 ? 'Belum ada product aktif untuk store Smoothies Sweetie.'
-                : 'Store Smoothies Sweetie tidak memakai alur ambil barang. Tap untuk melihat stok product yang bisa dijual.',
+                : 'Tap untuk melihat stok product yang bisa dijual.',
             icon: Icons.inventory_2_rounded,
-            accent: const Color(0xFFC18B2F),
+            accent: const Color(0xFF6F90D8),
             heroTag: 'inventory-sweetie-stock',
             badgeLabel: '${products.length} product',
             onTap: busy ? null : () => _openSweetieStockSheet(context),
-          ),
-          const SizedBox(height: 16),
-          _InventoryLauncherCard(
-            title: 'Info Alur Store',
-            subtitle:
-                'On hand, retur, dan consign dimatikan untuk Smoothies Sweetie agar alurnya sama seperti website store.',
-            icon: Icons.info_outline_rounded,
-            accent: const Color(0xFF2C8C82),
-            heroTag: 'inventory-sweetie-info',
-            badgeLabel: 'Sweetie',
-            onTap: null,
           ),
         ] else ...[
         _InventoryLauncherCard(
@@ -3644,6 +4109,202 @@ class _InventoryPage extends StatelessWidget {
           ),
         ],
         ],
+      ],
+    );
+  }
+
+  static Widget _buildOwnerDashboardView(
+    BuildContext context, {
+    required Map<String, dynamic> dashboard,
+    required NumberFormat currency,
+  }) {
+    final filters = _asMap(dashboard['dashboard_filters']);
+    final dashboardData = _asMap(dashboard['dashboard_data']);
+    final kpis = _asMap(dashboardData['kpis']);
+    final summary = _asMap(dashboardData['team_summary']);
+    final teamPerformance = _asMapList(dashboardData['team_performance']);
+    final types = _asMapList(filters['types']);
+    final months = _asMapList(filters['months']);
+
+    String labelFor(List<Map<String, dynamic>> source, dynamic value) {
+      for (final item in source) {
+        if ('${item['value']}' == '$value') {
+          return item['label']?.toString() ?? '$value';
+        }
+      }
+      return '$value';
+    }
+
+    final filterLabel =
+        '${labelFor(types, filters['type'])} • ${labelFor(months, filters['month'])} ${filters['year'] ?? ''}';
+
+    Widget filterChip(String label) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: kSweetieLavender,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFF4D9F0), Color(0xFFE9E0FB), Color(0xFFFDF8FE)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Dashboard Owner',
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Ringkasan keuntungan dan performa tim tanpa chart, mengikuti pola dashboard website.',
+                style: TextStyle(color: kSweetieInk.withValues(alpha: 0.72)),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  filterChip(filterLabel),
+                  filterChip(
+                    dashboardData['period_label']?.toString() ?? '-',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            SizedBox(
+              width: 160,
+              child: _MetricCard(
+                label: 'Revenue',
+                value: currency
+                    .format((kpis['revenue_total'] as num?)?.toDouble() ?? 0),
+                icon: Icons.payments_rounded,
+                accent: kSweetiePurple,
+              ),
+            ),
+            SizedBox(
+              width: 160,
+              child: _MetricCard(
+                label: 'Gross Profit',
+                value: currency.format(
+                    (kpis['gross_profit_total'] as num?)?.toDouble() ?? 0),
+                icon: Icons.trending_up_rounded,
+                accent: kSweetiePink,
+              ),
+            ),
+            SizedBox(
+              width: 160,
+              child: _MetricCard(
+                label: 'Net Profit',
+                value:
+                    currency.format((kpis['net_profit_total'] as num?)?.toDouble() ?? 0),
+                icon: Icons.account_balance_wallet_rounded,
+                accent: const Color(0xFF6F90D8),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _BlockCard(
+          title: 'Ringkasan Tim',
+          subtitle: 'Angka tim aktif mengikuti data dashboard website.',
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _InfoRow(
+                label: 'Total Marketing',
+                value: '${summary['marketing'] ?? 0}',
+              ),
+              _InfoRow(
+                label: 'Total SFE',
+                value: '${summary['sales_field_executive'] ?? 0}',
+              ),
+              _InfoRow(
+                label: 'Total Karyawan',
+                value: '${summary['karyawan'] ?? 0}',
+              ),
+              _InfoRow(
+                label: 'On Duty',
+                value: '${summary['on_duty'] ?? 0}',
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 18),
+        _BlockCard(
+          title: 'Performa Tim',
+          subtitle: 'Pendapatan, quantity terjual, dan hari hadir per anggota.',
+          child: teamPerformance.isEmpty
+              ? const Text('Belum ada data performa tim.')
+              : Column(
+                  children: teamPerformance.map((item) {
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFBF6FE),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item['name']?.toString() ?? '-',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          _InfoRow(
+                            label: 'Role',
+                            value: item['role']?.toString() ?? '-',
+                          ),
+                          _InfoRow(
+                            label: 'Hadir',
+                            value: '${item['attendance_days'] ?? 0} hari',
+                          ),
+                          _InfoRow(
+                            label: 'Qty Terjual',
+                            value: '${item['quantity_sold'] ?? 0}',
+                          ),
+                          _InfoRow(
+                            label: 'Revenue',
+                            value: currency.format(
+                                (item['revenue_total'] as num?)?.toDouble() ?? 0),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+        ),
       ],
     );
   }
@@ -5129,17 +5790,10 @@ class _SalesPage extends StatefulWidget {
 
 class _SalesPageState extends State<_SalesPage> {
   final TextEditingController _customerNameController = TextEditingController();
-  final TextEditingController _customerPhoneController =
-      TextEditingController();
-  final TextEditingController _customerSocialController =
-      TextEditingController();
   late final List<_SaleItemDraft> _items;
-  Timer? _customerLookupDebounce;
   int? _promoId;
-  XFile? _proof;
   String _paymentMethod = 'Cash';
-  bool _lookingUpCustomer = false;
-  String? _customerLookupHint;
+  bool _qrisConfirmed = false;
   final Set<String> _completedSopChecklist = <String>{};
 
   @override
@@ -5162,10 +5816,7 @@ class _SalesPageState extends State<_SalesPage> {
 
   @override
   void dispose() {
-    _customerLookupDebounce?.cancel();
     _customerNameController.dispose();
-    _customerPhoneController.dispose();
-    _customerSocialController.dispose();
     super.dispose();
   }
 
@@ -5347,8 +5998,16 @@ class _SalesPageState extends State<_SalesPage> {
     }
 
     final name = product['nama_product']?.toString() ?? 'Produk';
-    final remaining = (product['remaining'] as num?)?.toInt() ?? 0;
-    return '$name | Sisa $remaining';
+    final remaining = _productAvailableStock(product);
+    return '$name | stock $remaining';
+  }
+
+  int _productAvailableStock(Map<String, dynamic>? product) {
+    if (product == null) {
+      return 0;
+    }
+
+    return ((product['remaining'] ?? product['stock']) as num?)?.toInt() ?? 0;
   }
 
   String _variantLabel(Map<String, dynamic> variant) {
@@ -5378,77 +6037,9 @@ class _SalesPageState extends State<_SalesPage> {
     return code == null || code.isEmpty ? name : '$name | $code';
   }
 
+  // ignore: unused_element
   void _scheduleCustomerLookup(String value) {
-    _customerLookupDebounce?.cancel();
-    final normalized = value.replaceAll(RegExp(r'[^0-9+]'), '').trim();
-
-    if (normalized.length < 8) {
-      setState(() {
-        _lookingUpCustomer = false;
-        _customerLookupHint = null;
-      });
-      return;
-    }
-
-    _customerLookupDebounce =
-        Timer(const Duration(milliseconds: 450), () async {
-      if (!mounted) return;
-
-      setState(() {
-        _lookingUpCustomer = true;
-        _customerLookupHint = 'Mencari data customer...';
-      });
-
-      try {
-        final customer = await widget.onLookupCustomer(normalized);
-        if (!mounted) return;
-
-        if (customer == null) {
-          setState(() {
-            _lookingUpCustomer = false;
-            _customerLookupHint =
-                'Customer belum terdaftar. Silakan isi data baru.';
-          });
-          return;
-        }
-
-        final foundPhone = customer['no_telp']?.toString().trim();
-        if (foundPhone != null && foundPhone.isNotEmpty) {
-          _customerPhoneController.text = foundPhone;
-          _customerPhoneController.selection = TextSelection.fromPosition(
-            TextPosition(offset: _customerPhoneController.text.length),
-          );
-        }
-
-        final foundName = customer['nama']?.toString().trim();
-        if (foundName != null && foundName.isNotEmpty) {
-          _customerNameController.text = foundName;
-          _customerNameController.selection = TextSelection.fromPosition(
-            TextPosition(offset: _customerNameController.text.length),
-          );
-        }
-
-        final social = customer['tiktok_instagram']?.toString().trim();
-        if (social != null && social.isNotEmpty) {
-          _customerSocialController.text = social;
-          _customerSocialController.selection = TextSelection.fromPosition(
-            TextPosition(offset: _customerSocialController.text.length),
-          );
-        }
-
-        setState(() {
-          _lookingUpCustomer = false;
-          _customerLookupHint =
-              'Customer ditemukan. Nama dan sosial terisi otomatis.';
-        });
-      } catch (_) {
-        if (!mounted) return;
-        setState(() {
-          _lookingUpCustomer = false;
-          _customerLookupHint = 'Gagal mengambil data customer.';
-        });
-      }
-    });
+    // Field lookup nomor telepon dinonaktifkan untuk Smoothies Sweetie.
   }
 
   Future<void> _showSalesHistorySheet(BuildContext context) =>
@@ -5487,7 +6078,7 @@ class _SalesPageState extends State<_SalesPage> {
       accent: const Color(0xFF8E5BE8),
       icon: Icons.inventory_2_outlined,
       title: 'Pilih Produk',
-      subtitle: 'Pilih barang yang akan dijual dari stok on hand Anda.',
+      subtitle: 'Pilih barang yang akan dijual dari stok toko aktif.',
       searchHint: 'Cari product',
       emptyMessage: 'Belum ada product yang bisa dipilih.',
       options: selectableProducts,
@@ -5610,9 +6201,8 @@ class _SalesPageState extends State<_SalesPage> {
 
   Future<void> _pickQuantityForIndex(int index) async {
     final selectedProduct = _productById(_items[index].productId);
-    final maxQuantity = selectedProduct == null
-        ? 99
-        : ((selectedProduct['remaining'] as num?)?.toInt() ?? 0);
+    final maxQuantity =
+        selectedProduct == null ? 99 : _productAvailableStock(selectedProduct);
 
     if (selectedProduct != null && maxQuantity < 1) {
       return;
@@ -5690,92 +6280,23 @@ class _SalesPageState extends State<_SalesPage> {
 
   @override
   Widget build(BuildContext context) {
+    final hasQrisImage = (widget.qrisImageUrl ?? '').trim().isNotEmpty;
+    final requiresQrisConfirmation = _paymentMethod == 'Qris' && hasQrisImage;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
         _BlockCard(
           title: 'Penjualan',
           subtitle:
-              'Input customer, item, promo, dan bukti pembelian dalam satu flow yang ringkas.',
+              'Input customer, item, promo, dan QRIS dalam satu flow yang ringkas.',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TextField(
-                controller: _customerPhoneController,
-                keyboardType: TextInputType.phone,
-                onChanged: _scheduleCustomerLookup,
-                decoration: InputDecoration(
-                  labelText: 'Nomor telepon',
-                  suffixIcon: _lookingUpCustomer
-                      ? const Padding(
-                          padding: EdgeInsets.all(12),
-                          child: SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        )
-                      : const Icon(Icons.phone_outlined),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
                 controller: _customerNameController,
                 decoration: const InputDecoration(labelText: 'Nama customer'),
               ),
-              if (_customerLookupHint != null) ...[
-                const SizedBox(height: 8),
-                PageTransitionSwitcher(
-                  duration: const Duration(milliseconds: 260),
-                  transitionBuilder: (child, primary, secondary) {
-                    return SharedAxisTransition(
-                      animation: primary,
-                      secondaryAnimation: secondary,
-                      transitionType: SharedAxisTransitionType.vertical,
-                      fillColor: Colors.transparent,
-                      child: child,
-                    );
-                  },
-                  child: Container(
-                    key: ValueKey(_customerLookupHint),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF7F1E6),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      _customerLookupHint!,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 12),
-              TextField(
-                controller: _customerSocialController,
-                decoration:
-                    const InputDecoration(labelText: 'TikTok / Instagram'),
-              ),
-              if (widget.products.isEmpty) ...[
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF7F1E6),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: const Text(
-                    'Produk belum bisa dipilih karena belum ada barang on hand yang disetujui dan masih punya sisa stok untuk dijual.',
-                    style: TextStyle(height: 1.4),
-                  ),
-                ),
-              ],
               const SizedBox(height: 16),
               ...List.generate(_items.length, (index) {
                 final selectedProduct = _productById(_items[index].productId);
@@ -5784,7 +6305,7 @@ class _SalesPageState extends State<_SalesPage> {
                   child: Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFCF8F1),
+                      color: const Color(0xFFFBF6FE),
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: Column(
@@ -5865,7 +6386,7 @@ class _SalesPageState extends State<_SalesPage> {
                                     : _productLabel(selectedProduct),
                                 style: const TextStyle(
                                   fontSize: 12,
-                                  color: Color(0xFF6F665F),
+                                  color: Color(0xFF766C8B),
                                   fontWeight: FontWeight.w600,
                                 ),
                                 maxLines: 2,
@@ -5880,7 +6401,7 @@ class _SalesPageState extends State<_SalesPage> {
                                       _items[index].extraToppingIds),
                                   style: const TextStyle(
                                     fontSize: 12,
-                                    color: Color(0xFF6F665F),
+                                    color: Color(0xFF766C8B),
                                     fontWeight: FontWeight.w600,
                                   ),
                                   maxLines: 2,
@@ -5910,7 +6431,7 @@ class _SalesPageState extends State<_SalesPage> {
                           title: '${_items[index].quantity} item',
                           subtitle: selectedProduct == null
                               ? 'Tap untuk mengatur quantity'
-                              : 'Maks. ${((selectedProduct['remaining'] as num?)?.toInt() ?? 0)} item',
+                              : 'Maks. ${_productAvailableStock(selectedProduct)} item',
                           enabled: selectedProduct != null,
                           onTap: () => _pickQuantityForIndex(index),
                         ),
@@ -5983,7 +6504,12 @@ class _SalesPageState extends State<_SalesPage> {
                   if (!mounted || selected == null) {
                     return;
                   }
-                  setState(() => _paymentMethod = selected);
+                  setState(() {
+                    _paymentMethod = selected;
+                    if (selected != 'Qris') {
+                      _qrisConfirmed = false;
+                    }
+                  });
                 },
               ),
               if (_paymentMethod == 'Qris') ...[
@@ -5992,9 +6518,9 @@ class _SalesPageState extends State<_SalesPage> {
                   key: const ValueKey('sales-qris-panel'),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFEAF7F3),
+                    color: const Color(0xFFF7F0FB),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFCEE6DD)),
+                    border: Border.all(color: const Color(0xFFE4D7F4)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -6011,15 +6537,76 @@ class _SalesPageState extends State<_SalesPage> {
                         'Tunjukkan QRIS ke customer, tunggu pembayaran sukses, lalu tutup transaksi agar nomor antrian terbentuk.',
                         style: TextStyle(fontSize: 12, height: 1.4),
                       ),
-                      if ((widget.qrisImageUrl ?? '').trim().isNotEmpty) ...[
+                      if (hasQrisImage) ...[
                         const SizedBox(height: 12),
-                        ClipRRect(
+                        InkWell(
                           borderRadius: BorderRadius.circular(18),
-                          child: CachedNetworkImage(
-                            imageUrl: widget.qrisImageUrl!,
-                            height: 180,
-                            width: double.infinity,
-                            fit: BoxFit.contain,
+                          onTap: () async {
+                            await showDialog<void>(
+                              context: context,
+                              builder: (dialogContext) => AlertDialog(
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                                content: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(20),
+                                      child: CachedNetworkImage(
+                                        imageUrl: widget.qrisImageUrl!,
+                                        height: 320,
+                                        width: double.infinity,
+                                        fit: BoxFit.contain,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: FilledButton(
+                                        onPressed: () {
+                                          setState(() => _qrisConfirmed = true);
+                                          Navigator.of(dialogContext).pop();
+                                        },
+                                        child: const Text('Sudah Bayar'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(18),
+                            child: CachedNetworkImage(
+                              imageUrl: widget.qrisImageUrl!,
+                              height: 180,
+                              width: double.infinity,
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _qrisConfirmed
+                              ? 'Pembayaran QRIS sudah dikonfirmasi.'
+                              : 'Tap gambar QRIS untuk memperbesar lalu tekan "Sudah Bayar".',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _qrisConfirmed
+                                ? const Color(0xFF2E7D32)
+                                : const Color(0xFF6F665F),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ] else ...[
+                        const SizedBox(height: 12),
+                        const Text(
+                          'QRIS store belum memiliki gambar. Kasir bisa melanjutkan konfirmasi pembayaran secara manual.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            height: 1.4,
+                            color: Color(0xFF766C8B),
                           ),
                         ),
                       ],
@@ -6051,7 +6638,7 @@ class _SalesPageState extends State<_SalesPage> {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF7F1E6),
+                    color: const Color(0xFFF7F0FB),
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Text(
@@ -6060,43 +6647,11 @@ class _SalesPageState extends State<_SalesPage> {
                   ),
                 ),
               ],
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.tonalIcon(
-                      onPressed: widget.busy
-                          ? null
-                          : () async {
-                              final file = await widget.onPickProof();
-                              if (!mounted) return;
-                              setState(() => _proof = file);
-                            },
-                      icon: const Icon(Icons.photo_library_outlined),
-                      label: Text(
-                        _proof == null
-                            ? (widget.isSmoothiesSweetie
-                                ? 'Bukti pembelian opsional'
-                                : 'Pilih bukti pembelian')
-                            : _proof!.name,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              if (widget.mockMode || widget.isSmoothiesSweetie) ...[
-                const SizedBox(height: 10),
-                Text(
-                  widget.isSmoothiesSweetie
-                      ? 'Mode Smoothies memperbolehkan transaksi tanpa upload bukti pembelian.'
-                      : 'Mode demo akan memakai placeholder proof jika Anda tidak memilih gambar.',
-                ),
-              ],
               const SizedBox(height: 16),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2B2117),
+                  color: kSweetieInk,
                   borderRadius: BorderRadius.circular(22),
                 ),
                 child: Column(
@@ -6125,9 +6680,9 @@ class _SalesPageState extends State<_SalesPage> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF7F1E6),
+                  color: const Color(0xFFF7F0FB),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFE7DDD0)),
+                  border: Border.all(color: const Color(0xFFE4D7F4)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -6173,7 +6728,7 @@ class _SalesPageState extends State<_SalesPage> {
                       style: const TextStyle(
                         fontSize: 12,
                         height: 1.4,
-                        color: Color(0xFF6F665F),
+                        color: Color(0xFF766C8B),
                       ),
                     ),
                     if (_selectedItemNames.length > 3) ...[
@@ -6183,7 +6738,7 @@ class _SalesPageState extends State<_SalesPage> {
                         style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF6F665F),
+                          color: Color(0xFF766C8B),
                         ),
                       ),
                     ],
@@ -6195,9 +6750,9 @@ class _SalesPageState extends State<_SalesPage> {
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF7F1E6),
+                    color: const Color(0xFFF7F0FB),
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFE7DDD0)),
+                    border: Border.all(color: const Color(0xFFE4D7F4)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -6272,20 +6827,17 @@ class _SalesPageState extends State<_SalesPage> {
                           widget.products.isEmpty ||
                           _hasInvalidItems ||
                           !_isSopChecklistComplete ||
-                          (!widget.mockMode &&
-                              !widget.isSmoothiesSweetie &&
-                              _proof == null)
+                          (requiresQrisConfirmation && !_qrisConfirmed)
                       ? null
                       : () => widget.onSubmit(
                             customerName: _customerNameController.text.trim(),
-                            customerPhone: _customerPhoneController.text.trim(),
-                            customerSocial:
-                                _customerSocialController.text.trim(),
+                            customerPhone: '',
+                            customerSocial: '',
                             items: List<_SaleItemDraft>.from(_items),
                             paymentMethod: _paymentMethod,
-                            requireProof: !widget.isSmoothiesSweetie,
+                            requireProof: false,
                             promoId: _promoId,
-                            proof: _proof,
+                            proof: null,
                           ),
                   child:
                       Text(widget.busy ? 'Menyimpan...' : 'Tutup pembayaran'),

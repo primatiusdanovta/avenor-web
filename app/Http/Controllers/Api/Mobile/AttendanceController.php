@@ -8,6 +8,7 @@ use App\Models\MarketingLocation;
 use App\Models\ProductOnhand;
 use App\Support\MarketingMobileSupport;
 use App\Support\SalesRole;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -18,6 +19,46 @@ class AttendanceController extends Controller
         $user = $request->user();
         abort_unless(in_array($user?->role, SalesRole::mobileRoles(), true), 403);
         $storeId = MarketingMobileSupport::currentStoreId($user);
+
+        if ($user->role === SalesRole::OWNER) {
+            $selectedDate = Carbon::parse((string) $request->query('date', now()->toDateString()));
+            $employeeAttendances = Attendance::query()
+                ->with('user')
+                ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
+                ->whereDate('attendance_date', $selectedDate->toDateString())
+                ->whereHas('user', fn ($query) => $query->whereIn('role', [
+                    SalesRole::KARYAWAN,
+                    SalesRole::MARKETING,
+                    SalesRole::SALES_FIELD_EXECUTIVE,
+                ]))
+                ->orderBy('check_in')
+                ->orderBy('attendance_date')
+                ->get()
+                ->map(fn (Attendance $attendance) => [
+                    'id' => $attendance->id,
+                    'employee_name' => $attendance->user?->nama,
+                    'employee_role' => $attendance->user?->role,
+                    'attendance_date' => optional($attendance->attendance_date)->format('Y-m-d'),
+                    'check_in' => $attendance->check_in,
+                    'check_out' => $attendance->check_out,
+                    'status' => $attendance->status,
+                    'notes' => $attendance->notes,
+                    'late_minutes' => $this->resolveLateMinutes(
+                        optional($attendance->attendance_date)->format('Y-m-d'),
+                        $attendance->check_in
+                    ),
+                ])
+                ->values();
+
+            return response()->json([
+                'selected_date' => $selectedDate->format('Y-m-d'),
+                'employee_attendances' => $employeeAttendances,
+                'today_attendance' => null,
+                'recent_attendances' => [],
+                'carried_products' => [],
+                'latest_location' => null,
+            ]);
+        }
 
         $context = MarketingMobileSupport::attendanceContext($user);
         $recentAttendances = Attendance::query()
@@ -124,6 +165,12 @@ class AttendanceController extends Controller
 
     private function storeAttendanceEvent(Request $request, string $event): JsonResponse
     {
+        if ($request->user()?->role === SalesRole::OWNER) {
+            return response()->json([
+                'message' => 'Owner hanya dapat melihat riwayat absensi karyawan di aplikasi mobile.',
+            ], 422);
+        }
+
         $validated = $request->validate([
             'status' => ['required', 'in:hadir,terlambat,izin,sakit'],
             'notes' => ['nullable', 'string', 'max:500'],
@@ -192,6 +239,20 @@ class AttendanceController extends Controller
                 'check_out' => $attendance->check_out,
             ],
         ]);
+    }
+
+    private function resolveLateMinutes(?string $attendanceDate, ?string $checkIn): int
+    {
+        if (! $attendanceDate || ! $checkIn) {
+            return 0;
+        }
+
+        $checkInAt = Carbon::parse($attendanceDate . ' ' . $checkIn);
+        $shiftStart = Carbon::parse($attendanceDate . ' 09:00:00');
+
+        return $checkInAt->greaterThan($shiftStart)
+            ? $checkInAt->diffInMinutes($shiftStart)
+            : 0;
     }
 }
 

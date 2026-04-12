@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../state/session_controller.dart';
+import '../../widgets/popup_form_widget.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -30,31 +31,75 @@ class _HomeShellState extends State<HomeShell> {
     return Scaffold(
       appBar: AppBar(
         title: Consumer<SessionController>(
-          builder: (context, session, _) => Text(session.user?.nama ?? 'Sweetie'),
+          builder: (context, session, _) => Row(
+            children: [
+              // Queue Icon (center logo above bar)
+              Expanded(
+                child: Center(
+                  child: IconButton(
+                    onPressed: () {
+                      // TODO: Show queue panel
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Queue feature - Coming soon')),
+                      );
+                    },
+                    icon: const Icon(Icons.assignment),
+                    tooltip: 'Antrian Penjualan',
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 2,
+                child: Text(session.user?.nama ?? 'Sweetie'),
+              ),
+            ],
+          ),
         ),
         actions: [
+          // Notifications Icon (both owner and karyawan)
+          IconButton(
+            onPressed: () {
+              // TODO: Show notifications
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Notifications - Coming soon')),
+              );
+            },
+            icon: const Icon(Icons.notifications_outlined),
+            tooltip: 'Notifikasi',
+          ),
+          // Kasir Icon (owner only)
+          Consumer<SessionController>(
+            builder: (context, session, _) {
+              final isOwner = session.user?.role == 'owner';
+              if (!isOwner) return const SizedBox.shrink();
+              
+              return IconButton(
+                onPressed: () {
+                  setState(() => _index = 3); // Navigate to Sales tab
+                },
+                icon: const Icon(Icons.point_of_sale),
+                tooltip: 'Kasir',
+              );
+            },
+          ),
           IconButton(
             onPressed: () => context.read<SessionController>().refreshAll(),
             icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
           ),
           IconButton(
             onPressed: () => context.read<SessionController>().logout(),
             icon: const Icon(Icons.logout),
+            tooltip: 'Logout',
           ),
         ],
       ),
-      body: IndexedStack(index: _index, children: pages),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (value) => setState(() => _index = value),
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.space_dashboard_outlined), selectedIcon: Icon(Icons.space_dashboard), label: 'Home'),
-          NavigationDestination(icon: Icon(Icons.fact_check_outlined), selectedIcon: Icon(Icons.fact_check), label: 'Absensi'),
-          NavigationDestination(icon: Icon(Icons.inventory_2_outlined), selectedIcon: Icon(Icons.inventory_2), label: 'Products'),
-          NavigationDestination(icon: Icon(Icons.point_of_sale_outlined), selectedIcon: Icon(Icons.point_of_sale), label: 'Sales'),
-          NavigationDestination(icon: Icon(Icons.menu_book_outlined), selectedIcon: Icon(Icons.menu_book), label: 'Knowledge'),
-        ],
+      drawer: AppDrawerWidget(
+        currentIndex: _index,
+        onNavigate: (index) => setState(() => _index = index),
+        onClose: () => Navigator.pop(context),
       ),
+      body: IndexedStack(index: _index, children: pages),
     );
   }
 }
@@ -145,7 +190,7 @@ class _DashboardTab extends StatelessWidget {
                           (sale) => ListTile(
                             contentPadding: EdgeInsets.zero,
                             title: Text(sale['nama_product']?.toString() ?? '-'),
-                            subtitle: Text('${sale['transaction_code'] ?? '-'} • ${sale['created_at'] ?? '-'}'),
+                            subtitle: Text('${sale['transaction_code'] ?? '-'} ï¿½ ${sale['created_at'] ?? '-'}'),
                             trailing: Text('${sale['quantity'] ?? 0} pcs'),
                           ),
                         ),
@@ -171,6 +216,7 @@ class _AttendanceTab extends StatefulWidget {
 class _AttendanceTabState extends State<_AttendanceTab> {
   final _notesController = TextEditingController();
   String _status = 'hadir';
+  DateTime _selectedDate = DateTime.now();
 
   @override
   void dispose() {
@@ -204,118 +250,218 @@ class _AttendanceTabState extends State<_AttendanceTab> {
   Widget build(BuildContext context) {
     return Consumer<SessionController>(
       builder: (context, session, _) {
-        final data = session.attendance;
-        if (data == null) {
-          return const Center(child: CircularProgressIndicator());
+        final isOwner = session.user?.role == 'owner';
+        
+        if (isOwner) {
+          return _buildOwnerAttendanceView(session);
+        } else {
+          return _buildKaryawanAttendanceView(session);
         }
-        final today = data['today_attendance'] as Map<String, dynamic>?;
-        final carriedProducts = (data['carried_products'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
-        final recentAttendances = (data['recent_attendances'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
-
-        return RefreshIndicator(
-          onRefresh: session.refreshAttendance,
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Absensi Hari Ini', style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 8),
-                      Text('Status: ${today?['status'] ?? '-'}'),
-                      Text('Check in: ${today?['check_in'] ?? '-'}'),
-                      Text('Check out: ${today?['check_out'] ?? '-'}'),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        value: _status,
-                        items: const [
-                          DropdownMenuItem(value: 'hadir', child: Text('Hadir')),
-                          DropdownMenuItem(value: 'terlambat', child: Text('Terlambat')),
-                          DropdownMenuItem(value: 'izin', child: Text('Izin')),
-                          DropdownMenuItem(value: 'sakit', child: Text('Sakit')),
-                        ],
-                        onChanged: (value) => setState(() => _status = value ?? 'hadir'),
-                        decoration: const InputDecoration(labelText: 'Status'),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _notesController,
-                        decoration: const InputDecoration(labelText: 'Catatan'),
-                        maxLines: 2,
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: FilledButton(
-                              onPressed: () => _submit(true),
-                              child: const Text('Check In'),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: () => _submit(false),
-                              child: const Text('Check Out'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Barang Dibawa Hari Ini', style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 8),
-                      if (carriedProducts.isEmpty)
-                        const Text('Belum ada barang yang dibawa.')
-                      else
-                        ...carriedProducts.map((item) => ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(item['nama_product']?.toString() ?? '-'),
-                              subtitle: Text(item['status_label']?.toString() ?? '-'),
-                              trailing: Text('${item['remaining_quantity'] ?? 0} sisa'),
-                            )),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Riwayat Absensi', style: Theme.of(context).textTheme.titleMedium),
-                      const SizedBox(height: 8),
-                      if (recentAttendances.isEmpty)
-                        const Text('Belum ada riwayat absensi.')
-                      else
-                        ...recentAttendances.map((item) => ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(item['attendance_date']?.toString() ?? '-'),
-                              subtitle: Text('${item['check_in'] ?? '-'} - ${item['check_out'] ?? '-'}'),
-                              trailing: Text(item['status']?.toString() ?? '-'),
-                            )),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
       },
+    );
+  }
+
+  Widget _buildKaryawanAttendanceView(SessionController session) {
+    final data = session.attendance;
+    if (data == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final today = data['today_attendance'] as Map<String, dynamic>?;
+    final carriedProducts = (data['carried_products'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+    final recentAttendances = (data['recent_attendances'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+
+    return RefreshIndicator(
+      onRefresh: session.refreshAttendance,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Absensi Hari Ini', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Text('Status: ${today?['status'] ?? '-'}'),
+                  Text('Check in: ${today?['check_in'] ?? '-'}'),
+                  Text('Check out: ${today?['check_out'] ?? '-'}'),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: _status,
+                    items: const [
+                      DropdownMenuItem(value: 'hadir', child: Text('Hadir')),
+                      DropdownMenuItem(value: 'terlambat', child: Text('Terlambat')),
+                      DropdownMenuItem(value: 'izin', child: Text('Izin')),
+                      DropdownMenuItem(value: 'sakit', child: Text('Sakit')),
+                    ],
+                    onChanged: (value) => setState(() => _status = value ?? 'hadir'),
+                    decoration: const InputDecoration(labelText: 'Status'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _notesController,
+                    decoration: const InputDecoration(labelText: 'Catatan'),
+                    maxLines: 2,
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () => _submit(true),
+                          child: const Text('Check In'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => _submit(false),
+                          child: const Text('Check Out'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Barang Dibawa Hari Ini', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  if (carriedProducts.isEmpty)
+                    const Text('Belum ada barang yang dibawa.')
+                  else
+                    ...carriedProducts.map((item) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(item['nama_product']?.toString() ?? '-'),
+                          subtitle: Text(item['status_label']?.toString() ?? '-'),
+                          trailing: Text('${item['remaining_quantity'] ?? 0} sisa'),
+                        )),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Riwayat Absensi', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  if (recentAttendances.isEmpty)
+                    const Text('Belum ada riwayat absensi.')
+                  else
+                    ...recentAttendances.map((item) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(item['attendance_date']?.toString() ?? '-'),
+                          subtitle: Text('${item['check_in'] ?? '-'} - ${item['check_out'] ?? '-'}'),
+                          trailing: Text(item['status']?.toString() ?? '-'),
+                        )),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOwnerAttendanceView(SessionController session) {
+    final data = session.attendance;
+    if (data == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final employeeAttendances = (data['employee_attendances'] as List<dynamic>? ?? []).cast<Map<String, dynamic>>();
+
+    return RefreshIndicator(
+      onRefresh: session.refreshAttendance,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Filter Riwayat Absensi Karyawan', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Tanggal: '),
+                    trailing: Text(DateFormat('dd/MM/yyyy').format(_selectedDate)),
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _selectedDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime.now(),
+                      );
+                      if (picked != null) {
+                        setState(() => _selectedDate = picked);
+                        session.refreshAttendance();
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Riwayat Absensi Karyawan - ${DateFormat('dd/MM/yyyy').format(_selectedDate)}',
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 12),
+                  if (employeeAttendances.isEmpty)
+                    const Text('Tidak ada data absensi untuk tanggal ini.')
+                  else
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: DataTable(
+                        columns: const [
+                          DataColumn(label: Text('Nama')),
+                          DataColumn(label: Text('Tanggal')),
+                          DataColumn(label: Text('Check In')),
+                          DataColumn(label: Text('Check Out')),
+                          DataColumn(label: Text('Status')),
+                          DataColumn(label: Text('Terlambat')),
+                        ],
+                        rows: employeeAttendances
+                            .map(
+                              (item) => DataRow(
+                                cells: [
+                                  DataCell(Text(item['employee_name']?.toString() ?? '-')),
+                                  DataCell(Text(item['attendance_date']?.toString() ?? '-')),
+                                  DataCell(Text(item['check_in']?.toString() ?? '-')),
+                                  DataCell(Text(item['check_out']?.toString() ?? '-')),
+                                  DataCell(Text(item['status']?.toString() ?? '-')),
+                                  DataCell(Text(item['late_minutes']?.toString() ?? '-')),
+                                ],
+                              ),
+                            )
+                            .toList(),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -484,7 +630,7 @@ class _ProductsTabState extends State<_ProductsTab> {
                         ...onhands.map((item) => ListTile(
                               contentPadding: EdgeInsets.zero,
                               title: Text(item['nama_product']?.toString() ?? '-'),
-                              subtitle: Text('${item['take_status_label']} • ${item['status_label']}'),
+
                               trailing: Text('${item['remaining_quantity'] ?? 0} sisa'),
                             )),
                     ],
@@ -508,8 +654,6 @@ class _SalesTab extends StatefulWidget {
 
 class _SalesTabState extends State<_SalesTab> {
   final _customerName = TextEditingController();
-  final _customerPhone = TextEditingController();
-  final _customerSocial = TextEditingController();
   final _qtyController = TextEditingController(text: '1');
   int? _selectedProductId;
   int? _selectedPromoId;
@@ -518,8 +662,6 @@ class _SalesTabState extends State<_SalesTab> {
   @override
   void dispose() {
     _customerName.dispose();
-    _customerPhone.dispose();
-    _customerSocial.dispose();
     _qtyController.dispose();
     super.dispose();
   }
@@ -561,10 +703,6 @@ class _SalesTabState extends State<_SalesTab> {
                       Text('Input Penjualan Offline', style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 12),
                       TextField(controller: _customerName, decoration: const InputDecoration(labelText: 'Nama Customer')),
-                      const SizedBox(height: 12),
-                      TextField(controller: _customerPhone, decoration: const InputDecoration(labelText: 'No. Telp')),
-                      const SizedBox(height: 12),
-                      TextField(controller: _customerSocial, decoration: const InputDecoration(labelText: 'TikTok / Instagram')),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
                         value: _selectedProductId,
@@ -619,14 +757,28 @@ class _SalesTabState extends State<_SalesTab> {
                                       }
                                     ],
                                     customerName: _customerName.text.trim().isEmpty ? null : _customerName.text.trim(),
-                                    customerPhone: _customerPhone.text.trim().isEmpty ? null : _customerPhone.text.trim(),
-                                    customerSocial: _customerSocial.text.trim().isEmpty ? null : _customerSocial.text.trim(),
+                                    customerPhone: null,
+                                    customerSocial: null,
                                     promoId: _selectedPromoId,
                                     proofFile: _proofFile!,
                                   );
                                   if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Penjualan berhasil dikirim.')),
+                                  // Show success popup
+                                  showSalesSuccessPopup(
+                                    context: context,
+                                    saleData: {
+                                      'transaction_code': 'Penjualan berhasil',
+                                      'created_at': DateTime.now().toString(),
+                                      'customer_name': _customerName.text.trim(),
+                                      'total_amount': 0,
+                                    },
+                                    onClose: () {
+                                      // Clear form
+                                      _customerName.clear();
+                                      _qtyController.text = '1';
+                                      setState(() => _proofFile = null);
+                                      session.refreshSales();
+                                    },
                                   );
                                 } catch (error) {
                                   if (!context.mounted) return;
@@ -656,7 +808,7 @@ class _SalesTabState extends State<_SalesTab> {
                         ...sales.map((item) => ListTile(
                               contentPadding: EdgeInsets.zero,
                               title: Text(item['transaction_code']?.toString() ?? '-'),
-                              subtitle: Text('${item['approval_status'] ?? '-'} • ${item['created_at'] ?? '-'}'),
+                              subtitle: Text('${item['approval_status'] ?? '-'} ï¿½ ${item['created_at'] ?? '-'}'),
                               trailing: Text(NumberFormat.currency(locale: 'id_ID', symbol: 'Rp', decimalDigits: 0).format(item['total_harga'] ?? 0)),
                             )),
                     ],

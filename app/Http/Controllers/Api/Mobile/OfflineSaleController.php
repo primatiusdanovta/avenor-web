@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Promo;
 use App\Models\Sop;
+use App\Models\User;
 use App\Support\MarketingMobileSupport;
 use App\Support\RawMaterialUsage;
 use App\Support\SalesRole;
@@ -44,14 +45,16 @@ class OfflineSaleController extends Controller
         $products = MarketingMobileSupport::isSmoothiesSweetieUser($user)
             ? Product::query()
                 ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
+                ->where('stock', '>', 0)
                 ->orderBy('nama_product')
-                ->get(['id_product', 'nama_product', 'harga'])
+                ->get(['id_product', 'nama_product', 'harga', 'stock'])
                 ->map(fn (Product $product) => [
                     'id_product' => $product->id_product,
                     'nama_product' => $product->nama_product,
                     'harga' => (float) $product->harga,
-                    'remaining' => null,
-                    'option_label' => $product->nama_product,
+                    'stock' => (int) $product->stock,
+                    'remaining' => (int) $product->stock,
+                    'option_label' => $product->nama_product . ' | stock ' . (int) $product->stock,
                     'variants' => ProductVariant::query()
                         ->where('product_id', $product->id_product)
                         ->orderByDesc('is_default')
@@ -256,7 +259,79 @@ class OfflineSaleController extends Controller
         return response()->json([
             'message' => 'Penjualan offline berhasil disimpan.',
             'transaction_code' => $transactionCode,
+            'sale_number' => $saleNumber,
+            'created_at' => $timestamp->format('Y-m-d H:i:s'),
+            'customer_name' => trim((string) ($validated['customer_nama'] ?? '')) ?: null,
+            'total_amount' => max(round($subtotal - (float) ($promo?->potongan ?? 0), 2), 0),
         ], 201);
+    }
+
+    public function queue(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless(in_array($user?->role, SalesRole::mobileRoles(), true), 403);
+
+        $storeId = MarketingMobileSupport::currentStoreId($user);
+        $items = OfflineSale::query()
+            ->with('customer')
+            ->where('store_id', $storeId)
+            ->whereNotNull('sale_number')
+            ->where('payment_status', '!=', 'closed')
+            ->orderBy('created_at')
+            ->get()
+            ->groupBy('sale_number')
+            ->map(function (Collection $sales, string $saleNumber) {
+                $first = $sales->first();
+                $queueNumber = (int) trim((string) str($saleNumber)->afterLast('-'));
+
+                return [
+                    'sale_number' => $saleNumber,
+                    'queue_number' => $queueNumber,
+                    'transaction_code' => $first?->transaction_code,
+                    'customer_name' => $first?->customer?->nama,
+                    'payment_status' => $first?->payment_status,
+                    'created_at' => optional($first?->created_at)->format('Y-m-d H:i:s'),
+                    'details' => $sales->map(fn (OfflineSale $sale) => [
+                        'nama_product' => $sale->nama_product,
+                        'quantity' => (int) $sale->quantity,
+                        'extra_toppings' => collect($sale->extra_toppings ?? [])
+                            ->pluck('name')
+                            ->filter()
+                            ->values()
+                            ->all(),
+                    ])->values()->all(),
+                ];
+            })
+            ->sortBy('queue_number')
+            ->values()
+            ->all();
+
+        return response()->json([
+            'items' => $items,
+            'can_close' => in_array($user->role, [SalesRole::OWNER, SalesRole::KARYAWAN], true),
+        ]);
+    }
+
+    public function closeQueue(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless(in_array($user?->role, [SalesRole::OWNER, SalesRole::KARYAWAN], true), 403);
+
+        $validated = $request->validate([
+            'sale_number' => ['required', 'string'],
+        ]);
+
+        OfflineSale::query()
+            ->where('store_id', MarketingMobileSupport::currentStoreId($user))
+            ->where('sale_number', trim((string) $validated['sale_number']))
+            ->update([
+                'payment_status' => 'closed',
+                'closed_at' => now(),
+            ]);
+
+        return response()->json([
+            'message' => 'Antrian selesai dan sudah ditutup.',
+        ]);
     }
 
     public function showProof(Request $request, OfflineSale $sale)
@@ -315,14 +390,8 @@ class OfflineSaleController extends Controller
 
     private function validateTransactionPayload(Request $request, bool $requireReceipt = true): array
     {
-        $request->merge([
-            'customer_no_telp' => MarketingMobileSupport::normalizePhone($request->input('customer_no_telp')),
-        ]);
-
         return $request->validate([
             'customer_nama' => ['nullable', 'string', 'max:255'],
-            'customer_no_telp' => ['nullable', 'string', 'max:30'],
-            'customer_tiktok_instagram' => ['nullable', 'string', 'max:255'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.id_product' => ['required', 'exists:products,id_product'],
             'items.*.product_variant_id' => ['nullable', 'exists:product_variants,id'],
@@ -330,7 +399,6 @@ class OfflineSaleController extends Controller
             'items.*.extra_topping_ids' => ['nullable', 'array'],
             'items.*.extra_topping_ids.*' => ['integer', 'exists:extra_toppings,id'],
             'promo_id' => ['nullable', 'exists:promos,id'],
-            'bukti_pembelian' => [$requireReceipt ? 'required' : 'nullable', 'image', 'max:4096'],
             'payment_method' => ['nullable', 'in:Cash,Qris'],
         ], [
         ]);
@@ -339,6 +407,10 @@ class OfflineSaleController extends Controller
     private function prepareTransactionContext(array $validated, int $userId): array
     {
         $productIds = collect($validated['items'])->pluck('id_product')->all();
+        $requestedByProduct = collect($validated['items'])
+            ->groupBy('id_product')
+            ->map(fn (Collection $items) => (int) $items->sum(fn ($item) => (int) ($item['quantity'] ?? 0)))
+            ->all();
         $user = \App\Models\User::query()->find($userId);
         $storeId = $user ? MarketingMobileSupport::currentStoreId($user) : null;
         $products = Product::query()
@@ -392,6 +464,10 @@ class OfflineSaleController extends Controller
                 }
 
                 $onhands[(int) $item['id_product']] = $onhand;
+            } elseif ($product && ((int) ($requestedByProduct[(int) $item['id_product']] ?? 0)) > (int) $product->stock) {
+                throw ValidationException::withMessages([
+                    'items' => 'Quantity penjualan melebihi stok product yang tersedia di toko.',
+                ]);
             }
         }
 
@@ -420,40 +496,29 @@ class OfflineSaleController extends Controller
     private function resolveCustomer(array $validated, Carbon $timestamp, ?int $storeId): ?Customer
     {
         $nama = trim((string) ($validated['customer_nama'] ?? ''));
-        $noTelp = $validated['customer_no_telp'] ?? null;
-        $social = trim((string) ($validated['customer_tiktok_instagram'] ?? ''));
 
-        if ($nama === '' && empty($noTelp) && $social === '') {
+        if ($nama === '') {
             return null;
         }
 
         $payload = [
             'store_id' => $storeId,
             'nama' => $nama !== '' ? $nama : null,
-            'no_telp' => $noTelp ?: null,
-            'tiktok_instagram' => $social !== '' ? $social : null,
+            'no_telp' => null,
+            'tiktok_instagram' => null,
             'pembelian_terakhir' => $timestamp,
         ];
 
-        $customer = $noTelp
-            ? Customer::query()
-                ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
-                ->where('no_telp', $noTelp)
-                ->first()
-            : null;
+        $customer = Customer::query()
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
+            ->where('nama', $nama)
+            ->first();
 
         if ($customer) {
-            $updates = ['pembelian_terakhir' => $timestamp];
-
-            if ($payload['nama']) {
-                $updates['nama'] = $payload['nama'];
-            }
-
-            if ($payload['tiktok_instagram']) {
-                $updates['tiktok_instagram'] = $payload['tiktok_instagram'];
-            }
-
-            $customer->update($updates);
+            $customer->update([
+                'nama' => $payload['nama'],
+                'pembelian_terakhir' => $timestamp,
+            ]);
 
             return $customer->fresh();
         }

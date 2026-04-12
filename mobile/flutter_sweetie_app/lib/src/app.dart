@@ -32,7 +32,7 @@ class SmoothiesSweetieApp extends StatelessWidget {
         title: 'Smoothies Sweetie',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFFB68A35),
+            seedColor: const Color(0xFFB565A7), // Pink-Purple blend
             brightness: Brightness.dark,
           ),
           scaffoldBackgroundColor: const Color(0xFF0F1115),
@@ -155,7 +155,7 @@ class HomeShell extends StatelessWidget {
                               .map((item) => ListTile(
                                     contentPadding: EdgeInsets.zero,
                                     title: Text(item['nama_product']?.toString() ?? '-'),
-                                    subtitle: Text('${item['take_status_label']} • ${item['status_label']}'),
+                                    subtitle: Text('${item['take_status_label']} ï¿½ ${item['status_label']}'),
                                     trailing: Text('${item['remaining_quantity'] ?? 0}'),
                                   ))
                               .toList(),
@@ -172,7 +172,7 @@ class HomeShell extends StatelessWidget {
                               .map((item) => ListTile(
                                     contentPadding: EdgeInsets.zero,
                                     title: Text(item['transaction_code']?.toString() ?? '-'),
-                                    subtitle: Text('${item['approval_status'] ?? '-'} • ${item['created_at'] ?? '-'}'),
+                                    subtitle: Text('${item['approval_status'] ?? '-'} ï¿½ ${item['created_at'] ?? '-'}'),
                                   ))
                               .toList(),
                         ),
