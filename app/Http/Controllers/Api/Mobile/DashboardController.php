@@ -143,6 +143,7 @@ class DashboardController extends Controller
         $grossProfitTotal = round(($offlineRevenue - $offlineHpp) + ($onlineRevenue - $onlineHpp) - $wasteLossTotal, 2);
         $netProfitTotal = round($grossProfitTotal - $operationalExpenseTotal, 2);
         $teamPerformance = $this->buildTeamPerformance($storeId, $monthStart, $monthEnd);
+        $topProducts = $this->buildTopProducts($offlineSales, $onlineItems);
         $onDutyCount = Attendance::query()
             ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
             ->whereDate('attendance_date', now()->toDateString())
@@ -162,6 +163,8 @@ class DashboardController extends Controller
             'kpis' => [
                 'gross_profit_offline_total' => $offlineRevenue,
                 'gross_profit_online_total' => $onlineRevenue,
+                'offline_revenue_total' => $offlineRevenue,
+                'online_revenue_total' => $onlineRevenue,
                 'revenue_total' => $revenueTotal,
                 'gross_profit_total' => $grossProfitTotal,
                 'net_profit_total' => $netProfitTotal,
@@ -181,7 +184,38 @@ class DashboardController extends Controller
                 'on_duty' => $onDutyCount,
             ],
             'team_performance' => $teamPerformance,
+            'top_products' => $topProducts,
         ];
+    }
+
+    private function buildTopProducts(Collection $offlineSales, Collection $onlineItems): array
+    {
+        $offlineRows = $offlineSales->map(fn (OfflineSale $sale) => [
+            'name' => $sale->nama_product ?: 'Produk',
+            'quantity' => (int) ($sale->quantity ?? 0),
+            'revenue' => (float) ($sale->harga ?? 0),
+        ]);
+
+        $onlineRows = $onlineItems->map(fn (OnlineSaleItem $item) => [
+            'name' => $item->nama_product ?: ($item->raw_product_name ?: 'Produk'),
+            'quantity' => (int) ($item->quantity ?? 0),
+            'revenue' => (float) ($item->harga ?? 0),
+        ]);
+
+        return $offlineRows
+            ->concat($onlineRows)
+            ->groupBy('name')
+            ->map(function (Collection $items, string $name) {
+                return [
+                    'name' => $name,
+                    'quantity' => (int) $items->sum('quantity'),
+                    'revenue' => round((float) $items->sum('revenue'), 2),
+                ];
+            })
+            ->sortByDesc('quantity')
+            ->values()
+            ->take(3)
+            ->all();
     }
 
     private function buildTeamPerformance(?int $storeId, Carbon $monthStart, Carbon $monthEnd): array

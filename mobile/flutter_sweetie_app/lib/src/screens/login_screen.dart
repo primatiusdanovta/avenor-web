@@ -50,74 +50,87 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Consumer<SessionController>(
-                    builder: (context, session, _) {
-                      return Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              AppConfig.appName,
-                              style: Theme.of(context).textTheme.headlineMedium,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Login khusus role owner dan karyawan untuk absensi, penjualan offline, dan menu knowledge Smoothies Sweetie.',
-                              style: Theme.of(context).textTheme.bodyMedium,
-                            ),
-                            const SizedBox(height: 24),
-                            TextFormField(
-                              controller: _namaController,
-                              decoration: const InputDecoration(
-                                labelText: 'Username',
-                              ),
-                              validator: (value) => (value == null || value.trim().isEmpty) ? 'Username wajib diisi.' : null,
-                            ),
-                            const SizedBox(height: 16),
-                            TextFormField(
-                              controller: _passwordController,
-                              obscureText: true,
-                              decoration: const InputDecoration(
-                                labelText: 'Password',
-                              ),
-                              validator: (value) => (value == null || value.isEmpty) ? 'Password wajib diisi.' : null,
-                            ),
-                            const SizedBox(height: 20),
-                            SizedBox(
-                              width: double.infinity,
-                              child: FilledButton(
-                                onPressed: session.isBusy ? null : _submit,
-                                child: session.isBusy
-                                    ? const SizedBox(
-                                        height: 18,
-                                        width: 18,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      )
-                                    : const Text('Masuk'),
-                              ),
-                            ),
-                            if (session.errorMessage != null) ...[
-                              const SizedBox(height: 12),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFE783BF), Color(0xFF9E7AE6), Color(0xFFF4D8F0)],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Card(
+                  color: Colors.white.withValues(alpha: 0.94),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Consumer<SessionController>(
+                      builder: (context, session, _) {
+                        return Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
                               Text(
-                                session.errorMessage!,
-                                style: TextStyle(color: Theme.of(context).colorScheme.error),
+                                AppConfig.appName,
+                                style: Theme.of(context).textTheme.headlineMedium,
                               ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Login khusus role owner dan karyawan untuk absensi, penjualan offline, dan menu knowledge Smoothies Sweetie.',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                              const SizedBox(height: 24),
+                              TextFormField(
+                                controller: _namaController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Username',
+                                ),
+                                validator: (value) => (value == null || value.trim().isEmpty) ? 'Username wajib diisi.' : null,
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _passwordController,
+                                obscureText: true,
+                                decoration: const InputDecoration(
+                                  labelText: 'Password',
+                                ),
+                                validator: (value) => (value == null || value.isEmpty) ? 'Password wajib diisi.' : null,
+                              ),
+                              const SizedBox(height: 20),
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton(
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: const Color(0xFF8E79D6),
+                                  ),
+                                  onPressed: session.isBusy ? null : _submit,
+                                  child: session.isBusy
+                                      ? const SizedBox(
+                                          height: 18,
+                                          width: 18,
+                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                        )
+                                      : const Text('Masuk'),
+                                ),
+                              ),
+                              if (session.errorMessage != null) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  session.errorMessage!,
+                                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                                ),
+                              ],
                             ],
-                          ],
-                        ),
-                      );
-                    },
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),

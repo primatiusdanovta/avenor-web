@@ -14,6 +14,7 @@ use App\Models\OfflineSale;
 use App\Models\OnlineSale;
 use App\Models\PermissionRole;
 use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\Promo;
 use App\Models\RawMaterial;
 use App\Models\SalesTarget;
@@ -63,11 +64,14 @@ class OwnerModuleController extends Controller
             'raw-materials' => $this->storeRawMaterial($request, $storeId),
             'extra-toppings' => $this->storeExtraTopping($request, $storeId),
             'expenses' => $this->storeExpense($request, $storeId),
+            'account-receivables' => $this->storeAccountReceivable($request, $storeId),
             'account-payables' => $this->storeAccountPayable($request, $storeId),
+            'notifications' => $this->storeNotification($request, $storeId),
             'promos' => $this->storePromo($request),
             'customers' => $this->storeCustomer($request, $storeId),
             'sops' => $this->storeSop($request, $storeId),
             'users' => $this->storeUser($request, $storeId),
+            'sales-targets' => $this->storeSalesTarget($request),
             'hpp' => $this->storeHpp($request, $storeId),
             default => abort(404),
         };
@@ -85,7 +89,9 @@ class OwnerModuleController extends Controller
             'raw-materials' => $this->updateRawMaterial($request, $storeId, (int) $record),
             'extra-toppings' => $this->updateExtraTopping($request, $storeId, (int) $record),
             'expenses' => $this->updateExpense($request, $storeId, (int) $record),
+            'account-receivables' => $this->updateAccountReceivable($request, $storeId, (int) $record),
             'account-payables' => $this->updateAccountPayable($request, $storeId, (int) $record),
+            'notifications' => $this->updateNotification($request, $storeId, (int) $record),
             'promos' => $this->updatePromo($request, (int) $record),
             'customers' => $this->updateCustomer($request, $storeId, (int) $record),
             'sops' => $this->updateSop($request, $storeId, (int) $record),
@@ -104,14 +110,18 @@ class OwnerModuleController extends Controller
 
         $message = match ($module) {
             'products' => $this->destroyProduct($storeId, (int) $record),
+            'product-knowledge' => $this->destroyProduct($storeId, (int) $record),
             'raw-materials' => $this->destroyRawMaterial($storeId, (int) $record),
             'extra-toppings' => $this->destroyExtraTopping($storeId, (int) $record),
             'expenses' => $this->destroyExpense($storeId, (int) $record),
+            'account-receivables' => $this->destroyAccountReceivable($storeId, (int) $record),
             'account-payables' => $this->destroyAccountPayable($storeId, (int) $record),
+            'notifications' => $this->destroyNotification($storeId, (int) $record),
             'promos' => $this->destroyPromo((int) $record),
             'customers' => $this->destroyCustomer($storeId, (int) $record),
             'sops' => $this->destroySop($storeId, (int) $record),
             'users' => $this->destroyUser($request, $storeId, (int) $record),
+            'sales-targets' => $this->destroySalesTarget($record),
             'hpp' => $this->destroyHpp($storeId, (int) $record),
             default => abort(404),
         };
@@ -143,6 +153,7 @@ class OwnerModuleController extends Controller
             'Product',
             'Kelola data product owner seperti di website melalui popup form mobile.',
             Product::query()
+                ->with('variants')
                 ->where('store_id', $storeId)
                 ->orderByDesc('created_at')
                 ->orderByDesc('id_product')
@@ -153,7 +164,15 @@ class OwnerModuleController extends Controller
                     'harga' => (float) $product->harga,
                     'harga_modal' => (float) $product->harga_modal,
                     'stock' => (int) $product->stock,
+                    'image_url' => $product->public_image_url,
                     'deskripsi' => $product->deskripsi,
+                    'variants' => $product->variants->map(fn (ProductVariant $variant) => [
+                        'id' => $variant->id,
+                        'name' => $variant->name,
+                        'price' => (float) $variant->price,
+                        'total_satuan_ml' => (float) $variant->total_satuan_ml,
+                        'is_default' => (bool) $variant->is_default,
+                    ])->values()->all(),
                     'created_at' => optional($product->created_at)->format('Y-m-d H:i:s'),
                 ])
                 ->all(),
@@ -172,9 +191,8 @@ class OwnerModuleController extends Controller
                 ->map(fn (Product $product) => [
                     'id' => $product->id_product,
                     'nama_product' => $product->nama_product,
+                    'image_url' => $product->public_image_url,
                     'deskripsi' => $product->deskripsi,
-                    'harga' => (float) $product->harga,
-                    'stock' => (int) $product->stock,
                 ])
                 ->all(),
         );
@@ -259,7 +277,7 @@ class OwnerModuleController extends Controller
     {
         return $this->baseModulePayload(
             'Account Receivables',
-            'Read only mengikuti website.',
+            'Kelola piutang store seperti website.',
             AccountReceivable::query()
                 ->where('store_id', $storeId)
                 ->latest('due_date')
@@ -278,7 +296,6 @@ class OwnerModuleController extends Controller
                     'notes' => $receivable->notes,
                 ])
                 ->all(),
-            true,
         );
     }
 
@@ -295,6 +312,7 @@ class OwnerModuleController extends Controller
                 ->map(fn (AccountPayable $payable) => [
                     'id' => $payable->id,
                     'account_payable' => $payable->account_payable,
+                    'amount' => (float) ($payable->amount ?? 0),
                     'due_date' => optional($payable->due_date)->format('Y-m-d'),
                     'notes' => $payable->notes,
                 ])
@@ -469,6 +487,7 @@ class OwnerModuleController extends Controller
                     if ($role === 'revenue_target') {
                         return [
                             'id' => $role,
+                            'exists' => (bool) $target,
                             'role' => $role,
                             'label' => 'Target Revenue Karyawan',
                             'type' => 'revenue',
@@ -482,6 +501,7 @@ class OwnerModuleController extends Controller
 
                     return [
                         'id' => $role,
+                        'exists' => (bool) $target,
                         'role' => $role,
                         'label' => 'Target Quantity Karyawan',
                         'type' => 'quantity',
@@ -569,7 +589,6 @@ class OwnerModuleController extends Controller
                     'published_at' => optional($item->published_at)->format('Y-m-d H:i:s'),
                 ])
                 ->all(),
-            true,
         );
     }
 
@@ -579,18 +598,31 @@ class OwnerModuleController extends Controller
             'nama_product' => ['required', 'string', 'max:255', Rule::unique('products', 'nama_product')->where(fn ($query) => $query->where('store_id', $storeId))],
             'harga' => ['required', 'numeric', 'min:0'],
             'stock' => ['nullable', 'integer', 'min:0'],
+            'gambar' => ['nullable', 'image', 'max:3072'],
             'deskripsi' => ['nullable', 'string'],
+            'variants' => ['nullable', 'array'],
+            'variants.*.name' => ['required_with:variants', 'string', 'max:255'],
+            'variants.*.price' => ['required_with:variants', 'numeric', 'min:0'],
+            'variants.*.total_satuan_ml' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.is_default' => ['nullable', 'boolean'],
         ]);
 
-        Product::query()->create([
-            'store_id' => $storeId,
-            'nama_product' => $validated['nama_product'],
-            'harga' => $validated['harga'],
-            'harga_modal' => 0,
-            'stock' => (int) ($validated['stock'] ?? 0),
-            'deskripsi' => $validated['deskripsi'] ?? null,
-            'created_at' => now(),
-        ]);
+        $path = $request->file('gambar')?->store('products', 'public');
+
+        DB::transaction(function () use ($validated, $storeId, $path): void {
+            $product = Product::query()->create([
+                'store_id' => $storeId,
+                'nama_product' => $validated['nama_product'],
+                'harga' => $validated['harga'],
+                'harga_modal' => 0,
+                'stock' => (int) ($validated['stock'] ?? 0),
+                'gambar' => $path,
+                'deskripsi' => $validated['deskripsi'] ?? null,
+                'created_at' => now(),
+            ]);
+
+            $this->syncProductVariants($product, $validated['variants'] ?? [], true);
+        });
 
         return 'Product berhasil ditambahkan.';
     }
@@ -604,15 +636,38 @@ class OwnerModuleController extends Controller
             'nama_product' => ['required', 'string', 'max:255', Rule::unique('products', 'nama_product')->where(fn ($query) => $query->where('store_id', $storeId))->ignore($product->id_product, 'id_product')],
             'harga' => ['required', 'numeric', 'min:0'],
             'stock' => ['required', 'integer', 'min:0'],
+            'gambar' => ['nullable', 'image', 'max:3072'],
             'deskripsi' => ['nullable', 'string'],
+            'variants' => ['nullable', 'array'],
+            'variants.*.id' => ['nullable', 'integer', 'exists:product_variants,id'],
+            'variants.*.name' => ['required_with:variants', 'string', 'max:255'],
+            'variants.*.price' => ['required_with:variants', 'numeric', 'min:0'],
+            'variants.*.total_satuan_ml' => ['nullable', 'numeric', 'min:0'],
+            'variants.*.is_default' => ['nullable', 'boolean'],
         ]);
 
-        $product->update([
+        $payload = [
             'nama_product' => $validated['nama_product'],
             'harga' => $validated['harga'],
             'stock' => $validated['stock'],
             'deskripsi' => $validated['deskripsi'] ?? null,
-        ]);
+        ];
+
+        $newImagePath = null;
+        $oldImagePath = $product->gambar;
+        if ($request->hasFile('gambar')) {
+            $newImagePath = $request->file('gambar')->store('products', 'public');
+            $payload['gambar'] = $newImagePath;
+        }
+
+        DB::transaction(function () use ($product, $payload, $validated): void {
+            $product->update($payload);
+            $this->syncProductVariants($product, $validated['variants'] ?? []);
+        });
+
+        if ($newImagePath && $oldImagePath) {
+            $this->deleteStoredPublicPath($oldImagePath);
+        }
 
         return 'Product berhasil diperbarui.';
     }
@@ -621,14 +676,125 @@ class OwnerModuleController extends Controller
     {
         $product = Product::query()->findOrFail($id);
         abort_unless((int) $product->store_id === $storeId, 404);
+        if ($product->gambar) {
+            $this->deleteStoredPublicPath($product->gambar);
+        }
         $product->delete();
 
         return 'Product berhasil dihapus.';
     }
 
+    private function syncProductVariants(Product $product, array $variants, bool $createDefaultWhenEmpty = false): void
+    {
+        $normalized = collect($variants)
+            ->map(function (array $variant, int $index) {
+                return [
+                    'id' => isset($variant['id']) ? (int) $variant['id'] : null,
+                    'name' => trim((string) ($variant['name'] ?? '')),
+                    'price' => round((float) ($variant['price'] ?? 0), 2),
+                    'total_satuan_ml' => round((float) ($variant['total_satuan_ml'] ?? 0), 2),
+                    'is_default' => (bool) ($variant['is_default'] ?? false),
+                    'sort_index' => $index,
+                ];
+            })
+            ->filter(fn (array $variant) => $variant['name'] !== '')
+            ->values();
+
+        if ($normalized->isEmpty() && $createDefaultWhenEmpty) {
+            $normalized = collect([[
+                'id' => null,
+                'name' => 'Reguler',
+                'price' => (float) $product->harga,
+                'total_satuan_ml' => 0,
+                'is_default' => true,
+                'sort_index' => 0,
+            ]]);
+        }
+
+        if ($normalized->isEmpty()) {
+            $product->variants()->delete();
+
+            return;
+        }
+
+        if (! $normalized->contains(fn (array $variant) => $variant['is_default'])) {
+            $normalized = $normalized->values()->map(fn (array $variant, int $index) => [
+                ...$variant,
+                'is_default' => $index === 0,
+            ]);
+        }
+
+        $keepIds = [];
+
+        foreach ($normalized as $variant) {
+            $model = $variant['id']
+                ? $product->variants()->whereKey($variant['id'])->first()
+                : null;
+
+            if (! $model) {
+                $model = $product->variants()->create([
+                    'name' => $variant['name'],
+                    'price' => $variant['price'],
+                    'total_satuan_ml' => $variant['total_satuan_ml'],
+                    'is_default' => $variant['is_default'],
+                ]);
+            } else {
+                $model->update([
+                    'name' => $variant['name'],
+                    'price' => $variant['price'],
+                    'total_satuan_ml' => $variant['total_satuan_ml'],
+                    'is_default' => $variant['is_default'],
+                ]);
+            }
+
+            $keepIds[] = $model->id;
+        }
+
+        $product->variants()->whereNotIn('id', $keepIds)->delete();
+
+        if (! $product->variants()->where('is_default', true)->exists() && isset($keepIds[0])) {
+            $product->variants()->whereKey($keepIds[0])->update(['is_default' => true]);
+        }
+    }
+
+    private function deleteStoredPublicPath(?string $path): void
+    {
+        if (! $path) {
+            return;
+        }
+
+        $normalized = ltrim(Str::replaceFirst('storage/', '', str_replace('\\', '/', $path)), '/');
+        if ($normalized !== '' && \Storage::disk('public')->exists($normalized)) {
+            \Storage::disk('public')->delete($normalized);
+        }
+    }
+
     private function storeProductKnowledge(Request $request, int $storeId): string
     {
-        return $this->storeProduct($request, $storeId);
+        $validated = $request->validate([
+            'nama_product' => ['required', 'string', 'max:255', Rule::unique('products', 'nama_product')->where(fn ($query) => $query->where('store_id', $storeId))],
+            'gambar' => ['nullable', 'image', 'max:3072'],
+            'deskripsi' => ['nullable', 'string'],
+        ]);
+
+        $path = $request->file('gambar')?->store('products', 'public');
+
+        DB::transaction(function () use ($validated, $storeId, $path): void {
+            $product = Product::query()->create([
+                'store_id' => $storeId,
+                'nama_product' => $validated['nama_product'],
+                'harga' => 0,
+                'harga_modal' => 0,
+                'stock' => 0,
+                'gambar' => $path,
+                'deskripsi' => $validated['deskripsi'] ?? null,
+                'created_at' => now(),
+            ]);
+
+            $this->syncProductVariants($product, [], true);
+        });
+
+        return 'Product knowledge berhasil ditambahkan.';
     }
 
     private function updateProductKnowledge(Request $request, int $storeId, int $id): string
@@ -638,17 +804,25 @@ class OwnerModuleController extends Controller
 
         $validated = $request->validate([
             'nama_product' => ['required', 'string', 'max:255', Rule::unique('products', 'nama_product')->where(fn ($query) => $query->where('store_id', $storeId))->ignore($product->id_product, 'id_product')],
-            'harga' => ['nullable', 'numeric', 'min:0'],
-            'stock' => ['nullable', 'integer', 'min:0'],
+            'gambar' => ['nullable', 'image', 'max:3072'],
             'deskripsi' => ['nullable', 'string'],
         ]);
 
-        $product->update([
+        $payload = [
             'nama_product' => $validated['nama_product'],
-            'harga' => $validated['harga'] ?? $product->harga,
-            'stock' => $validated['stock'] ?? $product->stock,
             'deskripsi' => $validated['deskripsi'] ?? null,
-        ]);
+        ];
+
+        if ($request->hasFile('gambar')) {
+            $payload['gambar'] = $request->file('gambar')->store('products', 'public');
+        }
+
+        $oldImagePath = $product->gambar;
+        $product->update($payload);
+
+        if (array_key_exists('gambar', $payload) && $oldImagePath) {
+            $this->deleteStoredPublicPath($oldImagePath);
+        }
 
         return 'Product knowledge berhasil diperbarui.';
     }
@@ -834,6 +1008,7 @@ class OwnerModuleController extends Controller
     {
         $validated = $request->validate([
             'account_payable' => ['required', 'string', 'max:255'],
+            'amount' => ['required', 'numeric', 'min:0'],
             'due_date' => ['required', 'date'],
             'notes' => ['nullable', 'string'],
         ]);
@@ -852,6 +1027,7 @@ class OwnerModuleController extends Controller
         abort_unless((int) $payable->store_id === $storeId, 404);
         $validated = $request->validate([
             'account_payable' => ['required', 'string', 'max:255'],
+            'amount' => ['required', 'numeric', 'min:0'],
             'due_date' => ['required', 'date'],
             'notes' => ['nullable', 'string'],
         ]);
@@ -868,6 +1044,106 @@ class OwnerModuleController extends Controller
         $payable->delete();
 
         return 'Account payable berhasil dihapus.';
+    }
+
+    private function accountReceivableValidated(Request $request): array
+    {
+        return $request->validate([
+            'receivable_name' => ['required', 'string', 'max:255'],
+            'place_name' => ['required', 'string', 'max:255'],
+            'consignment_date' => ['required', 'date'],
+            'due_date' => ['required', 'date'],
+            'consigned_value' => ['required', 'numeric', 'min:0'],
+            'total_value' => ['required', 'numeric', 'min:0'],
+            'status' => ['required', Rule::in(['dititipkan', 'dibayar_sebagian', 'lunas', 'jatuh_tempo'])],
+            'items_summary' => ['nullable', 'string'],
+            'notes' => ['nullable', 'string'],
+        ]);
+    }
+
+    private function storeAccountReceivable(Request $request, int $storeId): string
+    {
+        $validated = $this->accountReceivableValidated($request);
+
+        AccountReceivable::query()->create([
+            'store_id' => $storeId,
+            ...$validated,
+        ]);
+
+        return 'Account receivable berhasil ditambahkan.';
+    }
+
+    private function updateAccountReceivable(Request $request, int $storeId, int $id): string
+    {
+        $receivable = AccountReceivable::query()->findOrFail($id);
+        abort_unless((int) $receivable->store_id === $storeId, 404);
+        $validated = $this->accountReceivableValidated($request);
+        $receivable->update($validated);
+
+        return 'Account receivable berhasil diperbarui.';
+    }
+
+    private function destroyAccountReceivable(int $storeId, int $id): string
+    {
+        $receivable = AccountReceivable::query()->findOrFail($id);
+        abort_unless((int) $receivable->store_id === $storeId, 404);
+        $receivable->delete();
+
+        return 'Account receivable berhasil dihapus.';
+    }
+
+    private function notificationValidated(Request $request): array
+    {
+        return $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'body' => ['required', 'string'],
+            'target_role' => ['required', Rule::in(['all', SalesRole::OWNER, SalesRole::KARYAWAN, SalesRole::MARKETING, SalesRole::SALES_FIELD_EXECUTIVE])],
+            'status' => ['required', Rule::in(['draft', 'published'])],
+            'published_at' => ['nullable', 'date'],
+        ]);
+    }
+
+    private function storeNotification(Request $request, int $storeId): string
+    {
+        $validated = $this->notificationValidated($request);
+
+        MarketingNotification::query()->create([
+            'store_id' => $storeId,
+            'created_by' => $request->user()->id_user,
+            'title' => $validated['title'],
+            'body' => $validated['body'],
+            'target_role' => $validated['target_role'],
+            'status' => $validated['status'],
+            'published_at' => $validated['published_at'] ?? ($validated['status'] === 'published' ? now() : null),
+        ]);
+
+        return 'Notifikasi berhasil ditambahkan.';
+    }
+
+    private function updateNotification(Request $request, int $storeId, int $id): string
+    {
+        $notification = MarketingNotification::query()->findOrFail($id);
+        abort_unless((int) $notification->store_id === $storeId, 404);
+        $validated = $this->notificationValidated($request);
+
+        $notification->update([
+            'title' => $validated['title'],
+            'body' => $validated['body'],
+            'target_role' => $validated['target_role'],
+            'status' => $validated['status'],
+            'published_at' => $validated['published_at'] ?? ($validated['status'] === 'published' ? ($notification->published_at ?? now()) : null),
+        ]);
+
+        return 'Notifikasi berhasil diperbarui.';
+    }
+
+    private function destroyNotification(int $storeId, int $id): string
+    {
+        $notification = MarketingNotification::query()->findOrFail($id);
+        abort_unless((int) $notification->store_id === $storeId, 404);
+        $notification->delete();
+
+        return 'Notifikasi berhasil dihapus.';
     }
 
     private function storePromo(Request $request): string
@@ -1117,6 +1393,21 @@ class OwnerModuleController extends Controller
         SalesTarget::query()->updateOrCreate(['role' => $role], $validated);
 
         return 'Target penjualan berhasil diperbarui.';
+    }
+
+    private function storeSalesTarget(Request $request): string
+    {
+        $role = (string) $request->input('role');
+
+        return $this->updateSalesTarget($request, $role);
+    }
+
+    private function destroySalesTarget(string $role): string
+    {
+        abort_unless(in_array($role, ['karyawan', 'revenue_target'], true), 404);
+        SalesTarget::query()->where('role', $role)->delete();
+
+        return 'Target penjualan berhasil dihapus.';
     }
 
     private function storeHpp(Request $request, int $storeId): string

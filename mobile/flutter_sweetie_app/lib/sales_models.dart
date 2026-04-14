@@ -33,7 +33,7 @@ Map<String, dynamic> buildSmoothiesSalesTestFixture() {
     'sales': <Map<String, dynamic>>[
       {
         'transaction_code': 'TRX-1001',
-        'sale_number': '11/04/2026 - 1',
+        'sale_number': '11/04/26 - 1',
         'payment_method': 'Cash',
         'payment_status': 'paid',
         'approval_status': 'disetujui',

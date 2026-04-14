@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:math';
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:animations/animations.dart';
@@ -454,7 +455,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         {
           'transaction_code': 'TRX-20260402-AVN001',
           'sale_number':
-              '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} - 1',
+              '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${(now.year % 100).toString().padLeft(2, '0')} - 1',
           'payment_method': 'Qris',
           'payment_status': 'paid',
           'approval_status': 'pending',
@@ -663,7 +664,7 @@ class _MarketingRootState extends State<MarketingRoot> {
       'items': [
         {
           'sale_number':
-              '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} - 1',
+              '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${(now.year % 100).toString().padLeft(2, '0')} - 1',
           'queue_number': 1,
           'transaction_code': 'TRX-20260402-AVN001',
           'customer_name': 'Nadia',
@@ -1785,12 +1786,15 @@ class _MarketingRootState extends State<MarketingRoot> {
       return;
     }
 
-    return showMaterialModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _QueueSheet(
-        queueItems: queueItems,
-        onCloseQueue: _closeQueueItem,
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => _OwnerStandalonePage(
+          title: 'Antrian Penjualan',
+          child: _QueuePage(
+            queueItems: queueItems,
+            onCloseQueue: _closeQueueItem,
+          ),
+        ),
       ),
     );
   }
@@ -1862,7 +1866,10 @@ class _MarketingRootState extends State<MarketingRoot> {
     Map<String, dynamic> payload,
   ) async {
     if (_mockMode) return;
-    await _dio.post('/owner/modules/$module', data: payload);
+    await _dio.post(
+      '/owner/modules/$module',
+      data: await _buildOwnerModuleRequestData(payload),
+    );
   }
 
   Future<void> _updateOwnerModule(
@@ -1871,12 +1878,79 @@ class _MarketingRootState extends State<MarketingRoot> {
     Map<String, dynamic> payload,
   ) async {
     if (_mockMode) return;
-    await _dio.put('/owner/modules/$module/$record', data: payload);
+    await _dio.put(
+      '/owner/modules/$module/$record',
+      data: await _buildOwnerModuleRequestData(payload),
+    );
   }
 
   Future<void> _deleteOwnerModule(String module, String record) async {
     if (_mockMode) return;
     await _dio.delete('/owner/modules/$module/$record');
+  }
+
+  Future<dynamic> _buildOwnerModuleRequestData(
+      Map<String, dynamic> payload) async {
+    final hasFile = _payloadContainsFile(payload);
+    if (!hasFile) {
+      return payload;
+    }
+
+    final form = FormData();
+    await _appendFormDataEntries(form, payload);
+    return form;
+  }
+
+  bool _payloadContainsFile(dynamic value) {
+    if (value is XFile) return true;
+    if (value is Map) {
+      return value.values.any(_payloadContainsFile);
+    }
+    if (value is Iterable) {
+      return value.any(_payloadContainsFile);
+    }
+    return false;
+  }
+
+  Future<void> _appendFormDataEntries(
+    FormData form,
+    dynamic value, {
+    String? prefix,
+  }) async {
+    if (value == null) return;
+
+    if (value is XFile) {
+      if (prefix == null) return;
+      form.files.add(
+        MapEntry(
+          prefix,
+          await MultipartFile.fromFile(value.path, filename: value.name),
+        ),
+      );
+      return;
+    }
+
+    if (value is Map<String, dynamic>) {
+      for (final entry in value.entries) {
+        final nextPrefix =
+            prefix == null ? entry.key : '$prefix[${entry.key}]';
+        await _appendFormDataEntries(form, entry.value, prefix: nextPrefix);
+      }
+      return;
+    }
+
+    if (value is Iterable) {
+      var index = 0;
+      for (final item in value) {
+        final nextPrefix = '$prefix[$index]';
+        await _appendFormDataEntries(form, item, prefix: nextPrefix);
+        index += 1;
+      }
+      return;
+    }
+
+    if (prefix == null) return;
+    form.fields.add(MapEntry(prefix, '$value'));
   }
 
   Future<void> _openOwnerSalesShortcut() async {
@@ -2286,128 +2360,192 @@ class _LoginPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF3A2712), Color(0xFF8A6324), Color(0xFFF0D3A4)],
+      body: Stack(
+        children: [
+          DecoratedBox(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFE783BF), Color(0xFF9E7AE6), Color(0xFFF4D8F0)],
+              ),
+            ),
+            child: const SizedBox.expand(),
           ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 112,
-                      height: 112,
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(32),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x1F0F0A05),
-                            blurRadius: 28,
-                            offset: Offset(0, 14),
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(22),
-                        child: Image.asset(
-                          kSweetieLogoAsset,
-                          fit: BoxFit.contain,
-                        ),
-                      ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: 0.22,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    backgroundBlendMode: BlendMode.srcOver,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.0),
+                        Colors.white.withValues(alpha: 0.14),
+                        Colors.white.withValues(alpha: 0.0),
+                      ],
+                      stops: const [0.15, 0.5, 0.85],
                     ),
-                    const SizedBox(height: 18),
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(28, 32, 28, 28),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Smoothies Sweetie',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .headlineMedium
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                            const SizedBox(height: 24),
-                            TextField(
-                              controller: usernameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Username owner / karyawan',
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            TextField(
-                              controller: passwordController,
-                              obscureText: obscurePassword,
-                              decoration: InputDecoration(
-                                labelText: 'Password',
-                                suffixIcon: IconButton(
-                                  onPressed: onTogglePasswordVisibility,
-                                  icon: Icon(
-                                    obscurePassword
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 18),
-                            SizedBox(
-                              width: double.infinity,
-                              child: FilledButton(
-                                style: FilledButton.styleFrom(
-                                  backgroundColor: const Color(0xFF2B2117),
-                                  foregroundColor: Colors.white,
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                  ),
-                                ),
-                                onPressed: loggingIn ? null : onLogin,
-                                child: loggingIn
-                                    ? const SizedBox(
-                                        height: 18,
-                                        width: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: Colors.white,
-                                        ),
-                                      )
-                                    : const Text('Masuk'),
-                              ),
-                            ),
-                            if (error != null) ...[
-                              const SizedBox(height: 12),
-                              Text(
-                                error!,
-                                style: TextStyle(
-                                  color: Theme.of(context).colorScheme.error,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(painter: _LoginLinesPainter()),
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 440),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 112,
+                        height: 112,
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.92),
+                          borderRadius: BorderRadius.circular(32),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Color(0x1F0F0A05),
+                              blurRadius: 28,
+                              offset: Offset(0, 14),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(22),
+                          child: Image.asset(
+                            kSweetieLogoAsset,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      Card(
+                        color: Colors.white.withValues(alpha: 0.94),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(28, 32, 28, 28),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Smoothies Sweetie',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineMedium
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Login owner dan karyawan untuk akses kasir, stok, dan modul operasional.',
+                                style: TextStyle(
+                                  color: kSweetieInk.withValues(alpha: 0.72),
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              TextField(
+                                controller: usernameController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Username owner / karyawan',
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              TextField(
+                                controller: passwordController,
+                                obscureText: obscurePassword,
+                                decoration: InputDecoration(
+                                  labelText: 'Password',
+                                  suffixIcon: IconButton(
+                                    onPressed: onTogglePasswordVisibility,
+                                    icon: Icon(
+                                      obscurePassword
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 18),
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton(
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: kSweetiePurple,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 16,
+                                    ),
+                                  ),
+                                  onPressed: loggingIn ? null : onLogin,
+                                  child: loggingIn
+                                      ? const SizedBox(
+                                          height: 18,
+                                          width: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Text('Masuk'),
+                                ),
+                              ),
+                              if (error != null) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  error!,
+                                  style: TextStyle(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+class _LoginLinesPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.18)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+
+    final segments = [
+      [Offset(size.width * 0.05, size.height * 0.18), Offset(size.width * 0.95, size.height * 0.04)],
+      [Offset(size.width * 0.02, size.height * 0.42), Offset(size.width * 0.82, size.height * 0.22)],
+      [Offset(size.width * 0.18, size.height * 0.88), Offset(size.width * 0.96, size.height * 0.62)],
+      [Offset(size.width * 0.0, size.height * 0.7), Offset(size.width * 0.64, size.height * 0.5)],
+    ];
+
+    for (final segment in segments) {
+      canvas.drawLine(segment.first, segment.last, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class _TopBanner extends StatelessWidget {
@@ -2453,23 +2591,18 @@ class _TopBanner extends StatelessWidget {
         child: Row(
           children: [
             _TopActionButton(
-              tooltip: busy ? 'Memuat...' : 'Sync Data',
-              onPressed: busy ? null : onRefresh,
-              child: busy
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.sync_rounded),
-            ),
-            const Spacer(),
-            _TopActionButton(
               tooltip: 'Antrian Penjualan',
               onPressed: onQueue,
               child: const Icon(Icons.format_list_numbered_rounded),
             ),
             const Spacer(),
+            if (showKasirShortcut)
+              _TopActionButton(
+                tooltip: 'Kasir',
+                onPressed: onKasir,
+                child: const Icon(Icons.point_of_sale_rounded),
+              ),
+            if (showKasirShortcut) const Spacer(),
             badges.Badge(
               position: badges.BadgePosition.topEnd(top: -8, end: -8),
               showBadge: notificationCount > 0,
@@ -2491,14 +2624,18 @@ class _TopBanner extends StatelessWidget {
                 child: const Icon(Icons.notifications_none_rounded),
               ),
             ),
-            if (showKasirShortcut) ...[
-              const SizedBox(width: 10),
-              _TopActionButton(
-                tooltip: 'Kasir',
-                onPressed: onKasir,
-                child: const Icon(Icons.point_of_sale_rounded),
-              ),
-            ],
+            const SizedBox(width: 10),
+            _TopActionButton(
+              tooltip: busy ? 'Memuat...' : 'Sync Data',
+              onPressed: busy ? null : onRefresh,
+              child: busy
+                  ? const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.sync_rounded),
+            ),
             const SizedBox(width: 10),
             _TopActionButton(
               tooltip: 'Logout',
@@ -2586,34 +2723,52 @@ class _TopBanner extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  IconButton.filledTonal(
-                    onPressed: onLogout,
-                    icon: const Icon(Icons.logout),
-                    tooltip: 'Logout',
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.white.withValues(alpha: 0.78),
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton.filledTonal(
+                        onPressed: onQueue,
+                        icon: const Icon(Icons.format_list_numbered_rounded),
+                        tooltip: 'Antrian Penjualan',
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.white.withValues(alpha: 0.78),
+                        ),
+                      ),
+                      if (showKasirShortcut) ...[
+                        const SizedBox(width: 8),
+                        IconButton.filled(
+                          onPressed: onKasir,
+                          icon: const Icon(Icons.point_of_sale_rounded),
+                          tooltip: 'Kasir',
+                        ),
+                      ],
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        onPressed: busy ? null : onRefresh,
+                        icon: busy
+                            ? const SizedBox(
+                                height: 16,
+                                width: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.sync_rounded),
+                        tooltip: 'Refresh',
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.white.withValues(alpha: 0.78),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        onPressed: onLogout,
+                        icon: const Icon(Icons.logout),
+                        tooltip: 'Logout',
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.white.withValues(alpha: 0.78),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
-              ),
-              const SizedBox(height: 14),
-              FilledButton.icon(
-                onPressed: busy ? null : onRefresh,
-                icon: busy
-                    ? const SizedBox(
-                        height: 16,
-                        width: 16,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.sync),
-                label: Text(busy ? 'Memuat...' : 'Sync Data'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: accent,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size.fromHeight(50),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18)),
-                ),
               ),
             ],
           ),
@@ -2765,6 +2920,7 @@ class _SalesQrSheet extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _QueueSheet extends StatelessWidget {
   const _QueueSheet({
     required this.queueItems,
@@ -2807,74 +2963,16 @@ class _QueueSheet extends StatelessWidget {
                         separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final item = queueItems[index];
-                          final details = ((item['details'] as List?) ?? [])
-                              .cast<Map<String, dynamic>>();
-
-                          return Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        item['sale_number']?.toString() ?? '-',
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                                    ),
-                                    IconButton(
-                                      tooltip: 'Tutup antrian',
-                                      onPressed: () async {
-                                        await onCloseQueue(
-                                          item['sale_number']?.toString() ?? '',
-                                        );
-                                        if (context.mounted) {
-                                          Navigator.of(context).pop();
-                                        }
-                                      },
-                                      icon: const Icon(Icons.close_rounded),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  item['customer_name']?.toString().trim()
-                                              .isNotEmpty ==
-                                          true
-                                      ? item['customer_name'].toString()
-                                      : 'Customer umum',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                ...details.map((detail) {
-                                  final toppings =
-                                      ((detail['extra_toppings'] as List?) ?? [])
-                                          .whereType<String>()
-                                          .toList();
-                                  final toppingLabel = toppings.isEmpty
-                                      ? ''
-                                      : ' - ${toppings.join(', ')}';
-
-                                  return Padding(
-                                    padding: const EdgeInsets.only(bottom: 6),
-                                    child: Text(
-                                      '${detail['nama_product'] ?? '-'} - ${detail['quantity'] ?? 0}$toppingLabel',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                  );
-                                }),
-                              ],
-                            ),
+                          return _QueueSaleCard(
+                            item: item,
+                            onClose: () async {
+                              await onCloseQueue(
+                                item['sale_number']?.toString() ?? '',
+                              );
+                              if (context.mounted) {
+                                Navigator.of(context).pop();
+                              }
+                            },
                           );
                         },
                       ),
@@ -2885,6 +2983,386 @@ class _QueueSheet extends StatelessWidget {
       ),
     );
   }
+}
+
+class _QueuePage extends StatelessWidget {
+  const _QueuePage({
+    required this.queueItems,
+    required this.onCloseQueue,
+  });
+
+  final List<Map<String, dynamic>> queueItems;
+  final Future<void> Function(String saleNumber) onCloseQueue;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Material(
+        color: const Color(0xFFFDF8FE),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            const _SheetHeader(
+              heroTag: 'queue-page',
+              accent: kSweetiePurple,
+              icon: Icons.format_list_numbered_rounded,
+              title: 'Antrian Penjualan',
+              subtitle:
+                  'Nomor penjualan, nama customer, quantity, dan extra topping aktif.',
+            ),
+            Expanded(
+              child: queueItems.isEmpty
+                  ? const Center(child: Text('Tidak ada antrian aktif.'))
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+                      itemCount: queueItems.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final item = queueItems[index];
+                        return _QueueSaleCard(
+                          item: item,
+                          onClose: () async {
+                            await onCloseQueue(
+                              item['sale_number']?.toString() ?? '',
+                            );
+                          },
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QueueSaleCard extends StatelessWidget {
+  const _QueueSaleCard({
+    required this.item,
+    required this.onClose,
+  });
+
+  final Map<String, dynamic> item;
+  final Future<void> Function() onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final details = ((item['details'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final customerName = item['customer_name']?.toString().trim().isNotEmpty == true
+        ? item['customer_name'].toString()
+        : 'Customer umum';
+    final saleNumber = _formatQueueSaleNumber(
+      rawSaleNumber: item['sale_number']?.toString(),
+      createdAt: item['created_at']?.toString(),
+      queueNumber: (item['queue_number'] as num?)?.toInt(),
+    );
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: const Color(0xFFEADCF7)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x148E79D6),
+            blurRadius: 18,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5EDFC),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Text(
+                    saleNumber,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      color: kSweetieInk,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              _QueueElapsedBadge(createdAt: item['created_at']?.toString()),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF9FD),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFF1E3F9)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Nama Pemesan',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF8B799B),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  customerName,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Detail Order',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF776887),
+            ),
+          ),
+          const SizedBox(height: 10),
+          ...List.generate(details.length, (index) {
+            final detail = details[index];
+            return Padding(
+              padding: EdgeInsets.only(bottom: index == details.length - 1 ? 0 : 10),
+              child: _QueueDetailTile(
+                index: index + 1,
+                detail: detail,
+              ),
+            );
+          }),
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: onClose,
+              icon: const Icon(Icons.check_circle_outline_rounded),
+              label: const Text('Selesaikan antrian'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QueueElapsedBadge extends StatelessWidget {
+  const _QueueElapsedBadge({required this.createdAt});
+
+  final String? createdAt;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<DateTime>(
+      stream: Stream<DateTime>.periodic(
+        const Duration(seconds: 1),
+        (_) => DateTime.now(),
+      ),
+      initialData: DateTime.now(),
+      builder: (context, snapshot) {
+        final startedAt = _DashboardPage._parseFlexibleDate(createdAt);
+        final now = snapshot.data ?? DateTime.now();
+        final elapsed =
+            startedAt == null ? Duration.zero : now.difference(startedAt);
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFF3F8),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFF3D8E6)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Text(
+                'Waktu berjalan',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFFA06B85),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _formatElapsedDuration(elapsed),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: kSweetieInk,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _QueueDetailTile extends StatelessWidget {
+  const _QueueDetailTile({
+    required this.index,
+    required this.detail,
+  });
+
+  final int index;
+  final Map<String, dynamic> detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final toppings = ((detail['extra_toppings'] as List?) ?? [])
+        .map((entry) => entry?.toString().trim() ?? '')
+        .where((entry) => entry.isNotEmpty)
+        .toList();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFDF8FE),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFEFE2F9)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: const Color(0xFFEEDFF9),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '$index',
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                color: kSweetieInk,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${detail['nama_product'] ?? '-'} x${detail['quantity'] ?? 0}',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: kSweetieInk,
+                  ),
+                ),
+                if (toppings.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: toppings
+                        .map(
+                          (topping) => Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFFF1E6),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              topping,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF9B6540),
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Tanpa topping tambahan',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF9A8EA5),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _formatQueueSaleNumber({
+  required String? rawSaleNumber,
+  required String? createdAt,
+  required int? queueNumber,
+}) {
+  final normalized = rawSaleNumber?.trim() ?? '';
+  if (normalized.isNotEmpty) {
+    final parts = normalized.split(' - ');
+    if (parts.length == 2) {
+      final dateParts = parts.first.split('/');
+      if (dateParts.length == 3) {
+        final day = dateParts[0].padLeft(2, '0');
+        final month = dateParts[1].padLeft(2, '0');
+        final year = dateParts[2].length >= 2
+            ? dateParts[2].substring(dateParts[2].length - 2)
+            : dateParts[2].padLeft(2, '0');
+        return '$day/$month/$year - ${parts[1].trim()}';
+      }
+    }
+    return normalized;
+  }
+
+  final parsedCreatedAt = _DashboardPage._parseFlexibleDate(createdAt);
+  if (parsedCreatedAt != null && queueNumber != null) {
+    final day = parsedCreatedAt.day.toString().padLeft(2, '0');
+    final month = parsedCreatedAt.month.toString().padLeft(2, '0');
+    final year = (parsedCreatedAt.year % 100).toString().padLeft(2, '0');
+    return '$day/$month/$year - $queueNumber';
+  }
+
+  return '-';
+}
+
+String _formatElapsedDuration(Duration duration) {
+  final safeDuration = duration.isNegative ? Duration.zero : duration;
+  final hours = safeDuration.inHours.toString().padLeft(2, '0');
+  final minutes = (safeDuration.inMinutes % 60).toString().padLeft(2, '0');
+  final seconds = (safeDuration.inSeconds % 60).toString().padLeft(2, '0');
+  return '$hours:$minutes:$seconds';
 }
 
 class _QrImagePreviewDialog extends StatelessWidget {
@@ -4121,8 +4599,7 @@ class _InventoryPage extends StatelessWidget {
     final filters = _asMap(dashboard['dashboard_filters']);
     final dashboardData = _asMap(dashboard['dashboard_data']);
     final kpis = _asMap(dashboardData['kpis']);
-    final summary = _asMap(dashboardData['team_summary']);
-    final teamPerformance = _asMapList(dashboardData['team_performance']);
+    final topProducts = _asMapList(dashboardData['top_products']);
     final types = _asMapList(filters['types']);
     final months = _asMapList(filters['months']);
 
@@ -4177,7 +4654,7 @@ class _InventoryPage extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Ringkasan keuntungan dan performa tim tanpa chart, mengikuti pola dashboard website.',
+                'Ringkasan profit, waste, dan penjualan store mengikuti fokus dashboard Sweetie.',
                 style: TextStyle(color: kSweetieInk.withValues(alpha: 0.72)),
               ),
               const SizedBox(height: 14),
@@ -4212,6 +4689,36 @@ class _InventoryPage extends StatelessWidget {
             SizedBox(
               width: 160,
               child: _MetricCard(
+                label: 'Offline Sales',
+                value: currency.format(
+                    (kpis['offline_revenue_total'] as num?)?.toDouble() ?? 0),
+                icon: Icons.point_of_sale_rounded,
+                accent: kSweetiePink,
+              ),
+            ),
+            SizedBox(
+              width: 160,
+              child: _MetricCard(
+                label: 'Online Sales',
+                value: currency.format(
+                    (kpis['online_revenue_total'] as num?)?.toDouble() ?? 0),
+                icon: Icons.shopping_bag_rounded,
+                accent: const Color(0xFF6F90D8),
+              ),
+            ),
+            SizedBox(
+              width: 160,
+              child: _MetricCard(
+                label: 'Waste Material',
+                value:
+                    '- ${currency.format((kpis['waste_loss_total'] as num?)?.toDouble() ?? 0)}',
+                icon: Icons.delete_sweep_rounded,
+                accent: const Color(0xFFC05D3B),
+              ),
+            ),
+            SizedBox(
+              width: 160,
+              child: _MetricCard(
                 label: 'Gross Profit',
                 value: currency.format(
                     (kpis['gross_profit_total'] as num?)?.toDouble() ?? 0),
@@ -4233,38 +4740,12 @@ class _InventoryPage extends StatelessWidget {
         ),
         const SizedBox(height: 18),
         _BlockCard(
-          title: 'Ringkasan Tim',
-          subtitle: 'Angka tim aktif mengikuti data dashboard website.',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _InfoRow(
-                label: 'Total Marketing',
-                value: '${summary['marketing'] ?? 0}',
-              ),
-              _InfoRow(
-                label: 'Total SFE',
-                value: '${summary['sales_field_executive'] ?? 0}',
-              ),
-              _InfoRow(
-                label: 'Total Karyawan',
-                value: '${summary['karyawan'] ?? 0}',
-              ),
-              _InfoRow(
-                label: 'On Duty',
-                value: '${summary['on_duty'] ?? 0}',
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 18),
-        _BlockCard(
-          title: 'Performa Tim',
-          subtitle: 'Pendapatan, quantity terjual, dan hari hadir per anggota.',
-          child: teamPerformance.isEmpty
-              ? const Text('Belum ada data performa tim.')
+          title: 'Top 3 Product Terjual',
+          subtitle: 'Produk dengan quantity terjual tertinggi pada periode aktif.',
+          child: topProducts.isEmpty
+              ? const Text('Belum ada data penjualan produk pada periode ini.')
               : Column(
-                  children: teamPerformance.map((item) {
+                  children: topProducts.map((item) {
                     return Container(
                       margin: const EdgeInsets.only(bottom: 10),
                       padding: const EdgeInsets.all(14),
@@ -4283,21 +4764,13 @@ class _InventoryPage extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           _InfoRow(
-                            label: 'Role',
-                            value: item['role']?.toString() ?? '-',
-                          ),
-                          _InfoRow(
-                            label: 'Hadir',
-                            value: '${item['attendance_days'] ?? 0} hari',
-                          ),
-                          _InfoRow(
                             label: 'Qty Terjual',
-                            value: '${item['quantity_sold'] ?? 0}',
+                            value: '${item['quantity'] ?? 0}',
                           ),
                           _InfoRow(
                             label: 'Revenue',
                             value: currency.format(
-                                (item['revenue_total'] as num?)?.toDouble() ?? 0),
+                                (item['revenue'] as num?)?.toDouble() ?? 0),
                           ),
                         ],
                       ),

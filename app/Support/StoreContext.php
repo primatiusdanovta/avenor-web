@@ -33,7 +33,10 @@ class StoreContext
             return null;
         }
 
-        $activeStoreId = (int) ($request?->session()->get(self::SESSION_KEY) ?? 0);
+        $activeStoreId = 0;
+        if ($request && $request->hasSession()) {
+            $activeStoreId = (int) ($request->session()->get(self::SESSION_KEY) ?? 0);
+        }
         $activeStore = $stores->firstWhere('id', $activeStoreId);
 
         if ($activeStore) {
@@ -47,6 +50,10 @@ class StoreContext
 
     public static function initializeSession(Request $request): void
     {
+        if (! $request->hasSession()) {
+            return;
+        }
+
         $currentStore = self::currentStore($request);
         if ($currentStore) {
             $request->session()->put(self::SESSION_KEY, $currentStore->id);
@@ -55,6 +62,10 @@ class StoreContext
 
     public static function setCurrentStore(Request $request, int $storeId): bool
     {
+        if (! $request->hasSession()) {
+            return false;
+        }
+
         $allowed = self::storesForUser($request->user())->contains(fn (Store $store) => (int) $store->id === $storeId);
 
         if (! $allowed) {

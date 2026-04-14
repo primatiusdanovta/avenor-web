@@ -597,7 +597,7 @@ class OfflineSaleController extends Controller
             ->get()
             ->count() + 1;
 
-        return $timestamp->format('d/m/Y') . ' - ' . $nextNumber;
+        return $timestamp->format('d/m/y') . ' - ' . $nextNumber;
     }
 }
 

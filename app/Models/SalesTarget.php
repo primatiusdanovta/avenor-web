@@ -11,6 +11,11 @@ class SalesTarget extends Model
 
     protected $fillable = [
         'role',
+        'monthly_target_revenue',
+        'minimum_kpi_value',
+        'maximum_late_days',
+        'minimum_attendance_percentage',
+        'revenue_bonus',
         'daily_target_qty',
         'daily_bonus',
         'weekly_target_qty',
@@ -22,6 +27,11 @@ class SalesTarget extends Model
     protected function casts(): array
     {
         return [
+            'monthly_target_revenue' => 'decimal:2',
+            'minimum_kpi_value' => 'decimal:2',
+            'maximum_late_days' => 'integer',
+            'minimum_attendance_percentage' => 'decimal:2',
+            'revenue_bonus' => 'decimal:2',
             'daily_target_qty' => 'integer',
             'daily_bonus' => 'decimal:2',
             'weekly_target_qty' => 'integer',

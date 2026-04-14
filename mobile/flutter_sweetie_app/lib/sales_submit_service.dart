@@ -185,7 +185,7 @@ class _SalesSubmitService {
     final now = DateTime.now();
 
     final saleNumber =
-        '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year} - ${sales.length + 1}';
+        '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${(now.year % 100).toString().padLeft(2, '0')} - ${sales.length + 1}';
     final transactionCode = 'TRX-${now.millisecondsSinceEpoch}';
 
     sales.insert(0, {
@@ -206,7 +206,7 @@ class _SalesSubmitService {
         ((queuePayload?['items'] as List?) ?? []).cast<Map<String, dynamic>>();
     final queueNumber = queueItems
             .where((item) => item['sale_number']?.toString().startsWith(
-                      '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}',
+                      '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${(now.year % 100).toString().padLeft(2, '0')}',
                     ) ==
                 true)
             .length +

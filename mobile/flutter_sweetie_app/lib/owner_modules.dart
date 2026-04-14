@@ -102,10 +102,9 @@ const List<_OwnerModuleDefinition> _ownerEmployeeModules = [
   _OwnerModuleDefinition(
     key: 'notifications',
     title: 'Notifications',
-    subtitle: 'Riwayat notifikasi karyawan.',
+    subtitle: 'CRUD notifikasi karyawan.',
     icon: Icons.notifications_active_rounded,
     accent: Color(0xFFD980B4),
-    type: _OwnerModuleType.readOnly,
   ),
   _OwnerModuleDefinition(
     key: 'attendance-history',
@@ -135,10 +134,9 @@ const List<_OwnerModuleDefinition> _ownerFinanceModules = [
   _OwnerModuleDefinition(
     key: 'account-receivables',
     title: 'Account Receivables',
-    subtitle: 'View piutang seperti website.',
+    subtitle: 'CRUD piutang store.',
     icon: Icons.receipt_long_rounded,
     accent: Color(0xFFD980B4),
-    type: _OwnerModuleType.readOnly,
   ),
   _OwnerModuleDefinition(
     key: 'account-payables',
@@ -476,13 +474,9 @@ const Map<String, _OwnerModuleUiConfig> _ownerModuleUiConfigs = {
     columns: [
       _OwnerColumnConfig('nama_product', 'Nama Product'),
       _OwnerColumnConfig('deskripsi', 'Deskripsi'),
-      _OwnerColumnConfig('harga', 'Harga'),
-      _OwnerColumnConfig('stock', 'Stock'),
     ],
     fields: [
       _OwnerFieldConfig(key: 'nama_product', label: 'Nama Product', type: 'text', required: true),
-      _OwnerFieldConfig(key: 'harga', label: 'Harga', type: 'number'),
-      _OwnerFieldConfig(key: 'stock', label: 'Stock', type: 'number'),
       _OwnerFieldConfig(key: 'deskripsi', label: 'Deskripsi', type: 'textarea'),
     ],
   ),
@@ -493,6 +487,7 @@ const Map<String, _OwnerModuleUiConfig> _ownerModuleUiConfigs = {
       _OwnerColumnConfig('harga', 'Harga'),
       _OwnerColumnConfig('quantity', 'Qty / Pack'),
       _OwnerColumnConfig('stock', 'Stock'),
+      _OwnerColumnConfig('waste_materials', 'Waste'),
     ],
     fields: [
       _OwnerFieldConfig(key: 'nama_rm', label: 'Nama Raw Material', type: 'text', required: true),
@@ -533,11 +528,13 @@ const Map<String, _OwnerModuleUiConfig> _ownerModuleUiConfigs = {
   'account-payables': _OwnerModuleUiConfig(
     columns: [
       _OwnerColumnConfig('account_payable', 'Account Payable'),
+      _OwnerColumnConfig('amount', 'Nominal'),
       _OwnerColumnConfig('due_date', 'Jatuh Tempo'),
       _OwnerColumnConfig('notes', 'Catatan'),
     ],
     fields: [
       _OwnerFieldConfig(key: 'account_payable', label: 'Account Payable', type: 'text', required: true),
+      _OwnerFieldConfig(key: 'amount', label: 'Nominal', type: 'number', required: true),
       _OwnerFieldConfig(key: 'due_date', label: 'Jatuh Tempo', type: 'date', required: true),
       _OwnerFieldConfig(key: 'notes', label: 'Catatan', type: 'textarea'),
     ],
@@ -601,7 +598,17 @@ const Map<String, _OwnerModuleUiConfig> _ownerModuleUiConfigs = {
       _OwnerColumnConfig('total_value', 'Total'),
       _OwnerColumnConfig('status', 'Status'),
     ],
-    fields: [],
+    fields: [
+      _OwnerFieldConfig(key: 'receivable_name', label: 'Nama Piutang', type: 'text', required: true),
+      _OwnerFieldConfig(key: 'place_name', label: 'Nama Tempat', type: 'text', required: true),
+      _OwnerFieldConfig(key: 'consignment_date', label: 'Tanggal Titip', type: 'date', required: true),
+      _OwnerFieldConfig(key: 'due_date', label: 'Jatuh Tempo', type: 'date', required: true),
+      _OwnerFieldConfig(key: 'consigned_value', label: 'Nominal Dititipkan', type: 'number', required: true),
+      _OwnerFieldConfig(key: 'total_value', label: 'Total Nilai', type: 'number', required: true),
+      _OwnerFieldConfig(key: 'status', label: 'Status', type: 'select', required: true, optionsKey: 'account_receivable_status_options'),
+      _OwnerFieldConfig(key: 'items_summary', label: 'Ringkasan Item', type: 'textarea'),
+      _OwnerFieldConfig(key: 'notes', label: 'Catatan', type: 'textarea'),
+    ],
   ),
   'online-sales': _OwnerModuleUiConfig(
     columns: [
@@ -619,7 +626,13 @@ const Map<String, _OwnerModuleUiConfig> _ownerModuleUiConfigs = {
       _OwnerColumnConfig('target_role', 'Target'),
       _OwnerColumnConfig('published_at', 'Publish'),
     ],
-    fields: [],
+    fields: [
+      _OwnerFieldConfig(key: 'title', label: 'Judul', type: 'text', required: true),
+      _OwnerFieldConfig(key: 'body', label: 'Isi Notifikasi', type: 'textarea', required: true),
+      _OwnerFieldConfig(key: 'target_role', label: 'Target Role', type: 'select', required: true, optionsKey: 'notification_target_options'),
+      _OwnerFieldConfig(key: 'status', label: 'Status', type: 'select', required: true, optionsKey: 'notification_status_options'),
+      _OwnerFieldConfig(key: 'published_at', label: 'Tanggal Publish', type: 'date'),
+    ],
   ),
 };
 
@@ -695,9 +708,7 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
                           child: FilledButton.icon(
                             onPressed: _saving
                                 ? null
-                                : () => _openGenericForm(
-                                      config: _configFor(widget.module.key),
-                                    ),
+                                : _openCreateFlow,
                             icon: const Icon(Icons.add_rounded),
                             label: const Text('Tambah'),
                           ),
@@ -754,7 +765,7 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
                 return DataCell(
                   ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 200),
-                    child: Text(_formatCell(item[column.key])),
+                    child: Text(_formatModuleCell(item, column)),
                   ),
                 );
               }),
@@ -762,17 +773,18 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    IconButton(
+                      onPressed: () => _showItemDetail(item, data),
+                      icon: const Icon(Icons.visibility_outlined),
+                    ),
                     if (!readOnly && config.fields.isNotEmpty)
                       IconButton(
                         onPressed: _saving
                             ? null
-                            : () => _openGenericForm(
-                                  config: config,
-                                  initialItem: item,
-                                ),
+                            : () => _openEditFlow(item),
                         icon: const Icon(Icons.edit_outlined),
                       ),
-                    if (!readOnly && widget.module.key != 'product-knowledge')
+                    if (!readOnly)
                       IconButton(
                         onPressed: _saving ? null : () => _deleteGenericItem(item),
                         icon: const Icon(Icons.delete_outline_rounded),
@@ -813,20 +825,224 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
     return text.isEmpty ? '-' : text;
   }
 
+  String _formatModuleCell(
+    Map<String, dynamic> item,
+    _OwnerColumnConfig column,
+  ) {
+    if (widget.module.key == 'raw-materials' &&
+        column.key == 'waste_materials' &&
+        item[column.key] != null) {
+      final text = _formatCell(item[column.key]);
+      if (text == '-' || text.startsWith('-')) {
+        return text;
+      }
+
+      return '-$text';
+    }
+
+    return _formatCell(item[column.key]);
+  }
+
+  Future<void> _openCreateFlow() async {
+    if (widget.module.key == 'products') {
+      await _openProductForm();
+      return;
+    }
+    if (widget.module.key == 'product-knowledge') {
+      await _openProductKnowledgeForm();
+      return;
+    }
+    await _openGenericForm(config: _configFor(widget.module.key));
+  }
+
+  Future<void> _openEditFlow(Map<String, dynamic> item) async {
+    if (widget.module.key == 'products') {
+      await _openProductForm(initialItem: item);
+      return;
+    }
+    if (widget.module.key == 'product-knowledge') {
+      await _openProductKnowledgeForm(initialItem: item);
+      return;
+    }
+    await _openGenericForm(
+      config: _configFor(widget.module.key),
+      initialItem: item,
+    );
+  }
+
+  Future<void> _showItemDetail(
+    Map<String, dynamic> item,
+    Map<String, dynamic> data,
+  ) async {
+    final config = _configFor(widget.module.key);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('Detail ${widget.module.title}'),
+        content: SizedBox(
+          width: 560,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.module.key == 'products' &&
+                    item['image_url']?.toString().isNotEmpty == true) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 180,
+                      child: CachedNetworkImage(
+                        imageUrl: item['image_url'].toString(),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                if (widget.module.key == 'product-knowledge' &&
+                    item['image_url']?.toString().isNotEmpty == true) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(18),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 180,
+                      child: CachedNetworkImage(
+                        imageUrl: item['image_url'].toString(),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                ...config.columns.map((column) {
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _InfoRow(
+                      label: column.label,
+                      value: _formatModuleCell(item, column),
+                    ),
+                  );
+                }),
+                if (widget.module.key == 'products') ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Variants',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ..._asMapList(item['variants']).map((variant) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFBF6FE),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _InfoRow(
+                              label: 'Nama',
+                              value: variant['name']?.toString() ?? '-',
+                            ),
+                            _InfoRow(
+                              label: 'Harga',
+                              value: widget.currency.format(
+                                  (variant['price'] as num?)?.toDouble() ?? 0),
+                            ),
+                            _InfoRow(
+                              label: 'Total Satuan',
+                              value:
+                                  '${(variant['total_satuan_ml'] as num?)?.toDouble() ?? 0}',
+                            ),
+                            _InfoRow(
+                              label: 'Default',
+                              value: variant['is_default'] == true
+                                  ? 'Ya'
+                                  : 'Tidak',
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+                if (widget.module.type == _OwnerModuleType.hpp) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Komposisi Raw Material',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ..._asMapList(item['details']).map((detail) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFBF6FE),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _InfoRow(
+                              label: 'Raw Material',
+                              value: detail['nama_rm']?.toString() ?? '-',
+                            ),
+                            _InfoRow(
+                              label: 'Presentase',
+                              value: '${detail['presentase'] ?? 0}',
+                            ),
+                            _InfoRow(
+                              label: 'Harga Final',
+                              value: widget.currency.format(
+                                  (detail['harga_final'] as num?)?.toDouble() ??
+                                      0),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _deleteGenericItem(Map<String, dynamic> item) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Hapus Data'),
-        content: Text('Hapus ${widget.module.title.toLowerCase()} ini?'),
+        content: const Text('Apakah anda ingin hapus data?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Batal'),
+            child: const Text('Tidak'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Hapus'),
+            child: const Text('Iya'),
           ),
         ],
       ),
@@ -840,9 +1056,7 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
       if (!mounted) return;
       await _reload();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${widget.module.title} berhasil dihapus.')),
-      );
+      await _showSuccessDialog('${widget.module.title} berhasil dihapus.');
     } on DioException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -883,14 +1097,10 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
       if (!mounted) return;
       await _reload();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            initialItem == null
-                ? '${widget.module.title} berhasil ditambahkan.'
-                : '${widget.module.title} berhasil diperbarui.',
-          ),
-        ),
+      await _showSuccessDialog(
+        initialItem == null
+            ? '${widget.module.title} berhasil ditambahkan.'
+            : '${widget.module.title} berhasil diperbarui.',
       );
     } on DioException catch (error) {
       if (!mounted) return;
@@ -902,6 +1112,128 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
         setState(() => _saving = false);
       }
     }
+  }
+
+  Future<void> _openProductForm({Map<String, dynamic>? initialItem}) async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => _OwnerProductFormDialog(
+        title: initialItem == null ? 'Tambah Product' : 'Edit Product',
+        initialItem: initialItem,
+        currency: widget.currency,
+      ),
+    );
+
+    if (result == null) return;
+
+    setState(() => _saving = true);
+    try {
+      if (initialItem == null) {
+        await widget.onCreate(result);
+      } else {
+        await widget.onUpdate('${initialItem['id']}', result);
+      }
+      if (!mounted) return;
+      await _reload();
+      if (!mounted) return;
+      await _showSuccessDialog(
+        initialItem == null
+            ? 'Product berhasil ditambahkan.'
+            : 'Product berhasil diperbarui.',
+      );
+    } on DioException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message ?? 'Gagal menyimpan product.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  Future<void> _openProductKnowledgeForm({
+    Map<String, dynamic>? initialItem,
+  }) async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => _OwnerProductKnowledgeFormDialog(
+        title: initialItem == null
+            ? 'Tambah Product Knowledge'
+            : 'Edit Product Knowledge',
+        initialItem: initialItem,
+      ),
+    );
+
+    if (result == null) return;
+
+    setState(() => _saving = true);
+    try {
+      if (initialItem == null) {
+        await widget.onCreate(result);
+      } else {
+        await widget.onUpdate('${initialItem['id']}', result);
+      }
+      if (!mounted) return;
+      await _reload();
+      if (!mounted) return;
+      await _showSuccessDialog(
+        initialItem == null
+            ? 'Product knowledge berhasil ditambahkan.'
+            : 'Product knowledge berhasil diperbarui.',
+      );
+    } on DioException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error.message ?? 'Gagal menyimpan product knowledge.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  Future<void> _showSuccessDialog(String message) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: kSweetieLavender,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Image.asset(kSweetieLogoAsset, fit: BoxFit.contain),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Berhasil',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
   }
 
   Map<String, List<Map<String, dynamic>>> _dialogOptions() {
@@ -922,6 +1254,23 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
       'status_options': ((data['status_options'] as List?) ?? const [])
           .map((item) => {'value': '$item', 'label': '$item'})
           .toList(),
+      'notification_target_options': const [
+        {'value': 'all', 'label': 'Semua Role'},
+        {'value': 'owner', 'label': 'Owner'},
+        {'value': 'karyawan', 'label': 'Karyawan'},
+        {'value': 'marketing', 'label': 'Marketing'},
+        {'value': 'sales_field_executive', 'label': 'Sales Field Executive'},
+      ],
+      'notification_status_options': const [
+        {'value': 'draft', 'label': 'Draft'},
+        {'value': 'published', 'label': 'Published'},
+      ],
+      'account_receivable_status_options': const [
+        {'value': 'dititipkan', 'label': 'Dititipkan'},
+        {'value': 'dibayar_sebagian', 'label': 'Dibayar Sebagian'},
+        {'value': 'lunas', 'label': 'Lunas'},
+        {'value': 'jatuh_tempo', 'label': 'Jatuh Tempo'},
+      ],
     };
   }
 
@@ -930,6 +1279,7 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
     return Column(
       children: items.map((item) {
         final isRevenue = item['type'] == 'revenue';
+        final hasExistingTarget = item['exists'] == true;
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
@@ -948,15 +1298,27 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),
+                  TextButton(
+                    onPressed: _saving
+                        ? null
+                        : () => _deleteSalesTarget('${item['role']}'),
+                    child: const Text('Delete'),
+                  ),
+                  const SizedBox(width: 8),
                   FilledButton.tonal(
                     onPressed: _saving
                         ? null
                         : () => _openSalesTargetForm(item, isRevenue),
-                    child: const Text('Edit'),
+                    child: Text(hasExistingTarget ? 'Edit' : 'Tambah'),
                   ),
                 ],
               ),
               const SizedBox(height: 10),
+              _InfoRow(
+                label: 'Basis Target',
+                value: isRevenue ? 'Revenue' : 'Botol Terjual',
+              ),
+              const SizedBox(height: 6),
               if (isRevenue) ...[
                 _InfoRow(label: 'Monthly Revenue', value: _formatCell(item['monthly_target_revenue'])),
                 _InfoRow(label: 'Minimum KPI', value: _formatCell(item['minimum_kpi_value'])),
@@ -976,6 +1338,46 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
         );
       }).toList(),
     );
+  }
+
+  Future<void> _deleteSalesTarget(String role) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Hapus Data'),
+        content: const Text('Apakah anda ingin hapus data?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Tidak'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Iya'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _saving = true);
+    try {
+      await widget.onDelete(role);
+      if (!mounted) return;
+      await _reload();
+      if (!mounted) return;
+      await _showSuccessDialog('Target penjualan berhasil dihapus.');
+    } on DioException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message ?? 'Gagal menghapus target penjualan.')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
   }
 
   Future<void> _openSalesTargetForm(
@@ -1059,6 +1461,10 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          IconButton(
+                            onPressed: () => _showItemDetail(item, data),
+                            icon: const Icon(Icons.visibility_outlined),
+                          ),
                           IconButton(
                             onPressed: _saving ? null : () => _openHppForm(data, initialItem: item),
                             icon: const Icon(Icons.edit_outlined),
@@ -1195,7 +1601,7 @@ class _OwnerGenericFormDialogState extends State<_OwnerGenericFormDialog> {
       return Padding(
         padding: const EdgeInsets.only(bottom: 14),
         child: DropdownButtonFormField<String>(
-          value: initialValue != null && initialValue.isNotEmpty
+          initialValue: initialValue != null && initialValue.isNotEmpty
               ? initialValue
               : null,
           decoration: InputDecoration(labelText: field.label),
@@ -1205,7 +1611,7 @@ class _OwnerGenericFormDialogState extends State<_OwnerGenericFormDialog> {
               child: Text(option['label']?.toString() ?? '${option['value']}'),
             );
           }).toList(),
-          onChanged: (value) => _values[field.key] = value,
+          onChanged: (value) => setState(() => _values[field.key] = value),
         ),
       );
     }
@@ -1219,6 +1625,38 @@ class _OwnerGenericFormDialogState extends State<_OwnerGenericFormDialog> {
       );
     }
 
+    if (field.type == 'date') {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: TextField(
+          controller: _controllers[field.key],
+          readOnly: true,
+          onTap: () async {
+            final initialDate = DateTime.tryParse(
+                  _controllers[field.key]?.text.trim() ?? '',
+                ) ??
+                DateTime.now();
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: initialDate,
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2100),
+            );
+            if (picked == null) return;
+            setState(() {
+              _controllers[field.key]?.text =
+                  '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+            });
+          },
+          decoration: InputDecoration(
+            labelText: field.required ? '${field.label} *' : field.label,
+            hintText: 'YYYY-MM-DD',
+            suffixIcon: const Icon(Icons.calendar_month_rounded),
+          ),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: TextField(
@@ -1226,13 +1664,10 @@ class _OwnerGenericFormDialogState extends State<_OwnerGenericFormDialog> {
         obscureText: field.type == 'password',
         keyboardType: field.type == 'number'
             ? const TextInputType.numberWithOptions(decimal: true)
-            : field.type == 'date'
-                ? TextInputType.datetime
-                : TextInputType.text,
+            : TextInputType.text,
         maxLines: field.type == 'textarea' ? 4 : 1,
         decoration: InputDecoration(
           labelText: field.required ? '${field.label} *' : field.label,
-          hintText: field.type == 'date' ? 'YYYY-MM-DD' : null,
         ),
       ),
     );
@@ -1271,6 +1706,470 @@ class _OwnerGenericFormDialogState extends State<_OwnerGenericFormDialog> {
     }
 
     return payload;
+  }
+}
+
+class _OwnerProductFormDialog extends StatefulWidget {
+  const _OwnerProductFormDialog({
+    required this.title,
+    required this.initialItem,
+    required this.currency,
+  });
+
+  final String title;
+  final Map<String, dynamic>? initialItem;
+  final NumberFormat currency;
+
+  @override
+  State<_OwnerProductFormDialog> createState() => _OwnerProductFormDialogState();
+}
+
+class _OwnerProductFormDialogState extends State<_OwnerProductFormDialog> {
+  final _picker = ImagePicker();
+  late final TextEditingController _nameController;
+  late final TextEditingController _priceController;
+  late final TextEditingController _stockController;
+  late final TextEditingController _descriptionController;
+  late List<Map<String, dynamic>> _variants;
+  XFile? _imageFile;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(
+      text: widget.initialItem?['nama_product']?.toString() ?? '',
+    );
+    _priceController = TextEditingController(
+      text: '${widget.initialItem?['harga'] ?? 0}',
+    );
+    _stockController = TextEditingController(
+      text: '${widget.initialItem?['stock'] ?? 0}',
+    );
+    _descriptionController = TextEditingController(
+      text: widget.initialItem?['deskripsi']?.toString() ?? '',
+    );
+    _variants = _asMapList(widget.initialItem?['variants'])
+        .map((item) => <String, dynamic>{
+              'id': item['id'],
+              'name': item['name']?.toString() ?? '',
+              'price': '${item['price'] ?? 0}',
+              'total_satuan_ml': '${item['total_satuan_ml'] ?? 0}',
+              'is_default': item['is_default'] == true,
+            })
+        .toList();
+    if (_variants.isEmpty) {
+      _variants = [
+        {
+          'name': 'Reguler',
+          'price': '${widget.initialItem?['harga'] ?? 0}',
+          'total_satuan_ml': '0',
+          'is_default': true,
+        },
+      ];
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _priceController.dispose();
+    _stockController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 82,
+    );
+    if (picked == null) return;
+    setState(() => _imageFile = picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = widget.initialItem?['image_url']?.toString();
+
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SizedBox(
+        width: 620,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(labelText: 'Nama Product *'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _priceController,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Harga *'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _stockController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Stock *'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _descriptionController,
+                maxLines: 4,
+                decoration: const InputDecoration(labelText: 'Deskripsi'),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Foto Product',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: _pickImage,
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: Text(_imageFile == null ? 'Pilih Foto' : 'Ganti Foto'),
+                  ),
+                ],
+              ),
+              if (_imageFile != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.file(
+                    File(_imageFile!.path),
+                    width: double.infinity,
+                    height: 180,
+                    fit: BoxFit.cover,
+                  ),
+                )
+              else if (imageUrl != null && imageUrl.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    width: double.infinity,
+                    height: 180,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Variants',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: () => setState(() {
+                      _variants.add({
+                        'name': '',
+                        'price': _priceController.text.trim().isEmpty
+                            ? '0'
+                            : _priceController.text.trim(),
+                        'total_satuan_ml': '0',
+                        'is_default': _variants.isEmpty,
+                      });
+                    }),
+                    icon: const Icon(Icons.add_rounded),
+                    label: const Text('Tambah Variant'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ..._variants.asMap().entries.map((entry) {
+                final index = entry.key;
+                final variant = entry.value;
+                return _ProductVariantEditorCard(
+                  index: index,
+                  variant: variant,
+                  currency: widget.currency,
+                  canDelete: _variants.length > 1,
+                  onChanged: (next) => setState(() => _variants[index] = next),
+                  onDelete: () => setState(() => _variants.removeAt(index)),
+                  onMakeDefault: () => setState(() {
+                    for (var i = 0; i < _variants.length; i += 1) {
+                      _variants[i]['is_default'] = i == index;
+                    }
+                  }),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Batal'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_collectPayload()),
+          child: const Text('Simpan'),
+        ),
+      ],
+    );
+  }
+
+  Map<String, dynamic> _collectPayload() {
+    final variants = _variants
+        .map((variant) => {
+              if (variant['id'] != null) 'id': variant['id'],
+              'name': variant['name']?.toString().trim() ?? '',
+              'price': num.tryParse(variant['price']?.toString() ?? '') ?? 0,
+              'total_satuan_ml':
+                  num.tryParse(variant['total_satuan_ml']?.toString() ?? '') ??
+                      0,
+              'is_default': variant['is_default'] == true,
+            })
+        .where((variant) => (variant['name']?.toString().isNotEmpty ?? false))
+        .toList();
+
+    if (!variants.any((variant) => variant['is_default'] == true) &&
+        variants.isNotEmpty) {
+      variants.first['is_default'] = true;
+    }
+
+    return {
+      'nama_product': _nameController.text.trim(),
+      'harga': num.tryParse(_priceController.text.trim()) ?? 0,
+      'stock': int.tryParse(_stockController.text.trim()) ?? 0,
+      'deskripsi': _descriptionController.text.trim(),
+      'variants': variants,
+      if (_imageFile != null) 'gambar': _imageFile,
+    };
+  }
+}
+
+class _OwnerProductKnowledgeFormDialog extends StatefulWidget {
+  const _OwnerProductKnowledgeFormDialog({
+    required this.title,
+    required this.initialItem,
+  });
+
+  final String title;
+  final Map<String, dynamic>? initialItem;
+
+  @override
+  State<_OwnerProductKnowledgeFormDialog> createState() =>
+      _OwnerProductKnowledgeFormDialogState();
+}
+
+class _OwnerProductKnowledgeFormDialogState
+    extends State<_OwnerProductKnowledgeFormDialog> {
+  final _picker = ImagePicker();
+  late final TextEditingController _nameController;
+  late final TextEditingController _descriptionController;
+  XFile? _imageFile;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(
+      text: widget.initialItem?['nama_product']?.toString() ?? '',
+    );
+    _descriptionController = TextEditingController(
+      text: widget.initialItem?['deskripsi']?.toString() ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final picked = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 82,
+    );
+    if (picked == null) return;
+    setState(() => _imageFile = picked);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = widget.initialItem?['image_url']?.toString();
+
+    return AlertDialog(
+      title: Text(widget.title),
+      content: SizedBox(
+        width: 560,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _nameController,
+                decoration:
+                    const InputDecoration(labelText: 'Nama Product *'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _descriptionController,
+                maxLines: 5,
+                decoration: const InputDecoration(labelText: 'Deskripsi'),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Foto Product Knowledge',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: _pickImage,
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label:
+                        Text(_imageFile == null ? 'Pilih Foto' : 'Ganti Foto'),
+                  ),
+                ],
+              ),
+              if (_imageFile != null)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.file(
+                    File(_imageFile!.path),
+                    width: double.infinity,
+                    height: 180,
+                    fit: BoxFit.cover,
+                  ),
+                )
+              else if (imageUrl != null && imageUrl.isNotEmpty)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    width: double.infinity,
+                    height: 180,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Batal'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_collectPayload()),
+          child: const Text('Simpan'),
+        ),
+      ],
+    );
+  }
+
+  Map<String, dynamic> _collectPayload() {
+    return {
+      'nama_product': _nameController.text.trim(),
+      'deskripsi': _descriptionController.text.trim(),
+      if (_imageFile != null) 'gambar': _imageFile,
+    };
+  }
+}
+
+class _ProductVariantEditorCard extends StatelessWidget {
+  const _ProductVariantEditorCard({
+    required this.index,
+    required this.variant,
+    required this.currency,
+    required this.canDelete,
+    required this.onChanged,
+    required this.onDelete,
+    required this.onMakeDefault,
+  });
+
+  final int index;
+  final Map<String, dynamic> variant;
+  final NumberFormat currency;
+  final bool canDelete;
+  final ValueChanged<Map<String, dynamic>> onChanged;
+  final VoidCallback onDelete;
+  final VoidCallback onMakeDefault;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: kSweetieLavender),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Variant ${index + 1}',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                if (variant['is_default'] == true)
+                  const Chip(label: Text('Default')),
+                IconButton(
+                  onPressed: canDelete ? onDelete : null,
+                  icon: const Icon(Icons.delete_outline_rounded),
+                ),
+              ],
+            ),
+            TextFormField(
+              initialValue: variant['name']?.toString() ?? '',
+              onChanged: (value) => onChanged({...variant, 'name': value}),
+              decoration: const InputDecoration(labelText: 'Nama Variant'),
+            ),
+            const SizedBox(height: 10),
+            TextFormField(
+              initialValue: variant['price']?.toString() ?? '0',
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              onChanged: (value) => onChanged({...variant, 'price': value}),
+              decoration: const InputDecoration(labelText: 'Harga'),
+            ),
+            const SizedBox(height: 10),
+            TextFormField(
+              initialValue: variant['total_satuan_ml']?.toString() ?? '0',
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              onChanged: (value) =>
+                  onChanged({...variant, 'total_satuan_ml': value}),
+              decoration: const InputDecoration(labelText: 'Total Satuan'),
+            ),
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: onMakeDefault,
+                icon: const Icon(Icons.check_circle_outline_rounded),
+                label: const Text('Jadikan Default'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -1323,7 +2222,7 @@ class _HppFormDialogState extends State<_HppFormDialog> {
             mainAxisSize: MainAxisSize.min,
             children: [
               DropdownButtonFormField<String>(
-                value: _selectedProductId,
+                initialValue: _selectedProductId,
                 decoration: const InputDecoration(labelText: 'Product'),
                 items: widget.products.map((product) {
                   return DropdownMenuItem<String>(
@@ -1343,7 +2242,7 @@ class _HppFormDialogState extends State<_HppFormDialog> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          value: row['id_rm']?.toString().isNotEmpty == true
+                          initialValue: row['id_rm']?.toString().isNotEmpty == true
                               ? row['id_rm']?.toString()
                               : null,
                           decoration:

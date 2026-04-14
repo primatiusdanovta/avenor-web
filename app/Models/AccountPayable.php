@@ -14,6 +14,7 @@ class AccountPayable extends Model
     protected $fillable = [
         'store_id',
         'account_payable',
+        'amount',
         'due_date',
         'notes',
     ];
@@ -21,6 +22,7 @@ class AccountPayable extends Model
     protected function casts(): array
     {
         return [
+            'amount' => 'decimal:2',
             'due_date' => 'date',
         ];
     }
