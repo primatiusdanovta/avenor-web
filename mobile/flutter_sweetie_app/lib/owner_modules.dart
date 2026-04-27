@@ -675,11 +675,61 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
       final data = await widget.onFetch();
       if (!mounted) return;
       setState(() => _data = data);
+    } catch (error, stackTrace) {
+      developer.log(
+        'Owner module reload failed',
+        name: 'SmoothiesSweetieApp.OwnerModule',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      if (!mounted) return;
+      _showFailureMessage('Gagal memuat data module.', error);
     } finally {
       if (mounted) {
         setState(() => _loading = false);
       }
     }
+  }
+
+  String _describeError(Object error) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map<String, dynamic>) {
+        final message = data['message'];
+        if (message is String && message.isNotEmpty) {
+          return message;
+        }
+        final errors = data['errors'];
+        if (errors is Map<String, dynamic> && errors.isNotEmpty) {
+          final first = errors.values.first;
+          if (first is List && first.isNotEmpty) {
+            return first.first.toString();
+          }
+        }
+      }
+
+      return error.message ?? 'Terjadi kesalahan pada koneksi.';
+    }
+
+    final message = error.toString().trim();
+    if (message.isEmpty) {
+      return 'Terjadi kesalahan tak terduga.';
+    }
+
+    return message.startsWith('Exception: ')
+        ? message.substring('Exception: '.length)
+        : message;
+  }
+
+  void _showFailureMessage(String fallback, Object error) {
+    if (!mounted) return;
+
+    final message = _describeError(error);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message.isNotEmpty ? message : fallback),
+      ),
+    );
   }
 
   @override
@@ -1057,11 +1107,14 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
       await _reload();
       if (!mounted) return;
       await _showSuccessDialog('${widget.module.title} berhasil dihapus.');
-    } on DioException catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message ?? 'Gagal menghapus data.')),
+    } catch (error, stackTrace) {
+      developer.log(
+        'Owner module delete failed',
+        name: 'SmoothiesSweetieApp.OwnerModule',
+        error: error,
+        stackTrace: stackTrace,
       );
+      _showFailureMessage('Gagal menghapus data.', error);
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -1102,11 +1155,14 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
             ? '${widget.module.title} berhasil ditambahkan.'
             : '${widget.module.title} berhasil diperbarui.',
       );
-    } on DioException catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message ?? 'Gagal menyimpan data.')),
+    } catch (error, stackTrace) {
+      developer.log(
+        'Owner generic form save failed',
+        name: 'SmoothiesSweetieApp.OwnerModule',
+        error: error,
+        stackTrace: stackTrace,
       );
+      _showFailureMessage('Gagal menyimpan data.', error);
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -1141,11 +1197,14 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
             ? 'Product berhasil ditambahkan.'
             : 'Product berhasil diperbarui.',
       );
-    } on DioException catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message ?? 'Gagal menyimpan product.')),
+    } catch (error, stackTrace) {
+      developer.log(
+        'Owner product save failed',
+        name: 'SmoothiesSweetieApp.OwnerModule',
+        error: error,
+        stackTrace: stackTrace,
       );
+      _showFailureMessage('Gagal menyimpan product.', error);
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -1183,13 +1242,14 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
             ? 'Product knowledge berhasil ditambahkan.'
             : 'Product knowledge berhasil diperbarui.',
       );
-    } on DioException catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.message ?? 'Gagal menyimpan product knowledge.'),
-        ),
+    } catch (error, stackTrace) {
+      developer.log(
+        'Owner product knowledge save failed',
+        name: 'SmoothiesSweetieApp.OwnerModule',
+        error: error,
+        stackTrace: stackTrace,
       );
+      _showFailureMessage('Gagal menyimpan product knowledge.', error);
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -1368,11 +1428,14 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
       await _reload();
       if (!mounted) return;
       await _showSuccessDialog('Target penjualan berhasil dihapus.');
-    } on DioException catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message ?? 'Gagal menghapus target penjualan.')),
+    } catch (error, stackTrace) {
+      developer.log(
+        'Owner sales target delete failed',
+        name: 'SmoothiesSweetieApp.OwnerModule',
+        error: error,
+        stackTrace: stackTrace,
       );
+      _showFailureMessage('Gagal menghapus target penjualan.', error);
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -1418,6 +1481,14 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
       await widget.onUpdate('${item['role']}', result);
       if (!mounted) return;
       await _reload();
+    } catch (error, stackTrace) {
+      developer.log(
+        'Owner sales target save failed',
+        name: 'SmoothiesSweetieApp.OwnerModule',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      _showFailureMessage('Gagal menyimpan target penjualan.', error);
     } finally {
       if (mounted) {
         setState(() => _saving = false);
@@ -1510,6 +1581,14 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
       }
       if (!mounted) return;
       await _reload();
+    } catch (error, stackTrace) {
+      developer.log(
+        'Owner HPP save failed',
+        name: 'SmoothiesSweetieApp.OwnerModule',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      _showFailureMessage('Gagal menyimpan HPP.', error);
     } finally {
       if (mounted) {
         setState(() => _saving = false);
