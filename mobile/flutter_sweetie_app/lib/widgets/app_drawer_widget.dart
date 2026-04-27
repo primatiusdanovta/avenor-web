@@ -1,23 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../state/session_controller.dart';
+import '../src/state/session_controller.dart';
 
 class AppDrawerWidget extends StatelessWidget {
-  final int currentIndex;
-  final ValueChanged<int> onNavigate;
-  final VoidCallback? onClose;
-
   const AppDrawerWidget({
+    super.key,
     required this.currentIndex,
     required this.onNavigate,
     this.onClose,
   });
 
+  final int currentIndex;
+  final ValueChanged<int> onNavigate;
+  final VoidCallback? onClose;
+
   @override
   Widget build(BuildContext context) {
     return Consumer<SessionController>(
       builder: (context, session, _) {
-        final isOwner = session.user?.role == 'owner';
+        final user = session.user;
+        final isOwner = user?.role == 'owner';
 
         return Drawer(
           child: ListView(
@@ -32,13 +34,13 @@ class AppDrawerWidget extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     Text(
-                      session.user?.nama ?? 'Sweetie',
+                      user?.nama ?? 'Sweetie',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                             color: Colors.white,
                           ),
                     ),
                     Text(
-                      (session.user?.role ?? 'user').toUpperCase(),
+                      (user?.role ?? 'user').toUpperCase(),
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: Colors.white70,
                           ),
@@ -234,7 +236,9 @@ class AppDrawerWidget extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.logout),
                 title: const Text('Logout'),
-                onTap: () {
+                onTap: user == null
+                    ? null
+                    : () {
                   Navigator.pop(context);
                   session.logout();
                 },
@@ -289,7 +293,7 @@ class _DrawerItem extends StatelessWidget {
       title: Text(label),
       selected: isSelected,
       selectedTileColor:
-          Theme.of(context).colorScheme.primaryContainer.withOpacity(0.5),
+          Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5),
       onTap: onTap,
     );
   }

@@ -144,3 +144,21 @@ Widget buildSmoothiesSalesPageTestHarness({
     ),
   );
 }
+
+Widget buildSmoothiesQueuePageTestHarness({
+  required List<Map<String, dynamic>> queueItems,
+}) {
+  return ScreenUtilInit(
+    designSize: const Size(360, 800),
+    minTextAdapt: true,
+    splitScreenMode: true,
+    builder: (_, __) => MaterialApp(
+      home: Scaffold(
+        body: _QueuePage(
+          queueItems: queueItems,
+          onCloseQueue: (_) async {},
+        ),
+      ),
+    ),
+  );
+}

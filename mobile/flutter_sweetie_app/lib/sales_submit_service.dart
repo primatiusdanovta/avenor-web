@@ -26,6 +26,8 @@ class _SalesSubmitService {
         productsPayload: productsPayload,
         queuePayload: queuePayload,
         customerName: customerName,
+        customerPhone: customerPhone,
+        customerSocial: customerSocial,
         items: items,
         paymentMethod: paymentMethod,
         promoId: promoId,
@@ -38,6 +40,8 @@ class _SalesSubmitService {
     final form = FormData();
     form.fields
       ..add(MapEntry('customer_nama', customerName))
+      ..add(MapEntry('customer_no_telp', customerPhone))
+      ..add(MapEntry('customer_tiktok_instagram', customerSocial))
       ..add(MapEntry('payment_method', paymentMethod));
 
     if (promoId != null) {
@@ -71,6 +75,15 @@ class _SalesSubmitService {
       }
     }
 
+    if (proof != null) {
+      form.files.add(
+        MapEntry(
+          'bukti_pembelian',
+          await MultipartFile.fromFile(proof.path, filename: proof.name),
+        ),
+      );
+    }
+
     final response = await dio.post('/offline-sales', data: form);
     return response.data is Map<String, dynamic>
         ? response.data as Map<String, dynamic>
@@ -82,6 +95,8 @@ class _SalesSubmitService {
     required Map<String, dynamic>? productsPayload,
     required Map<String, dynamic>? queuePayload,
     required String customerName,
+    required String customerPhone,
+    required String customerSocial,
     required List<_SaleItemDraft> items,
     required String paymentMethod,
     required int? promoId,
@@ -152,7 +167,8 @@ class _SalesSubmitService {
       );
       product['remaining'] = updatedRemaining;
       product['stock'] = updatedRemaining;
-      product['option_label'] = '${product['nama_product']} | stock $updatedRemaining';
+      product['option_label'] =
+          '${product['nama_product']} | stock $updatedRemaining';
 
       for (final catalogProduct in catalogProducts) {
         if (catalogProduct['id_product'] == item.productId) {
@@ -195,6 +211,8 @@ class _SalesSubmitService {
       'payment_status': 'paid',
       'approval_status': 'disetujui',
       'nama_customer': customerName,
+      'customer_no_telp': customerPhone,
+      'customer_tiktok_instagram': customerSocial,
       'promo': promo?['nama_promo'],
       'created_at': formatYmdHis(now),
       'total_quantity': items.fold<int>(0, (sum, item) => sum + item.quantity),
@@ -205,7 +223,8 @@ class _SalesSubmitService {
     final queueItems =
         ((queuePayload?['items'] as List?) ?? []).cast<Map<String, dynamic>>();
     final queueNumber = queueItems
-            .where((item) => item['sale_number']?.toString().startsWith(
+            .where((item) =>
+                item['sale_number']?.toString().startsWith(
                       '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${(now.year % 100).toString().padLeft(2, '0')}',
                     ) ==
                 true)
@@ -221,6 +240,7 @@ class _SalesSubmitService {
       'details': mappedItems
           .map((item) => {
                 'nama_product': item['nama_product'],
+                'product_variant_name': item['product_variant_name'],
                 'quantity': item['quantity'],
                 'extra_toppings': ((item['extra_toppings'] as List?) ?? [])
                     .cast<Map<String, dynamic>>()
@@ -231,8 +251,8 @@ class _SalesSubmitService {
           .toList(),
     });
 
-    final onhands =
-        ((productsPayload?['onhands'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final onhands = ((productsPayload?['onhands'] as List?) ?? [])
+        .cast<Map<String, dynamic>>();
     if (onhands.isNotEmpty) {
       for (final item in items) {
         var remainingToDeduct = item.quantity;

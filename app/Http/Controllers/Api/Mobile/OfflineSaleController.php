@@ -185,18 +185,22 @@ class OfflineSaleController extends Controller
         $user = $request->user();
         abort_unless(in_array($user?->role, SalesRole::mobileRoles(), true), 403);
 
-        $attendance = Attendance::query()
-            ->when(MarketingMobileSupport::currentStoreId($user), fn ($query, $storeId) => $query->where('store_id', $storeId))
-            ->where('user_id', $user->id_user)
-            ->whereDate('attendance_date', now()->toDateString())
-            ->first();
+        $requiresAttendance = $user?->role !== SalesRole::OWNER;
 
-        if (! $attendance?->check_in) {
-            return response()->json(['message' => 'Sales lapangan wajib check in terlebih dahulu sebelum melakukan penjualan.'], 422);
-        }
+        if ($requiresAttendance) {
+            $attendance = Attendance::query()
+                ->when(MarketingMobileSupport::currentStoreId($user), fn ($query, $storeId) => $query->where('store_id', $storeId))
+                ->where('user_id', $user->id_user)
+                ->whereDate('attendance_date', now()->toDateString())
+                ->first();
 
-        if ($attendance?->check_out) {
-            return response()->json(['message' => 'Marketing yang sudah check out tidak bisa melakukan penjualan lagi hari ini.'], 422);
+            if (! $attendance?->check_in) {
+                return response()->json(['message' => 'Sales lapangan wajib check in terlebih dahulu sebelum melakukan penjualan.'], 422);
+            }
+
+            if ($attendance?->check_out) {
+                return response()->json(['message' => 'Marketing yang sudah check out tidak bisa melakukan penjualan lagi hari ini.'], 422);
+            }
         }
 
         $validated = $this->validateTransactionPayload($request, ! MarketingMobileSupport::isSmoothiesSweetieUser($user));
@@ -293,6 +297,7 @@ class OfflineSaleController extends Controller
                     'created_at' => optional($first?->created_at)->format('Y-m-d H:i:s'),
                     'details' => $sales->map(fn (OfflineSale $sale) => [
                         'nama_product' => $sale->nama_product,
+                        'product_variant_name' => $sale->product_variant_name,
                         'quantity' => (int) $sale->quantity,
                         'extra_toppings' => collect($sale->extra_toppings ?? [])
                             ->pluck('name')
@@ -392,6 +397,8 @@ class OfflineSaleController extends Controller
     {
         return $request->validate([
             'customer_nama' => ['nullable', 'string', 'max:255'],
+            'customer_no_telp' => ['nullable', 'string', 'max:30'],
+            'customer_tiktok_instagram' => ['nullable', 'string', 'max:255'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.id_product' => ['required', 'exists:products,id_product'],
             'items.*.product_variant_id' => ['nullable', 'exists:product_variants,id'],
@@ -496,27 +503,37 @@ class OfflineSaleController extends Controller
     private function resolveCustomer(array $validated, Carbon $timestamp, ?int $storeId): ?Customer
     {
         $nama = trim((string) ($validated['customer_nama'] ?? ''));
+        $phone = MarketingMobileSupport::normalizePhone($validated['customer_no_telp'] ?? null);
+        $social = trim((string) ($validated['customer_tiktok_instagram'] ?? ''));
 
-        if ($nama === '') {
+        if ($nama === '' && $phone === '') {
             return null;
         }
 
         $payload = [
             'store_id' => $storeId,
             'nama' => $nama !== '' ? $nama : null,
-            'no_telp' => null,
-            'tiktok_instagram' => null,
+            'no_telp' => $phone !== '' ? $phone : null,
+            'tiktok_instagram' => $social !== '' ? $social : null,
             'pembelian_terakhir' => $timestamp,
         ];
 
-        $customer = Customer::query()
-            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
-            ->where('nama', $nama)
-            ->first();
+        $customerQuery = Customer::query()
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId));
+
+        $customer = $phone !== ''
+            ? (clone $customerQuery)->where('no_telp', $phone)->first()
+            : null;
+
+        if (! $customer && $nama !== '') {
+            $customer = (clone $customerQuery)->where('nama', $nama)->first();
+        }
 
         if ($customer) {
             $customer->update([
-                'nama' => $payload['nama'],
+                'nama' => $payload['nama'] ?? $customer->nama,
+                'no_telp' => $payload['no_telp'] ?? $customer->no_telp,
+                'tiktok_instagram' => $payload['tiktok_instagram'] ?? $customer->tiktok_instagram,
                 'pembelian_terakhir' => $timestamp,
             ]);
 

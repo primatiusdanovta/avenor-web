@@ -20,6 +20,7 @@ use App\Models\RawMaterial;
 use App\Models\SalesTarget;
 use App\Models\Sop;
 use App\Models\User;
+use App\Support\MarketingMobileSupport;
 use App\Support\RawMaterialUsage;
 use App\Support\SalesRole;
 use Illuminate\Http\JsonResponse;
@@ -131,10 +132,15 @@ class OwnerModuleController extends Controller
 
     private function authorizeOwner(Request $request): int
     {
-        abort_unless($request->user()?->role === SalesRole::OWNER, 403);
-        abort_unless($this->isSmoothiesSweetieStore($request), 403);
+        $user = $request->user();
 
-        return $this->currentStoreId($request);
+        abort_unless($user?->role === SalesRole::OWNER, 403);
+        abort_unless($user && MarketingMobileSupport::isSmoothiesSweetieUser($user), 403);
+
+        $storeId = $user ? MarketingMobileSupport::currentStoreId($user) : null;
+        abort_unless($storeId, 403, 'Store aktif tidak ditemukan.');
+
+        return (int) $storeId;
     }
 
     private function baseModulePayload(string $title, string $description, array $items, bool $readOnly = false): array

@@ -38,6 +38,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/sweetie.png
+    - assets/images/qr_smoothies.jpeg
 
 
 

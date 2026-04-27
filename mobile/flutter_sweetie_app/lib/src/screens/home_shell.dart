@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../state/session_controller.dart';
 import '../../widgets/popup_form_widget.dart';
+import '../../widgets/app_drawer_widget.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -288,7 +289,7 @@ class _AttendanceTabState extends State<_AttendanceTab> {
                   Text('Check out: ${today?['check_out'] ?? '-'}'),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: _status,
+                    initialValue: _status,
                     items: const [
                       DropdownMenuItem(value: 'hadir', child: Text('Hadir')),
                       DropdownMenuItem(value: 'terlambat', child: Text('Terlambat')),
@@ -519,7 +520,7 @@ class _ProductsTabState extends State<_ProductsTab> {
                         Text(data['attendance_blocked_reason'].toString()),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
-                        value: _selectedProductId,
+                        initialValue: _selectedProductId,
                         items: products
                             .map((item) => DropdownMenuItem<int>(
                                   value: item['id_product'] as int,
@@ -572,7 +573,7 @@ class _ProductsTabState extends State<_ProductsTab> {
                       Text('Request Return', style: Theme.of(context).textTheme.titleMedium),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
-                        value: _selectedOnhandId,
+                        initialValue: _selectedOnhandId,
                         items: returnItems
                             .map((item) => DropdownMenuItem<int>(
                                   value: item['id_product_onhand'] as int,
@@ -705,7 +706,7 @@ class _SalesTabState extends State<_SalesTab> {
                       TextField(controller: _customerName, decoration: const InputDecoration(labelText: 'Nama Customer')),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
-                        value: _selectedProductId,
+                        initialValue: _selectedProductId,
                         items: products
                             .map((item) => DropdownMenuItem<int>(
                                   value: item['id_product'] as int,
@@ -719,7 +720,7 @@ class _SalesTabState extends State<_SalesTab> {
                       TextField(controller: _qtyController, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Quantity')),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<int?>(
-                        value: _selectedPromoId,
+                        initialValue: _selectedPromoId,
                         items: [
                           const DropdownMenuItem<int?>(value: null, child: Text('Tanpa Promo')),
                           ...promos.map((item) => DropdownMenuItem<int?>(
@@ -898,6 +899,4 @@ class _StatCard extends StatelessWidget {
     );
   }
 }
-
-
 

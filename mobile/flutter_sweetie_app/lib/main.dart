@@ -36,6 +36,7 @@ const String kApiBaseUrl = String.fromEnvironment(
 const bool kUseMock =
     bool.fromEnvironment('SWEETIE_USE_MOCK', defaultValue: false);
 const String kSweetieLogoAsset = 'assets/images/sweetie.png';
+const String kSweetieQrisAsset = 'assets/images/qr_smoothies.jpeg';
 const Color kSweetiePink = Color(0xFFD980B4);
 const Color kSweetiePurple = Color(0xFF8E79D6);
 const Color kSweetieLavender = Color(0xFFF7F0FB);
@@ -951,7 +952,9 @@ class _MarketingRootState extends State<MarketingRoot> {
         ((_sales?['products'] as List?) ?? []).cast<Map<String, dynamic>>();
 
     if (onhands.isEmpty) {
-      return catalog.where((product) => _asInt(product['stock']) > 0).map((product) {
+      return catalog
+          .where((product) => _asInt(product['stock']) > 0)
+          .map((product) {
         Map<String, dynamic>? current;
         try {
           current = currentSalesProducts.firstWhere(
@@ -1489,10 +1492,11 @@ class _MarketingRootState extends State<MarketingRoot> {
             ),
             _InfoRow(
               label: 'Pemesan',
-              value: saleSummary['customer_name']?.toString().trim().isNotEmpty ==
-                      true
-                  ? saleSummary['customer_name'].toString()
-                  : 'Customer umum',
+              value:
+                  saleSummary['customer_name']?.toString().trim().isNotEmpty ==
+                          true
+                      ? saleSummary['customer_name'].toString()
+                      : 'Customer umum',
             ),
             _InfoRow(
               label: 'Total',
@@ -1932,8 +1936,7 @@ class _MarketingRootState extends State<MarketingRoot> {
 
     if (value is Map<String, dynamic>) {
       for (final entry in value.entries) {
-        final nextPrefix =
-            prefix == null ? entry.key : '$prefix[${entry.key}]';
+        final nextPrefix = prefix == null ? entry.key : '$prefix[${entry.key}]';
         await _appendFormDataEntries(form, entry.value, prefix: nextPrefix);
       }
       return;
@@ -2061,7 +2064,8 @@ class _MarketingRootState extends State<MarketingRoot> {
     final knowledge = _asMapList(_knowledge?['products']);
     final notifications = _asMapList(_notifications?['notifications']);
     final recentAttendances = _asMapList(_attendance?['recent_attendances']);
-    final employeeAttendances = _asMapList(_attendance?['employee_attendances']);
+    final employeeAttendances =
+        _asMapList(_attendance?['employee_attendances']);
     final role = (_me?['role']?.toString() ?? '');
     final isOwner = role == 'owner';
 
@@ -2367,7 +2371,11 @@ class _LoginPage extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Color(0xFFE783BF), Color(0xFF9E7AE6), Color(0xFFF4D8F0)],
+                colors: [
+                  Color(0xFFE783BF),
+                  Color(0xFF9E7AE6),
+                  Color(0xFFF4D8F0)
+                ],
               ),
             ),
             child: const SizedBox.expand(),
@@ -2402,7 +2410,8 @@ class _LoginPage extends StatelessWidget {
           SafeArea(
             child: Center(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 440),
                   child: Column(
@@ -2533,10 +2542,22 @@ class _LoginLinesPainter extends CustomPainter {
       ..strokeWidth = 1.2;
 
     final segments = [
-      [Offset(size.width * 0.05, size.height * 0.18), Offset(size.width * 0.95, size.height * 0.04)],
-      [Offset(size.width * 0.02, size.height * 0.42), Offset(size.width * 0.82, size.height * 0.22)],
-      [Offset(size.width * 0.18, size.height * 0.88), Offset(size.width * 0.96, size.height * 0.62)],
-      [Offset(size.width * 0.0, size.height * 0.7), Offset(size.width * 0.64, size.height * 0.5)],
+      [
+        Offset(size.width * 0.05, size.height * 0.18),
+        Offset(size.width * 0.95, size.height * 0.04)
+      ],
+      [
+        Offset(size.width * 0.02, size.height * 0.42),
+        Offset(size.width * 0.82, size.height * 0.22)
+      ],
+      [
+        Offset(size.width * 0.18, size.height * 0.88),
+        Offset(size.width * 0.96, size.height * 0.62)
+      ],
+      [
+        Offset(size.width * 0.0, size.height * 0.7),
+        Offset(size.width * 0.64, size.height * 0.5)
+      ],
     ];
 
     for (final segment in segments) {
@@ -2749,7 +2770,8 @@ class _TopBanner extends StatelessWidget {
                             ? const SizedBox(
                                 height: 16,
                                 width: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               )
                             : const Icon(Icons.sync_rounded),
                         tooltip: 'Refresh',
@@ -3048,10 +3070,12 @@ class _QueueSaleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final details = ((item['details'] as List?) ?? []).cast<Map<String, dynamic>>();
-    final customerName = item['customer_name']?.toString().trim().isNotEmpty == true
-        ? item['customer_name'].toString()
-        : 'Customer umum';
+    final details =
+        ((item['details'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final customerName =
+        item['customer_name']?.toString().trim().isNotEmpty == true
+            ? item['customer_name'].toString()
+            : 'Customer umum';
     final saleNumber = _formatQueueSaleNumber(
       rawSaleNumber: item['sale_number']?.toString(),
       createdAt: item['created_at']?.toString(),
@@ -3144,7 +3168,8 @@ class _QueueSaleCard extends StatelessWidget {
           ...List.generate(details.length, (index) {
             final detail = details[index];
             return Padding(
-              padding: EdgeInsets.only(bottom: index == details.length - 1 ? 0 : 10),
+              padding:
+                  EdgeInsets.only(bottom: index == details.length - 1 ? 0 : 10),
               child: _QueueDetailTile(
                 index: index + 1,
                 detail: detail,
@@ -3231,6 +3256,13 @@ class _QueueDetailTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final rawName = detail['nama_product']?.toString().trim() ?? '-';
+    final variantName = detail['product_variant_name']?.toString().trim();
+    final displayVariant = variantName != null && variantName.isNotEmpty
+        ? variantName
+        : _extractVariantName(rawName);
+    final productName = _extractBaseProductName(rawName);
+    final quantity = (detail['quantity'] as num?)?.toInt() ?? 0;
     final toppings = ((detail['extra_toppings'] as List?) ?? [])
         .map((entry) => entry?.toString().trim() ?? '')
         .where((entry) => entry.isNotEmpty)
@@ -3269,12 +3301,36 @@ class _QueueDetailTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${detail['nama_product'] ?? '-'} x${detail['quantity'] ?? 0}',
+                  productName,
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: kSweetieInk,
                   ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _QueueBadge(
+                      label: quantity > 0 ? 'x$quantity' : 'x0',
+                      backgroundColor: const Color(0xFFF2E7FB),
+                      textColor: const Color(0xFF7C54C6),
+                    ),
+                    if (displayVariant != null && displayVariant.isNotEmpty)
+                      _QueueBadge(
+                        label: displayVariant,
+                        backgroundColor: const Color(0xFFEAF6F0),
+                        textColor: const Color(0xFF3A7B5D),
+                      ),
+                    if (toppings.isEmpty)
+                      const _QueueBadge(
+                        label: 'Tidak Pakai Topping',
+                        backgroundColor: Color(0xFFF4F1F7),
+                        textColor: Color(0xFF8E7E9D),
+                      ),
+                  ],
                 ),
                 if (toppings.isNotEmpty) ...[
                   const SizedBox(height: 8),
@@ -3319,6 +3375,51 @@ class _QueueDetailTile extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+String _extractBaseProductName(String rawName) {
+  final parts = rawName.split(' - ');
+  return parts.isEmpty ? rawName : parts.first.trim();
+}
+
+String? _extractVariantName(String rawName) {
+  final parts = rawName.split(' - ');
+  if (parts.length < 2) {
+    return null;
+  }
+  final variant = parts.sublist(1).join(' - ').trim();
+  return variant.isEmpty ? null : variant;
+}
+
+class _QueueBadge extends StatelessWidget {
+  const _QueueBadge({
+    required this.label,
+    required this.backgroundColor,
+    required this.textColor,
+  });
+
+  final String label;
+  final Color backgroundColor;
+  final Color textColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: textColor,
+        ),
       ),
     );
   }
@@ -4349,15 +4450,17 @@ class _AttendancePageState extends State<_AttendancePage> {
   }
 
   Widget _buildOwnerAttendance(BuildContext context) {
-    final selectedDate = _DashboardPage._parseFlexibleDate(widget.selectedDate) ??
-        DateTime.now();
+    final selectedDate =
+        _DashboardPage._parseFlexibleDate(widget.selectedDate) ??
+            DateTime.now();
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       children: [
         _BlockCard(
           title: 'Riwayat Absensi Karyawan',
-          subtitle: 'Owner hanya melihat history absensi, bukan form check in/out.',
+          subtitle:
+              'Owner hanya melihat history absensi, bukan form check in/out.',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -4506,86 +4609,86 @@ class _InventoryPage extends StatelessWidget {
             onTap: busy ? null : () => _openSweetieStockSheet(context),
           ),
         ] else ...[
-        _InventoryLauncherCard(
-          title: 'Ambil Barang',
-          subtitle: attendanceBlockedReason ??
-              'Tap untuk memilih product yang ingin direquest dari daftar stok.',
-          icon: Icons.shopping_bag_rounded,
-          accent: const Color(0xFF6E8B3D),
-          heroTag: 'inventory-take',
-          badgeLabel: '${products.length} product',
-          onTap: busy ? null : () => _openTakeSheet(context),
-        ),
-        const SizedBox(height: 16),
-        _InventoryLauncherCard(
-          title: 'Barang On Hand',
-          subtitle: displayOnhands.isEmpty
-              ? 'Belum ada barang on hand.'
-              : 'Tap untuk melihat detail barang yang sedang di tangan saat ini.',
-          icon: Icons.inventory_2_rounded,
-          accent: const Color(0xFFC18B2F),
-          heroTag: 'inventory-onhand',
-          badgeLabel: '${displayOnhands.length} item',
-          onTap: busy ? null : () => _openOnhandSheet(context),
-        ),
-        const SizedBox(height: 16),
-        _InventoryLauncherCard(
-          title: 'History Barang',
-          subtitle: historyOnhands.isEmpty
-              ? 'Belum ada riwayat barang terjual atau dikembalikan.'
-              : 'Tap untuk melihat barang on hand yang sudah habis terjual atau sudah dikembalikan.',
-          icon: Icons.history_rounded,
-          accent: const Color(0xFF2C8C82),
-          heroTag: 'inventory-history',
-          badgeLabel: '${historyOnhands.length} item',
-          onTap: busy ? null : () => _openHistorySheet(context),
-        ),
-        if (consignmentProducts != null && consignments != null) ...[
-          const SizedBox(height: 16),
           _InventoryLauncherCard(
-            title: 'Titip Barang',
-            subtitle: consignmentProducts!.isEmpty
-                ? 'Belum ada stok batch yang siap untuk consign.'
-                : 'Buat consign dari inventory dengan tanggal otomatis dan banyak item sekaligus.',
-            icon: Icons.storefront_rounded,
-            accent: const Color(0xFF8C6A2C),
-            heroTag: 'inventory-consign-form',
-            badgeLabel: '${consignmentProducts!.length} batch',
-            onTap: busy ||
-                    onPickConsignmentProof == null ||
-                    onSubmitConsignment == null
-                ? null
-                : () => _openConsignmentFormSheet(context),
+            title: 'Ambil Barang',
+            subtitle: attendanceBlockedReason ??
+                'Tap untuk memilih product yang ingin direquest dari daftar stok.',
+            icon: Icons.shopping_bag_rounded,
+            accent: const Color(0xFF6E8B3D),
+            heroTag: 'inventory-take',
+            badgeLabel: '${products.length} product',
+            onTap: busy ? null : () => _openTakeSheet(context),
           ),
           const SizedBox(height: 16),
           _InventoryLauncherCard(
-            title: 'Active Consign',
-            subtitle: activeConsignments.isEmpty
-                ? 'Belum ada consign aktif.'
-                : 'Pantau consign yang masih berjalan dan edit status per item.',
-            icon: Icons.history_toggle_off_rounded,
-            accent: const Color(0xFF7C5B39),
-            heroTag: 'inventory-consign-history',
-            badgeLabel: '${activeConsignments.length} consign',
-            onTap: busy || onUpdateConsignmentItem == null
-                ? null
-                : () => _openConsignmentHistorySheet(context),
+            title: 'Barang On Hand',
+            subtitle: displayOnhands.isEmpty
+                ? 'Belum ada barang on hand.'
+                : 'Tap untuk melihat detail barang yang sedang di tangan saat ini.',
+            icon: Icons.inventory_2_rounded,
+            accent: const Color(0xFFC18B2F),
+            heroTag: 'inventory-onhand',
+            badgeLabel: '${displayOnhands.length} item',
+            onTap: busy ? null : () => _openOnhandSheet(context),
           ),
           const SizedBox(height: 16),
           _InventoryLauncherCard(
-            title: 'Riwayat Consign',
-            subtitle: completedConsignments.isEmpty
-                ? 'Belum ada consign yang sudah diambil atau terjual.'
-                : 'Lihat consign yang sudah selesai diambil kembali atau sudah terjual.',
-            icon: Icons.fact_check_outlined,
-            accent: const Color(0xFF5B6F8D),
-            heroTag: 'inventory-consign-completed',
-            badgeLabel: '${completedConsignments.length} consign',
-            onTap: busy || onUpdateConsignmentItem == null
-                ? null
-                : () => _openCompletedConsignmentHistorySheet(context),
+            title: 'History Barang',
+            subtitle: historyOnhands.isEmpty
+                ? 'Belum ada riwayat barang terjual atau dikembalikan.'
+                : 'Tap untuk melihat barang on hand yang sudah habis terjual atau sudah dikembalikan.',
+            icon: Icons.history_rounded,
+            accent: const Color(0xFF2C8C82),
+            heroTag: 'inventory-history',
+            badgeLabel: '${historyOnhands.length} item',
+            onTap: busy ? null : () => _openHistorySheet(context),
           ),
-        ],
+          if (consignmentProducts != null && consignments != null) ...[
+            const SizedBox(height: 16),
+            _InventoryLauncherCard(
+              title: 'Titip Barang',
+              subtitle: consignmentProducts!.isEmpty
+                  ? 'Belum ada stok batch yang siap untuk consign.'
+                  : 'Buat consign dari inventory dengan tanggal otomatis dan banyak item sekaligus.',
+              icon: Icons.storefront_rounded,
+              accent: const Color(0xFF8C6A2C),
+              heroTag: 'inventory-consign-form',
+              badgeLabel: '${consignmentProducts!.length} batch',
+              onTap: busy ||
+                      onPickConsignmentProof == null ||
+                      onSubmitConsignment == null
+                  ? null
+                  : () => _openConsignmentFormSheet(context),
+            ),
+            const SizedBox(height: 16),
+            _InventoryLauncherCard(
+              title: 'Active Consign',
+              subtitle: activeConsignments.isEmpty
+                  ? 'Belum ada consign aktif.'
+                  : 'Pantau consign yang masih berjalan dan edit status per item.',
+              icon: Icons.history_toggle_off_rounded,
+              accent: const Color(0xFF7C5B39),
+              heroTag: 'inventory-consign-history',
+              badgeLabel: '${activeConsignments.length} consign',
+              onTap: busy || onUpdateConsignmentItem == null
+                  ? null
+                  : () => _openConsignmentHistorySheet(context),
+            ),
+            const SizedBox(height: 16),
+            _InventoryLauncherCard(
+              title: 'Riwayat Consign',
+              subtitle: completedConsignments.isEmpty
+                  ? 'Belum ada consign yang sudah diambil atau terjual.'
+                  : 'Lihat consign yang sudah selesai diambil kembali atau sudah terjual.',
+              icon: Icons.fact_check_outlined,
+              accent: const Color(0xFF5B6F8D),
+              heroTag: 'inventory-consign-completed',
+              badgeLabel: '${completedConsignments.length} consign',
+              onTap: busy || onUpdateConsignmentItem == null
+                  ? null
+                  : () => _openCompletedConsignmentHistorySheet(context),
+            ),
+          ],
         ],
       ],
     );
@@ -4730,8 +4833,8 @@ class _InventoryPage extends StatelessWidget {
               width: 160,
               child: _MetricCard(
                 label: 'Net Profit',
-                value:
-                    currency.format((kpis['net_profit_total'] as num?)?.toDouble() ?? 0),
+                value: currency.format(
+                    (kpis['net_profit_total'] as num?)?.toDouble() ?? 0),
                 icon: Icons.account_balance_wallet_rounded,
                 accent: const Color(0xFF6F90D8),
               ),
@@ -4741,7 +4844,8 @@ class _InventoryPage extends StatelessWidget {
         const SizedBox(height: 18),
         _BlockCard(
           title: 'Top 3 Product Terjual',
-          subtitle: 'Produk dengan quantity terjual tertinggi pada periode aktif.',
+          subtitle:
+              'Produk dengan quantity terjual tertinggi pada periode aktif.',
           child: topProducts.isEmpty
               ? const Text('Belum ada data penjualan produk pada periode ini.')
               : Column(
@@ -6272,19 +6376,7 @@ class _SalesPageState extends State<_SalesPage> {
   @override
   void initState() {
     super.initState();
-    final firstProductId = widget.products.isEmpty
-        ? null
-        : (widget.products.first['id_product'] as num?)?.toInt();
-    final firstProduct =
-        firstProductId == null ? null : _productById(firstProductId);
-    _items = [
-      _SaleItemDraft(
-        productId: firstProductId,
-        variantId: _defaultVariantId(firstProduct),
-        extraToppingIds: const [],
-        quantity: 1,
-      )
-    ];
+    _items = <_SaleItemDraft>[];
   }
 
   @override
@@ -6423,8 +6515,6 @@ class _SalesPageState extends State<_SalesPage> {
   }
 
   bool get _hasInvalidItems {
-    final seen = <int>{};
-
     for (final item in _items) {
       if (item.productId == null || item.quantity < 1) {
         return true;
@@ -6434,45 +6524,9 @@ class _SalesPageState extends State<_SalesPage> {
           item.variantId == null) {
         return true;
       }
-
-      if (!widget.isSmoothiesSweetie && !seen.add(item.productId!)) {
-        return true;
-      }
     }
 
-    return false;
-  }
-
-  bool get _hasDuplicateProducts {
-    if (widget.isSmoothiesSweetie) {
-      return false;
-    }
-
-    final seen = <int>{};
-
-    for (final item in _items) {
-      final productId = item.productId;
-      if (productId == null) {
-        continue;
-      }
-
-      if (!seen.add(productId)) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  String _productLabel(Map<String, dynamic> product) {
-    final label = product['option_label']?.toString().trim();
-    if (label != null && label.isNotEmpty) {
-      return label;
-    }
-
-    final name = product['nama_product']?.toString() ?? 'Produk';
-    final remaining = _productAvailableStock(product);
-    return '$name | stock $remaining';
+    return _items.isEmpty;
   }
 
   int _productAvailableStock(Map<String, dynamic>? product) {
@@ -6522,124 +6576,13 @@ class _SalesPageState extends State<_SalesPage> {
         currency: widget.currency,
       );
 
-  Future<void> _pickProductForIndex(int index) async {
-    if (widget.products.isEmpty) {
+  void _showMessage(String message) {
+    if (!mounted) {
       return;
     }
 
-    final selectableProducts = widget.isSmoothiesSweetie
-        ? widget.products
-        : widget.products.where((item) {
-            final selectedByOthers = _items
-                .asMap()
-                .entries
-                .where((entry) => entry.key != index)
-                .map((entry) => entry.value.productId)
-                .whereType<int>()
-                .toSet();
-            final productId = (item['id_product'] as num?)?.toInt();
-            return productId == null || !selectedByOthers.contains(productId);
-          }).toList();
-
-    if (selectableProducts.isEmpty) {
-      return;
-    }
-
-    final selected = await _showSmoothiesSalesOptionSheet(
-      context: context,
-      heroTag: 'sales-product-$index',
-      accent: const Color(0xFF8E5BE8),
-      icon: Icons.inventory_2_outlined,
-      title: 'Pilih Produk',
-      subtitle: 'Pilih barang yang akan dijual dari stok toko aktif.',
-      searchHint: 'Cari product',
-      emptyMessage: 'Belum ada product yang bisa dipilih.',
-      options: selectableProducts,
-      selectedId: _items[index].productId,
-      idResolver: (item) => (item['id_product'] as num?)?.toInt(),
-      titleResolver: _productLabel,
-      subtitleResolver: (item) {
-        final price =
-            widget.currency.format((item['harga'] as num?)?.toDouble() ?? 0);
-        return 'Harga $price';
-      },
-    );
-
-    if (!mounted || selected == null) {
-      return;
-    }
-
-    setState(() {
-      final product = _productById(selected);
-      _items[index] = _items[index].copyWith(
-        productId: selected,
-        variantId: _defaultVariantId(product),
-        extraToppingIds: const [],
-      );
-    });
-  }
-
-  Future<void> _pickVariantForIndex(int index) async {
-    final variants = _variantsForProduct(_items[index].productId);
-    if (variants.isEmpty) {
-      return;
-    }
-
-    final selected = await _showSmoothiesSalesOptionSheet(
-      context: context,
-      heroTag: 'sales-variant-$index',
-      accent: const Color(0xFF4A8F74),
-      icon: Icons.local_drink_outlined,
-      title: 'Pilih Size',
-      subtitle: 'Pilih varian gelas yang akan dipakai di transaksi ini.',
-      searchHint: 'Cari size',
-      emptyMessage: 'Belum ada size untuk produk ini.',
-      options: variants,
-      selectedId: _items[index].variantId,
-      idResolver: (item) => (item['id'] as num?)?.toInt(),
-      titleResolver: _variantLabel,
-      subtitleResolver: (item) {
-        final ml = (item['total_satuan_ml'] as num?)?.toDouble();
-        return ml == null ? null : '${ml.toStringAsFixed(0)} ml';
-      },
-    );
-
-    if (!mounted || selected == null) {
-      return;
-    }
-
-    setState(() {
-      _items[index] = _items[index].copyWith(variantId: selected);
-    });
-  }
-
-  Future<void> _pickExtraToppingsForIndex(int index) async {
-    if (widget.extraToppings.isEmpty) {
-      return;
-    }
-
-    final selected = await _showSmoothiesSalesMultiSelectSheet(
-      context: context,
-      heroTag: 'sales-toppings-$index',
-      accent: const Color(0xFFC05D3B),
-      icon: Icons.bubble_chart_outlined,
-      title: 'Pilih Extra Topping',
-      subtitle: 'Tentukan topping tambahan untuk item ini.',
-      options: widget.extraToppings,
-      selectedIds: _items[index].extraToppingIds,
-      idResolver: (item) => (item['id'] as num?)?.toInt(),
-      titleResolver: (item) => item['name']?.toString() ?? 'Extra topping',
-      subtitleResolver: (item) =>
-          widget.currency.format((item['price'] as num?)?.toDouble() ?? 0),
-    );
-
-    if (!mounted || selected == null) {
-      return;
-    }
-
-    setState(() {
-      _items[index] = _items[index].copyWith(extraToppingIds: selected);
-    });
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _pickPromo() async {
@@ -6672,56 +6615,392 @@ class _SalesPageState extends State<_SalesPage> {
     setState(() => _promoId = selected);
   }
 
-  Future<void> _pickQuantityForIndex(int index) async {
-    final selectedProduct = _productById(_items[index].productId);
-    final maxQuantity =
-        selectedProduct == null ? 99 : _productAvailableStock(selectedProduct);
+  List<int> _normalizeToppingIds(List<int> toppingIds) {
+    final normalized = toppingIds.toSet().toList()..sort();
+    return normalized;
+  }
 
-    if (selectedProduct != null && maxQuantity < 1) {
+  bool _hasSameConfiguration(_SaleItemDraft left, _SaleItemDraft right) {
+    if (left.productId != right.productId ||
+        left.variantId != right.variantId) {
+      return false;
+    }
+
+    final leftToppings = _normalizeToppingIds(left.extraToppingIds);
+    final rightToppings = _normalizeToppingIds(right.extraToppingIds);
+    if (leftToppings.length != rightToppings.length) {
+      return false;
+    }
+
+    for (var index = 0; index < leftToppings.length; index++) {
+      if (leftToppings[index] != rightToppings[index]) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  int _selectedQuantityForProduct(int? productId, {int? excludingIndex}) {
+    if (productId == null) {
+      return 0;
+    }
+
+    var total = 0;
+    for (final entry in _items.asMap().entries) {
+      if (excludingIndex != null && entry.key == excludingIndex) {
+        continue;
+      }
+      if (entry.value.productId == productId) {
+        total += entry.value.quantity;
+      }
+    }
+    return total;
+  }
+
+  double _lineUnitPrice(_SaleItemDraft item) {
+    final product = _productById(item.productId);
+    final variant = _variantById(item.productId, item.variantId);
+    final basePrice = ((variant?['price'] as num?)?.toDouble() ??
+            (product?['harga'] as num?)?.toDouble() ??
+            0)
+        .toDouble();
+    final toppingPrice = item.extraToppingIds.fold<double>(
+      0,
+      (sum, id) =>
+          sum + ((_extraToppingById(id)?['price'] as num?)?.toDouble() ?? 0),
+    );
+    return basePrice + toppingPrice;
+  }
+
+  double _lineTotal(_SaleItemDraft item) =>
+      _lineUnitPrice(item) * item.quantity;
+
+  String _lineTitle(_SaleItemDraft item) {
+    final product = _productById(item.productId);
+    final variant = _variantById(item.productId, item.variantId);
+    final productName = product?['nama_product']?.toString() ?? 'Produk';
+    final variantName = variant?['name']?.toString().trim();
+    if (variantName == null || variantName.isEmpty) {
+      return productName;
+    }
+    return '$productName - $variantName';
+  }
+
+  Future<int?> _showVariantPickerForProduct(
+    Map<String, dynamic> product, {
+    int? selectedVariantId,
+  }) async {
+    final productId = (product['id_product'] as num?)?.toInt();
+    final variants = _variantsForProduct(productId);
+    if (variants.isEmpty) {
+      return null;
+    }
+
+    return _showSmoothiesSalesOptionSheet(
+      context: context,
+      heroTag:
+          'sales-variant-product-$productId-${DateTime.now().microsecondsSinceEpoch}',
+      accent: const Color(0xFF4A8F74),
+      icon: Icons.local_drink_outlined,
+      title: 'Pilih Varian',
+      subtitle: 'Pilih ukuran sesuai varian product ini.',
+      searchHint: 'Cari varian',
+      emptyMessage: 'Belum ada varian untuk product ini.',
+      options: variants,
+      selectedId: selectedVariantId ?? _defaultVariantId(product),
+      idResolver: (item) => (item['id'] as num?)?.toInt(),
+      titleResolver: _variantLabel,
+      subtitleResolver: (item) {
+        final ml = (item['total_satuan_ml'] as num?)?.toDouble();
+        return ml == null ? null : '${ml.toStringAsFixed(0)} ml';
+      },
+    );
+  }
+
+  Future<List<int>?> _showToppingPickerForDraft({
+    required Map<String, dynamic> product,
+    required List<int> selectedIds,
+  }) async {
+    if (widget.extraToppings.isEmpty) {
+      return const <int>[];
+    }
+
+    final working = selectedIds.toSet();
+    return showDialog<List<int>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(28),
+          ),
+          title: Text(
+            'Extra Topping',
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800),
+          ),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Pilih extra topping untuk ${product['nama_product'] ?? 'product'} atau lanjutkan tanpa topping.',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    color: const Color(0xFF6F665F),
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: widget.extraToppings.map((topping) {
+                    final toppingId = (topping['id'] as num?)?.toInt();
+                    final selected =
+                        toppingId != null && working.contains(toppingId);
+                    return FilterChip(
+                      selected: selected,
+                      label: Text(
+                        '${topping['name'] ?? 'Topping'} • ${widget.currency.format((topping['price'] as num?)?.toDouble() ?? 0)}',
+                      ),
+                      onSelected: toppingId == null
+                          ? null
+                          : (value) {
+                              setDialogState(() {
+                                if (value) {
+                                  working.add(toppingId);
+                                } else {
+                                  working.remove(toppingId);
+                                }
+                              });
+                            },
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(const <int>[]),
+              child: const Text('Tidak Pakai'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext)
+                  .pop(_normalizeToppingIds(working.toList())),
+              child: const Text('Gunakan'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<bool?> _showReuseDialog(_SaleItemDraft existing) {
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        title: const Text('Apakah Ukuran dan Extra Topping sama?'),
+        content: Text(
+          '${_lineTitle(existing)}\n${_toppingSummary(existing.extraToppingIds)}',
+          style: GoogleFonts.plusJakartaSans(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Tidak Sama'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Sama'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<_SaleItemDraft?> _composeDraftForProduct(
+    Map<String, dynamic> product, {
+    _SaleItemDraft? seed,
+  }) async {
+    final productId = (product['id_product'] as num?)?.toInt();
+    if (productId == null) {
+      return null;
+    }
+
+    var variantId = seed?.variantId;
+    final variants = _variantsForProduct(productId);
+    if (variants.isNotEmpty) {
+      variantId = await _showVariantPickerForProduct(
+        product,
+        selectedVariantId: variantId,
+      );
+      if (!mounted || variantId == null) {
+        return null;
+      }
+    }
+
+    final toppingIds = await _showToppingPickerForDraft(
+      product: product,
+      selectedIds: seed?.extraToppingIds ?? const <int>[],
+    );
+    if (!mounted || toppingIds == null) {
+      return null;
+    }
+
+    return _SaleItemDraft(
+      productId: productId,
+      variantId: variants.isEmpty ? null : variantId,
+      extraToppingIds: _normalizeToppingIds(toppingIds),
+      quantity: 1,
+    );
+  }
+
+  void _appendOrIncreaseDraft(_SaleItemDraft draft) {
+    for (final entry in _items.asMap().entries) {
+      if (_hasSameConfiguration(entry.value, draft)) {
+        _items[entry.key] = entry.value
+            .copyWith(quantity: entry.value.quantity + draft.quantity);
+        return;
+      }
+    }
+    _items.add(draft);
+  }
+
+  Future<void> _onProductTap(Map<String, dynamic> product) async {
+    final productId = (product['id_product'] as num?)?.toInt();
+    final available = _productAvailableStock(product);
+    if (productId == null || available < 1) {
+      _showMessage('Stock product ini sedang habis.');
       return;
     }
 
-    await showMaterialModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _QuantitySheet(
-        title: selectedProduct == null
-            ? 'Atur quantity'
-            : 'Qty ${selectedProduct['nama_product']}',
-        maxQuantity: maxQuantity < 1 ? 99 : maxQuantity,
-        initialQuantity: _items[index].quantity,
-        ctaLabel: 'Gunakan quantity ini',
-        onSubmit: (qty) async {
-          if (!mounted) {
-            return false;
-          }
-          setState(() {
-            _items[index] = _items[index].copyWith(quantity: qty);
-          });
-          return true;
-        },
-      ),
+    if (_selectedQuantityForProduct(productId) >= available) {
+      _showMessage('Quantity product ini sudah mencapai stock yang tersedia.');
+      return;
+    }
+
+    final existingForProduct = _items
+        .asMap()
+        .entries
+        .where((entry) => entry.value.productId == productId)
+        .toList();
+
+    if (existingForProduct.isNotEmpty) {
+      final lastDraft = existingForProduct.last.value;
+      final reuse = await _showReuseDialog(lastDraft);
+      if (!mounted || reuse == null) {
+        return;
+      }
+
+      if (reuse) {
+        if (_selectedQuantityForProduct(productId) >= available) {
+          _showMessage(
+              'Quantity product ini sudah mencapai stock yang tersedia.');
+          return;
+        }
+        setState(() {
+          final current = _items[existingForProduct.last.key];
+          _items[existingForProduct.last.key] =
+              current.copyWith(quantity: current.quantity + 1);
+        });
+        return;
+      }
+    }
+
+    final draft = await _composeDraftForProduct(product);
+    if (!mounted || draft == null) {
+      return;
+    }
+
+    if (_selectedQuantityForProduct(productId) + draft.quantity > available) {
+      _showMessage('Quantity product ini melebihi stock yang tersedia.');
+      return;
+    }
+
+    setState(() => _appendOrIncreaseDraft(draft));
+  }
+
+  Future<void> _editLineVariant(int index) async {
+    final current = _items[index];
+    final product = _productById(current.productId);
+    if (product == null) {
+      return;
+    }
+
+    final selectedVariantId = await _showVariantPickerForProduct(
+      product,
+      selectedVariantId: current.variantId,
     );
+    if (!mounted || selectedVariantId == null) {
+      return;
+    }
+
+    setState(() {
+      _items[index] = current.copyWith(variantId: selectedVariantId);
+    });
+  }
+
+  Future<void> _editLineToppings(int index) async {
+    final current = _items[index];
+    final product = _productById(current.productId);
+    if (product == null) {
+      return;
+    }
+
+    final toppingIds = await _showToppingPickerForDraft(
+      product: product,
+      selectedIds: current.extraToppingIds,
+    );
+    if (!mounted || toppingIds == null) {
+      return;
+    }
+
+    setState(() {
+      _items[index] =
+          current.copyWith(extraToppingIds: _normalizeToppingIds(toppingIds));
+    });
+  }
+
+  void _changeLineQuantity(int index, int delta) {
+    final current = _items[index];
+    final product = _productById(current.productId);
+    if (product == null) {
+      return;
+    }
+
+    final nextQuantity = current.quantity + delta;
+    if (nextQuantity <= 0) {
+      setState(() => _items.removeAt(index));
+      return;
+    }
+
+    final allowed = _productAvailableStock(product);
+    final usedByOthers = _selectedQuantityForProduct(
+      current.productId,
+      excludingIndex: index,
+    );
+    if (usedByOthers + nextQuantity > allowed) {
+      _showMessage('Quantity product ini melebihi stock yang tersedia.');
+      return;
+    }
+
+    setState(() {
+      _items[index] = current.copyWith(quantity: nextQuantity);
+    });
   }
 
   double get _subtotal {
     double sum = 0;
     for (final item in _items) {
-      final product = _productById(item.productId);
-      if (product != null) {
-        final variant = _variantById(item.productId, item.variantId);
-        final unitPrice = ((variant?['price'] as num?)?.toDouble() ??
-                (product['harga'] as num?)?.toDouble() ??
-                0)
-            .toDouble();
-        final toppingTotal = item.extraToppingIds.fold<double>(
-          0,
-          (sum, id) =>
-              sum +
-              ((_extraToppingById(id)?['price'] as num?)?.toDouble() ?? 0),
-        );
-        sum += (unitPrice + toppingTotal) * item.quantity;
-      }
+      sum += _lineTotal(item);
     }
     return sum;
   }
@@ -6739,13 +7018,10 @@ class _SalesPageState extends State<_SalesPage> {
     for (final item in _items) {
       final product = _productById(item.productId);
       if (product != null) {
-        final variant = _variantById(item.productId, item.variantId);
         final toppingLabel = item.extraToppingIds.isEmpty
             ? ''
             : ' + ${_toppingSummary(item.extraToppingIds)}';
-        names.add(
-          '${product['nama_product'] ?? 'Produk'}${variant?['name'] != null ? ' ${variant?['name']}' : ''}$toppingLabel x${item.quantity}',
-        );
+        names.add('${_lineTitle(item)}$toppingLabel x${item.quantity}');
       }
     }
     return names;
@@ -6753,8 +7029,15 @@ class _SalesPageState extends State<_SalesPage> {
 
   @override
   Widget build(BuildContext context) {
-    final hasQrisImage = (widget.qrisImageUrl ?? '').trim().isNotEmpty;
-    final requiresQrisConfirmation = _paymentMethod == 'Qris' && hasQrisImage;
+    final qrisImageSource = kSweetieQrisAsset;
+    final requiresQrisConfirmation = _paymentMethod == 'Qris';
+    final width = MediaQuery.of(context).size.width;
+    final compactCatalog = width < 560;
+    final catalogCrossAxisCount = compactCatalog
+        ? 2
+        : width < 920
+            ? 3
+            : 4;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -6762,7 +7045,7 @@ class _SalesPageState extends State<_SalesPage> {
         _BlockCard(
           title: 'Penjualan',
           subtitle:
-              'Input customer, item, promo, dan QRIS dalam satu flow yang ringkas.',
+              'Pilih product lewat foto, lalu lanjutkan popup varian dan extra topping.',
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -6771,176 +7054,123 @@ class _SalesPageState extends State<_SalesPage> {
                 decoration: const InputDecoration(labelText: 'Nama customer'),
               ),
               const SizedBox(height: 16),
-              ...List.generate(_items.length, (index) {
-                final selectedProduct = _productById(_items[index].productId);
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFBF6FE),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _PickerField(
-                          fieldKey: ValueKey('sales-product-picker-$index'),
-                          heroTag: 'sales-product-$index',
-                          accent: const Color(0xFF8E5BE8),
-                          icon: Icons.inventory_2_outlined,
-                          label: 'Produk ${index + 1}',
-                          title: selectedProduct == null
-                              ? 'Pilih produk'
-                              : selectedProduct['nama_product']?.toString() ??
-                                  'Produk',
-                          subtitle: selectedProduct == null
-                              ? 'Tap untuk membuka daftar product'
-                              : _productLabel(selectedProduct),
-                          enabled: widget.products.isNotEmpty,
-                          onTap: () => _pickProductForIndex(index),
-                        ),
-                        const SizedBox(height: 12),
-                        if (_variantsForProduct(_items[index].productId)
-                            .isNotEmpty) ...[
-                          _PickerField(
-                            fieldKey: ValueKey('sales-variant-picker-$index'),
-                            heroTag: 'sales-variant-$index',
-                            accent: const Color(0xFF4A8F74),
-                            icon: Icons.local_drink_outlined,
-                            label: 'Size',
-                            title: _variantById(
-                                  _items[index].productId,
-                                  _items[index].variantId,
-                                )?['name']
-                                    ?.toString() ??
-                                'Pilih size',
-                            subtitle: _variantById(
-                                      _items[index].productId,
-                                      _items[index].variantId,
-                                    ) ==
-                                    null
-                                ? 'Tap untuk memilih size'
-                                : _variantLabel(
-                                    _variantById(
-                                      _items[index].productId,
-                                      _items[index].variantId,
-                                    )!,
-                                  ),
-                            enabled: selectedProduct != null,
-                            onTap: () => _pickVariantForIndex(index),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                        if (widget.isSmoothiesSweetie) ...[
-                          _PickerField(
-                            fieldKey: ValueKey('sales-toppings-picker-$index'),
-                            heroTag: 'sales-toppings-$index',
-                            accent: const Color(0xFFC05D3B),
-                            icon: Icons.bubble_chart_outlined,
-                            label: 'Extra topping',
-                            title: _items[index].extraToppingIds.isEmpty
-                                ? 'Tanpa extra topping'
-                                : '${_items[index].extraToppingIds.length} topping',
-                            subtitle:
-                                _toppingSummary(_items[index].extraToppingIds),
-                            enabled: widget.extraToppings.isNotEmpty &&
-                                selectedProduct != null,
-                            onTap: () => _pickExtraToppingsForIndex(index),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                selectedProduct == null
-                                    ? 'Pilih produk terlebih dahulu.'
-                                    : _productLabel(selectedProduct),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xFF766C8B),
-                                  fontWeight: FontWeight.w600,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            if (_items[index].extraToppingIds.isNotEmpty) ...[
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  _toppingSummary(
-                                      _items[index].extraToppingIds),
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFF766C8B),
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  textAlign: TextAlign.right,
-                                ),
-                              ),
-                            ],
-                            if (_items.length > 1) ...[
-                              const SizedBox(width: 8),
-                              IconButton(
-                                onPressed: () =>
-                                    setState(() => _items.removeAt(index)),
-                                icon: const Icon(Icons.delete_outline),
-                                tooltip: 'Hapus item',
-                              ),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        _PickerField(
-                          fieldKey: ValueKey('sales-quantity-picker-$index'),
-                          heroTag: 'sales-qty-$index',
-                          accent: const Color(0xFF4A8F74),
-                          icon: Icons.exposure_plus_1_rounded,
-                          label: 'Quantity',
-                          title: '${_items[index].quantity} item',
-                          subtitle: selectedProduct == null
-                              ? 'Tap untuk mengatur quantity'
-                              : 'Maks. ${_productAvailableStock(selectedProduct)} item',
-                          enabled: selectedProduct != null,
-                          onTap: () => _pickQuantityForIndex(index),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-              TextButton.icon(
-                key: const ValueKey('sales-add-item-button'),
-                onPressed: (!widget.isSmoothiesSweetie &&
-                        _items.length >= widget.products.length)
-                    ? null
-                    : () => setState(() => _items.add(
-                          const _SaleItemDraft(
-                            productId: null,
-                            variantId: null,
-                            extraToppingIds: [],
-                            quantity: 1,
-                          ),
-                        )),
-                icon: const Icon(Icons.add_circle_outline),
-                label: const Text('Tambah item'),
-              ),
-              if (_hasDuplicateProducts) ...[
-                const SizedBox(height: 8),
-                const Text(
-                  'Setiap product hanya boleh dipilih satu kali dalam satu transaksi.',
-                  style: TextStyle(
-                    color: Color(0xFFC05D3B),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
+              Text(
+                'Pilih Menu',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: kSweetieInk,
                 ),
-              ],
+              ),
               const SizedBox(height: 8),
+              Text(
+                'Tap foto product. Setelah itu kasir akan memilih varian, lalu extra topping.',
+                style: GoogleFonts.plusJakartaSans(
+                  fontSize: 12,
+                  height: 1.4,
+                  color: const Color(0xFF766C8B),
+                ),
+              ),
+              const SizedBox(height: 14),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: widget.products.length,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: catalogCrossAxisCount,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: compactCatalog ? 0.75 : 0.86,
+                ),
+                itemBuilder: (context, index) {
+                  final product = widget.products[index];
+                  return _SalesCatalogCard(
+                    key: ValueKey(
+                      'sales-catalog-product-${product['id_product']}',
+                    ),
+                    product: product,
+                    currency: widget.currency,
+                    stock: _productAvailableStock(product),
+                    onTap: () => _onProductTap(product),
+                  );
+                },
+              ),
+              const SizedBox(height: 18),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFBF6FE),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: const Color(0xFFE7D9F4)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Pesanan Aktif',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _items.isEmpty
+                          ? 'Belum ada product dipilih.'
+                          : 'Qty bisa ditambah atau dikurangi langsung dari kartu item.',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        height: 1.4,
+                        color: const Color(0xFF766C8B),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    if (_items.isEmpty)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text(
+                          'Pilih product dari foto di atas untuk mulai input penjualan.',
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    else
+                      ..._items.asMap().entries.map((entry) {
+                        final product = _productById(entry.value.productId);
+                        if (product == null) {
+                          return const SizedBox.shrink();
+                        }
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            bottom: entry.key == _items.length - 1 ? 0 : 12,
+                          ),
+                          child: _SalesOrderLineCard(
+                            product: product,
+                            draft: entry.value,
+                            currency: widget.currency,
+                            unitPrice: _lineUnitPrice(entry.value),
+                            totalPrice: _lineTotal(entry.value),
+                            toppingSummary:
+                                _toppingSummary(entry.value.extraToppingIds),
+                            onDecrease: () =>
+                                _changeLineQuantity(entry.key, -1),
+                            onIncrease: () => _changeLineQuantity(entry.key, 1),
+                            onEditVariant: () => _editLineVariant(entry.key),
+                            onEditToppings: () => _editLineToppings(entry.key),
+                            onRemove: () =>
+                                setState(() => _items.removeAt(entry.key)),
+                          ),
+                        );
+                      }),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
               _PickerField(
                 fieldKey: const ValueKey('sales-payment-method-picker'),
                 heroTag: 'sales-payment-method',
@@ -7010,79 +7240,81 @@ class _SalesPageState extends State<_SalesPage> {
                         'Tunjukkan QRIS ke customer, tunggu pembayaran sukses, lalu tutup transaksi agar nomor antrian terbentuk.',
                         style: TextStyle(fontSize: 12, height: 1.4),
                       ),
-                      if (hasQrisImage) ...[
-                        const SizedBox(height: 12),
-                        InkWell(
-                          borderRadius: BorderRadius.circular(18),
-                          onTap: () async {
-                            await showDialog<void>(
-                              context: context,
-                              builder: (dialogContext) => AlertDialog(
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                ),
-                                content: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(20),
-                                      child: CachedNetworkImage(
-                                        imageUrl: widget.qrisImageUrl!,
-                                        height: 320,
-                                        width: double.infinity,
-                                        fit: BoxFit.contain,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: FilledButton(
-                                        onPressed: () {
-                                          setState(() => _qrisConfirmed = true);
-                                          Navigator.of(dialogContext).pop();
-                                        },
-                                        child: const Text('Sudah Bayar'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                      const SizedBox(height: 12),
+                      InkWell(
+                        key: const ValueKey('sales-qris-image-trigger'),
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: () async {
+                          await showDialog<void>(
+                            context: context,
+                            builder: (dialogContext) => AlertDialog(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(24),
                               ),
-                            );
-                          },
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(18),
-                            child: CachedNetworkImage(
-                              imageUrl: widget.qrisImageUrl!,
-                              height: 180,
-                              width: double.infinity,
-                              fit: BoxFit.contain,
+                              content: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(20),
+                                    child: _SalesImageFrame(
+                                      imageUrl: qrisImageSource,
+                                      height: 320,
+                                      fit: BoxFit.contain,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: FilledButton(
+                                      onPressed: () {
+                                        setState(() => _qrisConfirmed = true);
+                                        Navigator.of(dialogContext).pop();
+                                      },
+                                      child: const Text('Sudah Bayar'),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
+                          );
+                        },
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(18),
+                          child: _SalesImageFrame(
+                            imageUrl: qrisImageSource,
+                            height: 180,
+                            fit: BoxFit.contain,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          _qrisConfirmed
-                              ? 'Pembayaran QRIS sudah dikonfirmasi.'
-                              : 'Tap gambar QRIS untuk memperbesar lalu tekan "Sudah Bayar".',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: _qrisConfirmed
-                                ? const Color(0xFF2E7D32)
-                                : const Color(0xFF6F665F),
-                            fontWeight: FontWeight.w600,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _qrisConfirmed
+                            ? 'Pembayaran QRIS sudah dikonfirmasi.'
+                            : 'Tap gambar QRIS untuk memperbesar lalu tekan "Sudah Bayar".',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _qrisConfirmed
+                              ? const Color(0xFF2E7D32)
+                              : const Color(0xFF6F665F),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                          key: const ValueKey('sales-qris-confirm-button'),
+                          onPressed: () {
+                            setState(() => _qrisConfirmed = true);
+                          },
+                          child: Text(
+                            _qrisConfirmed
+                                ? 'Pembayaran Terkonfirmasi'
+                                : 'Sudah Bayar',
                           ),
                         ),
-                      ] else ...[
-                        const SizedBox(height: 12),
-                        const Text(
-                          'QRIS store belum memiliki gambar. Kasir bisa melanjutkan konfirmasi pembayaran secara manual.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            height: 1.4,
-                            color: Color(0xFF766C8B),
-                          ),
-                        ),
-                      ],
+                      ),
                     ],
                   ),
                 ),
@@ -7434,6 +7666,469 @@ class _SalesPageState extends State<_SalesPage> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _SalesCatalogCard extends StatelessWidget {
+  const _SalesCatalogCard({
+    super.key,
+    required this.product,
+    required this.currency,
+    required this.stock,
+    required this.onTap,
+  });
+
+  final Map<String, dynamic> product;
+  final NumberFormat currency;
+  final int stock;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = _productImageUrl(product);
+    final isOutOfStock = stock < 1;
+
+    return InkWell(
+      onTap: isOutOfStock ? null : onTap,
+      borderRadius: BorderRadius.circular(24),
+      child: Opacity(
+        opacity: isOutOfStock ? 0.58 : 1,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: const Color(0xFFE7D9F4)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x148E79D6),
+                blurRadius: 18,
+                offset: Offset(0, 10),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(24)),
+                  child: _SalesImageFrame(
+                    imageUrl: imageUrl,
+                    height: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product['nama_product']?.toString() ?? 'Product',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        color: kSweetieInk,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      currency.format(
+                        (product['harga'] as num?)?.toDouble() ?? 0,
+                      ),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF8E5BE8),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      isOutOfStock ? 'Stock habis' : 'Stock $stock',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: isOutOfStock
+                            ? const Color(0xFFC05D3B)
+                            : const Color(0xFF766C8B),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SalesOrderLineCard extends StatelessWidget {
+  const _SalesOrderLineCard({
+    required this.product,
+    required this.draft,
+    required this.currency,
+    required this.unitPrice,
+    required this.totalPrice,
+    required this.toppingSummary,
+    required this.onDecrease,
+    required this.onIncrease,
+    required this.onEditVariant,
+    required this.onEditToppings,
+    required this.onRemove,
+  });
+
+  final Map<String, dynamic> product;
+  final _SaleItemDraft draft;
+  final NumberFormat currency;
+  final double unitPrice;
+  final double totalPrice;
+  final String toppingSummary;
+  final VoidCallback onDecrease;
+  final VoidCallback onIncrease;
+  final VoidCallback onEditVariant;
+  final VoidCallback onEditToppings;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = _productImageUrl(product);
+    final width = MediaQuery.of(context).size.width;
+    final isWide = width >= 720;
+    final variantName = product['variants'] == null
+        ? null
+        : (((product['variants'] as List?) ?? [])
+                .cast<Map<String, dynamic>>()
+                .firstWhere(
+                  (variant) =>
+                      (variant['id'] as num?)?.toInt() == draft.variantId,
+                  orElse: () => const <String, dynamic>{},
+                )['name'])
+            ?.toString();
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFE7D9F4)),
+      ),
+      child: Column(
+        children: [
+          isWide
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: _SalesImageFrame(
+                        imageUrl: imageUrl,
+                        width: 112,
+                        height: 112,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: _SalesOrderLineInfo(
+                        productName:
+                            product['nama_product']?.toString() ?? 'Product',
+                        variantName: variantName,
+                        toppingSummary: toppingSummary,
+                        draft: draft,
+                        onEditVariant: onEditVariant,
+                        onEditToppings: onEditToppings,
+                        onRemove: onRemove,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    _SalesQuantityPanel(
+                      quantity: draft.quantity,
+                      unitPriceLabel: currency.format(unitPrice),
+                      onDecrease: onDecrease,
+                      onIncrease: onIncrease,
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: _SalesImageFrame(
+                        imageUrl: imageUrl,
+                        width: double.infinity,
+                        height: 160,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _SalesOrderLineInfo(
+                      productName:
+                          product['nama_product']?.toString() ?? 'Product',
+                      variantName: variantName,
+                      toppingSummary: toppingSummary,
+                      draft: draft,
+                      onEditVariant: onEditVariant,
+                      onEditToppings: onEditToppings,
+                      onRemove: onRemove,
+                    ),
+                    const SizedBox(height: 12),
+                    _SalesQuantityPanel(
+                      quantity: draft.quantity,
+                      unitPriceLabel: currency.format(unitPrice),
+                      onDecrease: onDecrease,
+                      onIncrease: onIncrease,
+                      compact: true,
+                    ),
+                  ],
+                ),
+          const SizedBox(height: 14),
+          Center(
+            child: Column(
+              children: [
+                const Text(
+                  'Total Harga',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF8B799B),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  currency.format(totalPrice),
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: kSweetieInk,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SalesOrderLineInfo extends StatelessWidget {
+  const _SalesOrderLineInfo({
+    required this.productName,
+    required this.variantName,
+    required this.toppingSummary,
+    required this.draft,
+    required this.onEditVariant,
+    required this.onEditToppings,
+    required this.onRemove,
+  });
+
+  final String productName;
+  final String? variantName;
+  final String toppingSummary;
+  final _SaleItemDraft draft;
+  final VoidCallback onEditVariant;
+  final VoidCallback onEditToppings;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                productName,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: kSweetieInk,
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: onRemove,
+              icon: const Icon(Icons.delete_outline_rounded),
+              tooltip: 'Hapus item',
+            ),
+          ],
+        ),
+        if (variantName != null && variantName!.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Varian: $variantName',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF6F665F),
+            ),
+          ),
+        ],
+        const SizedBox(height: 6),
+        Text(
+          toppingSummary,
+          style: const TextStyle(
+            fontSize: 12,
+            height: 1.4,
+            color: Color(0xFF766C8B),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton(
+              onPressed: onEditVariant,
+              child: const Text('Ubah Varian'),
+            ),
+            OutlinedButton(
+              onPressed: onEditToppings,
+              child: Text(
+                draft.extraToppingIds.isEmpty
+                    ? 'Tambah Topping'
+                    : 'Ubah Topping',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _SalesQuantityPanel extends StatelessWidget {
+  const _SalesQuantityPanel({
+    required this.quantity,
+    required this.unitPriceLabel,
+    required this.onDecrease,
+    required this.onIncrease,
+    this.compact = false,
+  });
+
+  final int quantity;
+  final String unitPriceLabel;
+  final VoidCallback onDecrease;
+  final VoidCallback onIncrease;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8F1FD),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Row(
+        mainAxisSize: compact ? MainAxisSize.max : MainAxisSize.min,
+        children: [
+          IconButton(
+            onPressed: onDecrease,
+            icon: const Icon(Icons.remove_circle_outline_rounded),
+          ),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$quantity',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Text(
+                  unitPriceLabel,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF8B799B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: onIncrease,
+            icon: const Icon(Icons.add_circle_rounded),
+          ),
+        ],
+      ),
+    );
+
+    if (compact) {
+      return content;
+    }
+
+    return SizedBox(width: 148, child: content);
+  }
+}
+
+class _SalesImageFrame extends StatelessWidget {
+  const _SalesImageFrame({
+    required this.imageUrl,
+    this.width,
+    this.height,
+    this.fit = BoxFit.cover,
+  });
+
+  final String imageUrl;
+  final double? width;
+  final double? height;
+  final BoxFit fit;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = imageUrl.trim();
+    if (normalized.isEmpty) {
+      return Container(
+        width: width,
+        height: height,
+        color: const Color(0xFFF5EDF9),
+        alignment: Alignment.center,
+        child: const Icon(
+          Icons.image_not_supported_outlined,
+          color: Color(0xFFB8A6C8),
+          size: 34,
+        ),
+      );
+    }
+
+    if (normalized.startsWith('assets/')) {
+      return Image.asset(
+        normalized,
+        width: width,
+        height: height,
+        fit: fit,
+      );
+    }
+
+    return CachedNetworkImage(
+      imageUrl: normalized,
+      width: width,
+      height: height,
+      fit: fit,
+      errorWidget: (_, __, ___) => Container(
+        width: width,
+        height: height,
+        color: const Color(0xFFF5EDF9),
+        alignment: Alignment.center,
+        child: const Icon(
+          Icons.broken_image_outlined,
+          color: Color(0xFFB8A6C8),
+          size: 34,
+        ),
+      ),
     );
   }
 }
@@ -7857,6 +8552,7 @@ class _SalesMultiSelectSheet extends StatefulWidget {
     required this.selectedIds,
     required this.idResolver,
     required this.titleResolver,
+    // ignore: unused_element_parameter
     this.subtitleResolver,
   });
 
@@ -10200,10 +10896,9 @@ class _QuantitySheet extends StatefulWidget {
     required this.maxQuantity,
     required this.ctaLabel,
     required this.onSubmit,
-    this.initialQuantity = 1,
     this.successMessage,
     this.closeDepth = 1,
-  });
+  }) : initialQuantity = 1;
 
   final String title;
   final int maxQuantity;

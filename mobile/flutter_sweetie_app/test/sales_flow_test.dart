@@ -50,21 +50,16 @@ void main() {
       'Nadia',
     );
 
-    await tester.tap(find.byKey(const ValueKey('sales-product-picker-0')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.textContaining('Tropical Glow').last);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const ValueKey('sales-variant-picker-0')));
+    await tester.tap(
+      find.byKey(const ValueKey('sales-catalog-product-2')),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.textContaining('Large').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('sales-toppings-picker-0')));
+    await tester.tap(find.textContaining('Boba').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Boba').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Gunakan topping ini'));
+    await tester.tap(find.text('Gunakan'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('sales-payment-method-picker')));
@@ -72,6 +67,13 @@ void main() {
     await tester.tap(find.text('Qris').last);
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('sales-qris-panel')), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('sales-qris-confirm-button')),
+      160,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.byKey(const ValueKey('sales-qris-confirm-button')));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('sales-sop-check-pre_blend')));
     await tester.pumpAndSettle();
@@ -109,5 +111,52 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Riwayat Transaksi'), findsWidgets);
     expect(find.textContaining('TRX-1001'), findsWidgets);
+  });
+
+  testWidgets('queue groups same configuration and separates different ones',
+      (tester) async {
+    tester.view.physicalSize = const Size(1400, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      buildSmoothiesQueuePageTestHarness(
+        queueItems: [
+          {
+            'sale_number': '27/04/26 - 1',
+            'queue_number': 1,
+            'transaction_code': 'TRX-QUEUE-1',
+            'customer_name': 'Nadia',
+            'payment_status': 'paid',
+            'created_at': '2026-04-27 10:00:00',
+            'details': [
+              {
+                'nama_product': 'Tropical Glow - Large',
+                'product_variant_name': 'Large',
+                'quantity': 2,
+                'extra_toppings': ['Boba'],
+              },
+              {
+                'nama_product': 'Tropical Glow - Reguler',
+                'product_variant_name': 'Reguler',
+                'quantity': 1,
+                'extra_toppings': [],
+              },
+            ],
+          },
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nadia'), findsOneWidget);
+    expect(find.text('Tropical Glow'), findsNWidgets(2));
+    expect(find.text('x2'), findsOneWidget);
+    expect(find.text('x1'), findsOneWidget);
+    expect(find.text('Large'), findsOneWidget);
+    expect(find.text('Reguler'), findsOneWidget);
+    expect(find.text('Boba'), findsOneWidget);
+    expect(find.text('Tidak Pakai Topping'), findsOneWidget);
   });
 }
