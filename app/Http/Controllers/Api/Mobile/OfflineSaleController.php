@@ -44,16 +44,19 @@ class OfflineSaleController extends Controller
         $transactions = $this->transformTransactions($sales);
         $products = MarketingMobileSupport::isSmoothiesSweetieUser($user)
             ? Product::query()
+                ->with('images')
                 ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
                 ->where('stock', '>', 0)
                 ->orderBy('nama_product')
-                ->get(['id_product', 'nama_product', 'harga', 'stock'])
+                ->get(['id_product', 'nama_product', 'harga', 'stock', 'gambar'])
                 ->map(fn (Product $product) => [
                     'id_product' => $product->id_product,
                     'nama_product' => $product->nama_product,
                     'harga' => (float) $product->harga,
                     'stock' => (int) $product->stock,
                     'remaining' => (int) $product->stock,
+                    'gambar' => $product->public_image_url,
+                    'image_url' => $product->public_image_url,
                     'option_label' => $product->nama_product . ' | stock ' . (int) $product->stock,
                     'variants' => ProductVariant::query()
                         ->where('product_id', $product->id_product)
@@ -71,7 +74,8 @@ class OfflineSaleController extends Controller
                 ])
                 ->values()
             : Product::query()
-                ->select('products.id_product', 'products.nama_product', 'products.harga')
+                ->with('images')
+                ->select('products.id_product', 'products.nama_product', 'products.harga', 'products.gambar')
                 ->join('product_onhands', 'product_onhands.id_product', '=', 'products.id_product')
                 ->when($storeId, fn ($query) => $query->where('products.store_id', $storeId)->where('product_onhands.store_id', $storeId))
                 ->where('product_onhands.user_id', $user->id_user)
@@ -87,6 +91,8 @@ class OfflineSaleController extends Controller
                         'nama_product' => $product->nama_product,
                         'harga' => (float) $product->harga,
                         'remaining' => $remaining,
+                        'gambar' => $product->public_image_url,
+                        'image_url' => $product->public_image_url,
                         'option_label' => $product->nama_product . ' | Sisa ' . $remaining,
                         'variants' => ProductVariant::query()
                             ->where('product_id', $product->id_product)
