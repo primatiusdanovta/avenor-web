@@ -245,6 +245,7 @@ class OfflineSaleController extends Controller
                     'unit_price' => (float) ($variant?->price ?? $product?->harga ?? 0),
                     'extra_topping_total' => $extraToppingTotal,
                     'extra_toppings' => $selectedExtraToppings->map(fn ($topping) => ['id' => $topping->id, 'name' => $topping->name, 'price' => (float) $topping->price])->all(),
+                    'sugar_level' => $this->normalizeSugarLevel($item['sugar_level'] ?? null),
                     'payment_method' => $validated['payment_method'] ?? 'Cash',
                     'payment_status' => 'paid',
                     'paid_at' => $timestamp,
@@ -276,6 +277,151 @@ class OfflineSaleController extends Controller
         ], 201);
     }
 
+    public function update(Request $request, OfflineSale $sale): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($sale->store_id === MarketingMobileSupport::currentStoreId($user), 403);
+
+        $transactionSales = $this->transactionSales($sale, $user);
+        abort_unless($this->canManageTransaction($user, $transactionSales), 403);
+
+        $validated = $this->validateTransactionPayload($request, ! MarketingMobileSupport::isSmoothiesSweetieUser($user));
+        [$products, $promo, $lineSubtotals, $onhands, $totalQuantity, $subtotal, $storeId, $variants, $extraToppings] = $this->prepareTransactionContext(
+            $validated,
+            (int) $sale->id_user
+        );
+
+        $this->validatePromoEligibility($promo, $totalQuantity, $subtotal);
+
+        $timestamp = $sale->created_at ?? now();
+        $discounts = $this->allocateDiscounts($lineSubtotals, (float) ($promo?->potongan ?? 0));
+
+        DB::transaction(function () use ($validated, $sale, $transactionSales, $products, $promo, $timestamp, $discounts, $lineSubtotals, $storeId, $variants, $extraToppings): void {
+            $customer = $this->resolveCustomer($validated, $timestamp instanceof Carbon ? $timestamp : Carbon::parse($timestamp), $storeId);
+            $existingById = $transactionSales->keyBy('id_penjualan_offline');
+            $keepIds = [];
+
+            foreach ($validated['items'] as $index => $item) {
+                $product = $products->get($item['id_product']);
+                $variant = $variants[(int) ($item['product_variant_id'] ?? 0)] ?? null;
+                $selectedExtraToppings = collect($item['extra_topping_ids'] ?? [])
+                    ->map(fn ($id) => $extraToppings[(int) $id] ?? null)
+                    ->filter()
+                    ->values();
+                $lineSubtotal = $lineSubtotals[$index] ?? 0;
+                $lineDiscount = $discounts[$index] ?? 0;
+                $lineHpp = $this->resolveProductHpp($product, $variant);
+                $existing = $existingById->get((int) ($item['id_penjualan_offline'] ?? 0));
+                $extraToppingTotal = round($selectedExtraToppings->sum('price') * (int) $item['quantity'], 2);
+                $sugarLevel = $this->normalizeSugarLevel($item['sugar_level'] ?? null);
+
+                if ($existing) {
+                    $existing->update([
+                        'id_pelanggan' => $customer?->id_pelanggan,
+                        'promo_id' => $promo?->id,
+                        'product_variant_id' => $variant?->id,
+                        'product_variant_name' => $variant?->name,
+                        'unit_price' => (float) ($variant?->price ?? $product?->harga ?? 0),
+                        'extra_topping_total' => $extraToppingTotal,
+                        'extra_toppings' => $selectedExtraToppings->map(fn ($topping) => [
+                            'id' => $topping->id,
+                            'name' => $topping->name,
+                            'price' => (float) $topping->price,
+                        ])->all(),
+                        'sugar_level' => $sugarLevel,
+                        'payment_method' => $validated['payment_method'] ?? $existing->payment_method ?? 'Cash',
+                        'nama_product' => trim(($product?->nama_product ?? '') . ($variant?->name ? ' - ' . $variant->name : '')),
+                        'quantity' => (int) $item['quantity'],
+                        'harga' => max($lineSubtotal - $lineDiscount, 0),
+                        'total_hpp' => $lineHpp,
+                        'kode_promo' => $promo?->kode_promo,
+                        'promo' => $promo?->nama_promo,
+                    ]);
+
+                    $keepIds[] = $existing->id_penjualan_offline;
+                    continue;
+                }
+
+                $created = OfflineSale::query()->create([
+                    'store_id' => $storeId,
+                    'transaction_code' => $sale->transaction_code,
+                    'sale_number' => $sale->sale_number,
+                    'id_user' => $sale->id_user,
+                    'id_pelanggan' => $customer?->id_pelanggan,
+                    'id_product' => $product?->id_product,
+                    'product_variant_id' => $variant?->id,
+                    'product_variant_name' => $variant?->name,
+                    'unit_price' => (float) ($variant?->price ?? $product?->harga ?? 0),
+                    'extra_topping_total' => $extraToppingTotal,
+                    'extra_toppings' => $selectedExtraToppings->map(fn ($topping) => [
+                        'id' => $topping->id,
+                        'name' => $topping->name,
+                        'price' => (float) $topping->price,
+                    ])->all(),
+                    'sugar_level' => $sugarLevel,
+                    'payment_method' => $validated['payment_method'] ?? $sale->payment_method ?? 'Cash',
+                    'payment_status' => $sale->payment_status,
+                    'paid_at' => $sale->paid_at,
+                    'id_product_onhand' => $sale->id_product_onhand,
+                    'promo_id' => $promo?->id,
+                    'nama' => $sale->nama,
+                    'nama_product' => trim(($product?->nama_product ?? '') . ($variant?->name ? ' - ' . $variant->name : '')),
+                    'quantity' => (int) $item['quantity'],
+                    'harga' => max($lineSubtotal - $lineDiscount, 0),
+                    'total_hpp' => $lineHpp,
+                    'kode_promo' => $promo?->kode_promo,
+                    'promo' => $promo?->nama_promo,
+                    'bukti_pembelian' => $sale->bukti_pembelian,
+                    'approval_status' => $sale->approval_status,
+                    'approved_by' => $sale->approved_by,
+                    'approved_at' => $sale->approved_at,
+                    'created_at' => $sale->created_at,
+                    'closed_at' => $sale->closed_at,
+                ]);
+
+                $keepIds[] = $created->id_penjualan_offline;
+            }
+
+            $transactionSales
+                ->whereNotIn('id_penjualan_offline', $keepIds)
+                ->each
+                ->delete();
+        });
+
+        return response()->json([
+            'message' => 'Transaksi penjualan offline berhasil diperbarui.',
+        ]);
+    }
+
+    public function destroy(Request $request, OfflineSale $sale): JsonResponse
+    {
+        $user = $request->user();
+        abort_unless($sale->store_id === MarketingMobileSupport::currentStoreId($user), 403);
+
+        $transactionSales = $this->transactionSales($sale, $user);
+        abort_unless($this->canManageTransaction($user, $transactionSales), 403);
+
+        $receiptPath = $sale->bukti_pembelian;
+
+        DB::transaction(function () use ($transactionSales): void {
+            $transactionSales->each->delete();
+        });
+
+        if ($receiptPath) {
+            $isSharedReceipt = OfflineSale::query()
+                ->where('bukti_pembelian', $receiptPath)
+                ->exists();
+
+            if (! $isSharedReceipt) {
+                Storage::disk('public')->delete($receiptPath);
+            }
+        }
+
+        return response()->json([
+            'message' => 'Transaksi penjualan offline berhasil dihapus.',
+        ]);
+    }
+
     public function queue(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -305,6 +451,7 @@ class OfflineSaleController extends Controller
                         'nama_product' => $sale->nama_product,
                         'product_variant_name' => $sale->product_variant_name,
                         'quantity' => (int) $sale->quantity,
+                        'sugar_level' => $this->normalizeSugarLevel($sale->sugar_level),
                         'extra_toppings' => collect($sale->extra_toppings ?? [])
                             ->pluck('name')
                             ->filter()
@@ -385,6 +532,7 @@ class OfflineSaleController extends Controller
                         'product_variant_id' => $sale->product_variant_id,
                         'product_variant_name' => $sale->product_variant_name,
                         'extra_topping_ids' => collect($sale->extra_toppings ?? [])->pluck('id')->values()->all(),
+                        'sugar_level' => $this->normalizeSugarLevel($sale->sugar_level),
                         'extra_toppings' => collect($sale->extra_toppings ?? [])->map(fn ($topping) => [
                             'id' => $topping['id'] ?? null,
                             'name' => $topping['name'] ?? null,
@@ -411,10 +559,40 @@ class OfflineSaleController extends Controller
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'items.*.extra_topping_ids' => ['nullable', 'array'],
             'items.*.extra_topping_ids.*' => ['integer', 'exists:extra_toppings,id'],
+            'items.*.sugar_level' => ['nullable', 'in:Normal,Less,No Sugar'],
             'promo_id' => ['nullable', 'exists:promos,id'],
             'payment_method' => ['nullable', 'in:Cash,Qris'],
         ], [
         ]);
+    }
+
+    private function normalizeSugarLevel(?string $value): string
+    {
+        $normalized = trim((string) $value);
+
+        return in_array($normalized, ['Normal', 'Less', 'No Sugar'], true)
+            ? $normalized
+            : 'Normal';
+    }
+
+    private function transactionSales(OfflineSale $sale, User $user): Collection
+    {
+        return OfflineSale::query()
+            ->where('store_id', MarketingMobileSupport::currentStoreId($user))
+            ->where('transaction_code', $sale->transaction_code)
+            ->orderBy('id_penjualan_offline')
+            ->get();
+    }
+
+    private function canManageTransaction(User $user, Collection $transactionSales): bool
+    {
+        if ($user->role === SalesRole::OWNER) {
+            return true;
+        }
+
+        return $transactionSales->every(
+            fn (OfflineSale $item) => (int) $item->id_user === (int) $user->id_user
+        );
     }
 
     private function prepareTransactionContext(array $validated, int $userId): array

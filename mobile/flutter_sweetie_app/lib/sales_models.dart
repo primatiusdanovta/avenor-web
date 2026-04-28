@@ -5,24 +5,28 @@ class _SaleItemDraft {
     required this.productId,
     required this.variantId,
     required this.extraToppingIds,
+    required this.sugarLevel,
     required this.quantity,
   });
 
   final int? productId;
   final int? variantId;
   final List<int> extraToppingIds;
+  final String sugarLevel;
   final int quantity;
 
   _SaleItemDraft copyWith({
     int? productId,
     int? variantId,
     List<int>? extraToppingIds,
+    String? sugarLevel,
     int? quantity,
   }) {
     return _SaleItemDraft(
       productId: productId ?? this.productId,
       variantId: variantId ?? this.variantId,
       extraToppingIds: extraToppingIds ?? this.extraToppingIds,
+      sugarLevel: sugarLevel ?? this.sugarLevel,
       quantity: quantity ?? this.quantity,
     );
   }
@@ -47,6 +51,7 @@ Map<String, dynamic> buildSmoothiesSalesTestFixture() {
           {
             'nama_product': 'Berry Blast - Reguler',
             'quantity': 1,
+            'sugar_level': 'Normal',
             'extra_toppings': const [],
           },
         ],

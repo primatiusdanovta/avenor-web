@@ -73,6 +73,13 @@ class _SalesSubmitService {
           ),
         );
       }
+
+      form.fields.add(
+        MapEntry(
+          'items[$index][sugar_level]',
+          items[index].sugarLevel,
+        ),
+      );
     }
 
     if (proof != null) {
@@ -189,6 +196,7 @@ class _SalesSubmitService {
         'product_variant_name': variant?['name'],
         'extra_topping_ids': item.extraToppingIds,
         'extra_toppings': selectedExtraToppings,
+        'sugar_level': item.sugarLevel,
         'quantity': item.quantity,
         'harga': line,
       });
@@ -242,6 +250,7 @@ class _SalesSubmitService {
                 'nama_product': item['nama_product'],
                 'product_variant_name': item['product_variant_name'],
                 'quantity': item['quantity'],
+                'sugar_level': item['sugar_level'],
                 'extra_toppings': ((item['extra_toppings'] as List?) ?? [])
                     .cast<Map<String, dynamic>>()
                     .map((entry) => entry['name']?.toString() ?? '')

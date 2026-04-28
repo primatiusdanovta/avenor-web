@@ -39,6 +39,8 @@ Route::prefix('mobile')->name('api.mobile.')->group(function () {
         Route::get('/offline-sales', [MobileOfflineSaleController::class, 'index'])->name('offline-sales.index');
         Route::get('/offline-sales/customer', [MobileOfflineSaleController::class, 'findCustomer'])->name('offline-sales.customer');
         Route::post('/offline-sales', [MobileOfflineSaleController::class, 'store'])->name('offline-sales.store');
+        Route::put('/offline-sales/{sale}', [MobileOfflineSaleController::class, 'update'])->name('offline-sales.update');
+        Route::delete('/offline-sales/{sale}', [MobileOfflineSaleController::class, 'destroy'])->name('offline-sales.destroy');
         Route::get('/offline-sales/{sale}/proof', [MobileOfflineSaleController::class, 'showProof'])->name('offline-sales.proof');
         Route::get('/queue', [MobileOfflineSaleController::class, 'queue'])->name('queue.index');
         Route::post('/queue/close', [MobileOfflineSaleController::class, 'closeQueue'])->name('queue.close');

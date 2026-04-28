@@ -473,6 +473,7 @@ class _MarketingRootState extends State<MarketingRoot> {
               'product_variant_id': 11,
               'product_variant_name': 'Reguler',
               'extra_topping_ids': [201],
+              'sugar_level': 'Less',
               'extra_toppings': [
                 {'id': 201, 'name': 'Pearl Boba', 'price': 6000.0},
               ],
@@ -675,6 +676,7 @@ class _MarketingRootState extends State<MarketingRoot> {
             {
               'nama_product': 'Berry Bliss Smoothie - Reguler',
               'quantity': 1,
+              'sugar_level': 'Less',
               'extra_toppings': ['Pearl Boba'],
             }
           ],
@@ -1443,6 +1445,80 @@ class _MarketingRootState extends State<MarketingRoot> {
     }
   }
 
+  Future<void> _updateOfflineSaleTransaction({
+    required Map<String, dynamic> sale,
+    required Map<String, dynamic> payload,
+  }) async {
+    setState(() => _busy = true);
+    try {
+      final saleId = (sale['id_penjualan_offline'] as num?)?.toInt();
+      if (saleId == null) {
+        throw Exception('ID transaksi tidak ditemukan.');
+      }
+
+      if (_mockMode) {
+        final transactionCode = sale['transaction_code']?.toString();
+        final sales = _asMapList(_sales?['sales']);
+        final index = sales.indexWhere(
+          (entry) => entry['transaction_code']?.toString() == transactionCode,
+        );
+        if (index >= 0) {
+          sales[index] = {
+            ...sales[index],
+            ...payload,
+            'transaction_code': transactionCode,
+          };
+        }
+      } else {
+        await _dio.put('/offline-sales/$saleId', data: payload);
+      }
+
+      await _refreshAll(showLoader: false);
+    } on DioException catch (error) {
+      _showMessage(_readError(error));
+      rethrow;
+    } catch (error) {
+      _showMessage(error.toString());
+      rethrow;
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _deleteOfflineSaleTransaction(Map<String, dynamic> sale) async {
+    setState(() => _busy = true);
+    try {
+      final saleId = (sale['id_penjualan_offline'] as num?)?.toInt();
+      if (saleId == null) {
+        throw Exception('ID transaksi tidak ditemukan.');
+      }
+
+      if (_mockMode) {
+        final transactionCode = sale['transaction_code']?.toString();
+        final sales = _asMapList(_sales?['sales']);
+        sales.removeWhere(
+          (entry) => entry['transaction_code']?.toString() == transactionCode,
+        );
+      } else {
+        await _dio.delete('/offline-sales/$saleId');
+      }
+
+      await _refreshAll(showLoader: false);
+    } on DioException catch (error) {
+      _showMessage(_readError(error));
+      rethrow;
+    } catch (error) {
+      _showMessage(error.toString());
+      rethrow;
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
   Future<XFile?> _pickProof() async {
     if (_mockMode) {
       return XFile('mock-proof.jpg', name: 'mock-proof.jpg');
@@ -1882,9 +1958,19 @@ class _MarketingRootState extends State<MarketingRoot> {
     Map<String, dynamic> payload,
   ) async {
     if (_mockMode) return;
+    final requestData = await _buildOwnerModuleRequestData(payload);
+    if (requestData is FormData) {
+      requestData.fields.add(const MapEntry('_method', 'PUT'));
+      await _dio.post(
+        '/owner/modules/$module/$record',
+        data: requestData,
+      );
+      return;
+    }
+
     await _dio.put(
       '/owner/modules/$module/$record',
-      data: await _buildOwnerModuleRequestData(payload),
+      data: requestData,
     );
   }
 
@@ -1953,6 +2039,11 @@ class _MarketingRootState extends State<MarketingRoot> {
     }
 
     if (prefix == null) return;
+    if (value is bool) {
+      form.fields.add(MapEntry(prefix, value ? '1' : '0'));
+      return;
+    }
+
     form.fields.add(MapEntry(prefix, '$value'));
   }
 
@@ -2157,7 +2248,8 @@ class _MarketingRootState extends State<MarketingRoot> {
       ),
       _OwnerCategoryPage(
         title: 'Finance',
-        subtitle: 'Kelola pengeluaran, piutang, hutang, dan penjualan online.',
+        subtitle:
+            'Kelola penjualan offline, pengeluaran, piutang, hutang, dan penjualan online.',
         modules: _ownerFinanceModules,
         onOpenModule: (module) => _openOwnerModulePage(
           module: module,
@@ -2297,7 +2389,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         return 'Notifikasi, riwayat absensi karyawan, dan panduan product.';
       }
       if (index == 3) {
-        return 'Pengeluaran, account receivables, account payables, dan penjualan online.';
+        return 'Pengeluaran, penjualan offline, piutang, hutang, dan penjualan online.';
       }
       if (index == 4) {
         return 'Target penjualan, promo, users, customers, dan SOP.';
@@ -3263,6 +3355,7 @@ class _QueueDetailTile extends StatelessWidget {
         : _extractVariantName(rawName);
     final productName = _extractBaseProductName(rawName);
     final quantity = (detail['quantity'] as num?)?.toInt() ?? 0;
+    final sugarLevel = detail['sugar_level']?.toString().trim();
     final toppings = ((detail['extra_toppings'] as List?) ?? [])
         .map((entry) => entry?.toString().trim() ?? '')
         .where((entry) => entry.isNotEmpty)
@@ -3300,30 +3393,48 @@ class _QueueDetailTile extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  productName,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: kSweetieInk,
-                  ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        productName,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: kSweetieInk,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      quantity > 0 ? 'x$quantity' : 'x0',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF7C54C6),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
                   children: [
-                    _QueueBadge(
-                      label: quantity > 0 ? 'x$quantity' : 'x0',
-                      backgroundColor: const Color(0xFFF2E7FB),
-                      textColor: const Color(0xFF7C54C6),
-                    ),
                     if (displayVariant != null && displayVariant.isNotEmpty)
                       _QueueBadge(
                         label: displayVariant,
                         backgroundColor: const Color(0xFFEAF6F0),
                         textColor: const Color(0xFF3A7B5D),
                       ),
+                    _QueueBadge(
+                      label: sugarLevel != null && sugarLevel.isNotEmpty
+                          ? 'Sugar: $sugarLevel'
+                          : 'Sugar: Normal',
+                      backgroundColor: const Color(0xFFFFF0F7),
+                      textColor: const Color(0xFFB84E88),
+                    ),
                     if (toppings.isEmpty)
                       const _QueueBadge(
                         label: 'Tidak Pakai Topping',
@@ -6553,6 +6664,17 @@ class _SalesPageState extends State<_SalesPage> {
         .join(', ');
   }
 
+  String _sugarLevelLabel(String value) {
+    switch (value) {
+      case 'Less':
+        return 'Less Sugar';
+      case 'No Sugar':
+        return 'No Sugar';
+      default:
+        return 'Normal Sugar';
+    }
+  }
+
   String _promoLabel(Map<String, dynamic> promo) {
     final label = promo['option_label']?.toString().trim();
     if (label != null && label.isNotEmpty) {
@@ -6622,7 +6744,8 @@ class _SalesPageState extends State<_SalesPage> {
 
   bool _hasSameConfiguration(_SaleItemDraft left, _SaleItemDraft right) {
     if (left.productId != right.productId ||
-        left.variantId != right.variantId) {
+        left.variantId != right.variantId ||
+        left.sugarLevel != right.sugarLevel) {
       return false;
     }
 
@@ -6798,6 +6921,39 @@ class _SalesPageState extends State<_SalesPage> {
     );
   }
 
+  Future<String?> _showSugarLevelPickerForDraft({
+    required String selectedSugarLevel,
+  }) async {
+    const options = <_StaticOption<String>>[
+      _StaticOption<String>(
+        value: 'Normal',
+        title: 'Normal',
+        subtitle: 'Rasa manis standar.',
+      ),
+      _StaticOption<String>(
+        value: 'Less',
+        title: 'Less',
+        subtitle: 'Manis dikurangi.',
+      ),
+      _StaticOption<String>(
+        value: 'No Sugar',
+        title: 'No Sugar',
+        subtitle: 'Tanpa tambahan gula.',
+      ),
+    ];
+
+    return _showSmoothiesSalesStaticOptionsSheet(
+      context: context,
+      heroTag: 'sales-sugar-level-${DateTime.now().microsecondsSinceEpoch}',
+      accent: const Color(0xFFD980B4),
+      icon: Icons.local_cafe_outlined,
+      title: 'Sugar Level',
+      subtitle: 'Pilih tingkat gula untuk item ini.',
+      options: options,
+      selectedValue: selectedSugarLevel,
+    );
+  }
+
   Future<bool?> _showReuseDialog(_SaleItemDraft existing) {
     return showDialog<bool>(
       context: context,
@@ -6855,10 +7011,18 @@ class _SalesPageState extends State<_SalesPage> {
       return null;
     }
 
+    final sugarLevel = await _showSugarLevelPickerForDraft(
+      selectedSugarLevel: seed?.sugarLevel ?? 'Normal',
+    );
+    if (!mounted || sugarLevel == null) {
+      return null;
+    }
+
     return _SaleItemDraft(
       productId: productId,
       variantId: variants.isEmpty ? null : variantId,
       extraToppingIds: _normalizeToppingIds(toppingIds),
+      sugarLevel: sugarLevel,
       quantity: 1,
     );
   }
@@ -6969,6 +7133,20 @@ class _SalesPageState extends State<_SalesPage> {
     });
   }
 
+  Future<void> _editLineSugarLevel(int index) async {
+    final current = _items[index];
+    final sugarLevel = await _showSugarLevelPickerForDraft(
+      selectedSugarLevel: current.sugarLevel,
+    );
+    if (!mounted || sugarLevel == null) {
+      return;
+    }
+
+    setState(() {
+      _items[index] = current.copyWith(sugarLevel: sugarLevel);
+    });
+  }
+
   void _changeLineQuantity(int index, int delta) {
     final current = _items[index];
     final product = _productById(current.productId);
@@ -7021,7 +7199,9 @@ class _SalesPageState extends State<_SalesPage> {
         final toppingLabel = item.extraToppingIds.isEmpty
             ? ''
             : ' + ${_toppingSummary(item.extraToppingIds)}';
-        names.add('${_lineTitle(item)}$toppingLabel x${item.quantity}');
+        names.add(
+          '${_lineTitle(item)} (${_sugarLevelLabel(item.sugarLevel)})$toppingLabel x${item.quantity}',
+        );
       }
     }
     return names;
@@ -7157,11 +7337,15 @@ class _SalesPageState extends State<_SalesPage> {
                             totalPrice: _lineTotal(entry.value),
                             toppingSummary:
                                 _toppingSummary(entry.value.extraToppingIds),
+                            sugarLevelLabel:
+                                _sugarLevelLabel(entry.value.sugarLevel),
                             onDecrease: () =>
                                 _changeLineQuantity(entry.key, -1),
                             onIncrease: () => _changeLineQuantity(entry.key, 1),
                             onEditVariant: () => _editLineVariant(entry.key),
                             onEditToppings: () => _editLineToppings(entry.key),
+                            onEditSugarLevel: () =>
+                                _editLineSugarLevel(entry.key),
                             onRemove: () =>
                                 setState(() => _items.removeAt(entry.key)),
                           ),
@@ -7596,75 +7780,6 @@ class _SalesPageState extends State<_SalesPage> {
             ),
           ),
         ],
-        const SizedBox(height: 16),
-        InkWell(
-          key: const ValueKey('sales-history-trigger'),
-          borderRadius: BorderRadius.circular(30),
-          onTap: () => _showSalesHistorySheet(context),
-          child: _BlockCard(
-            title: 'Riwayat Transaksi',
-            subtitle: 'Tap untuk melihat semua transaksi dalam modal sheet.',
-            child: PageTransitionSwitcher(
-              duration: const Duration(milliseconds: 280),
-              transitionBuilder: (child, primary, secondary) {
-                return SharedAxisTransition(
-                  animation: primary,
-                  secondaryAnimation: secondary,
-                  transitionType: SharedAxisTransitionType.scaled,
-                  fillColor: Colors.transparent,
-                  child: child,
-                );
-              },
-              child: widget.sales.isEmpty
-                  ? const Text(
-                      'Belum ada transaksi. Riwayat akan muncul di sini saat penjualan pertama masuk.',
-                      key: ValueKey('sales-history-empty'),
-                    )
-                  : Container(
-                      key: ValueKey('sales-history-preview'),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFCF8F1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF1E4C7),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Icon(Icons.receipt_long_outlined),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '${widget.sales.length} transaksi tersimpan',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Terbaru: ${widget.sales.first['transaction_code']?.toString() ?? '-'}',
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Icon(Icons.keyboard_arrow_up_rounded),
-                        ],
-                      ),
-                    ),
-            ),
-          ),
-        ),
       ],
     );
   }
@@ -7776,10 +7891,12 @@ class _SalesOrderLineCard extends StatelessWidget {
     required this.unitPrice,
     required this.totalPrice,
     required this.toppingSummary,
+    required this.sugarLevelLabel,
     required this.onDecrease,
     required this.onIncrease,
     required this.onEditVariant,
     required this.onEditToppings,
+    required this.onEditSugarLevel,
     required this.onRemove,
   });
 
@@ -7789,10 +7906,12 @@ class _SalesOrderLineCard extends StatelessWidget {
   final double unitPrice;
   final double totalPrice;
   final String toppingSummary;
+  final String sugarLevelLabel;
   final VoidCallback onDecrease;
   final VoidCallback onIncrease;
   final VoidCallback onEditVariant;
   final VoidCallback onEditToppings;
+  final VoidCallback onEditSugarLevel;
   final VoidCallback onRemove;
 
   @override
@@ -7840,9 +7959,11 @@ class _SalesOrderLineCard extends StatelessWidget {
                             product['nama_product']?.toString() ?? 'Product',
                         variantName: variantName,
                         toppingSummary: toppingSummary,
+                        sugarLevelLabel: sugarLevelLabel,
                         draft: draft,
                         onEditVariant: onEditVariant,
                         onEditToppings: onEditToppings,
+                        onEditSugarLevel: onEditSugarLevel,
                         onRemove: onRemove,
                       ),
                     ),
@@ -7873,9 +7994,11 @@ class _SalesOrderLineCard extends StatelessWidget {
                           product['nama_product']?.toString() ?? 'Product',
                       variantName: variantName,
                       toppingSummary: toppingSummary,
+                      sugarLevelLabel: sugarLevelLabel,
                       draft: draft,
                       onEditVariant: onEditVariant,
                       onEditToppings: onEditToppings,
+                      onEditSugarLevel: onEditSugarLevel,
                       onRemove: onRemove,
                     ),
                     const SizedBox(height: 12),
@@ -7923,18 +8046,22 @@ class _SalesOrderLineInfo extends StatelessWidget {
     required this.productName,
     required this.variantName,
     required this.toppingSummary,
+    required this.sugarLevelLabel,
     required this.draft,
     required this.onEditVariant,
     required this.onEditToppings,
+    required this.onEditSugarLevel,
     required this.onRemove,
   });
 
   final String productName;
   final String? variantName;
   final String toppingSummary;
+  final String sugarLevelLabel;
   final _SaleItemDraft draft;
   final VoidCallback onEditVariant;
   final VoidCallback onEditToppings;
+  final VoidCallback onEditSugarLevel;
   final VoidCallback onRemove;
 
   @override
@@ -7973,6 +8100,15 @@ class _SalesOrderLineInfo extends StatelessWidget {
             ),
           ),
         ],
+        const SizedBox(height: 4),
+        Text(
+          'Sugar: $sugarLevelLabel',
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF6F665F),
+          ),
+        ),
         const SizedBox(height: 6),
         Text(
           toppingSummary,
@@ -7998,6 +8134,10 @@ class _SalesOrderLineInfo extends StatelessWidget {
                     ? 'Tambah Topping'
                     : 'Ubah Topping',
               ),
+            ),
+            OutlinedButton(
+              onPressed: onEditSugarLevel,
+              child: const Text('Ubah Sugar'),
             ),
           ],
         ),
@@ -8301,7 +8441,7 @@ class _SalesHistorySheet extends StatelessWidget {
                                           padding:
                                               const EdgeInsets.only(bottom: 6),
                                           child: Text(
-                                            '${item['nama_product'] ?? '-'} x${item['quantity'] ?? 0}${(((item['extra_toppings'] as List?) ?? []).isEmpty) ? '' : ' • ${((item['extra_toppings'] as List?) ?? []).cast<Map<String, dynamic>>().map((topping) => topping['name']).whereType<String>().join(', ')}'}',
+                                            '${item['nama_product'] ?? '-'} x${item['quantity'] ?? 0} • Sugar ${item['sugar_level'] ?? 'Normal'}${(((item['extra_toppings'] as List?) ?? []).isEmpty) ? '' : ' • ${((item['extra_toppings'] as List?) ?? []).cast<Map<String, dynamic>>().map((topping) => topping['name']).whereType<String>().join(', ')}'}',
                                             style:
                                                 const TextStyle(fontSize: 12),
                                           ),

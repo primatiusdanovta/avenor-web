@@ -28,7 +28,8 @@ const List<NavigationDestination> _ownerDestinations = <NavigationDestination>[
   ),
 ];
 
-const List<NavigationDestination> _employeeDestinations = <NavigationDestination>[
+const List<NavigationDestination> _employeeDestinations =
+    <NavigationDestination>[
   NavigationDestination(
     icon: Icon(Icons.fingerprint_outlined),
     selectedIcon: Icon(Icons.fingerprint),
@@ -125,6 +126,13 @@ const List<_OwnerModuleDefinition> _ownerEmployeeModules = [
 
 const List<_OwnerModuleDefinition> _ownerFinanceModules = [
   _OwnerModuleDefinition(
+    key: 'offline-sales-history',
+    title: 'Penjualan Offline',
+    subtitle: 'Lihat, edit, dan hapus transaksi kasir offline.',
+    icon: Icons.point_of_sale_rounded,
+    accent: Color(0xFFB488E9),
+  ),
+  _OwnerModuleDefinition(
     key: 'expenses',
     title: 'Pengeluaran',
     subtitle: 'CRUD pengeluaran bahan baku dan operasional.',
@@ -200,6 +208,26 @@ extension _OwnerModuleStateActions on _MarketingRootState {
     required Widget employeeAttendancePage,
     required Widget knowledgePage,
   }) async {
+    if (module.key == 'offline-sales-history') {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => _OwnerStandalonePage(
+            title: module.title,
+            child: _OfflineSalesManagementPage(
+              sales: _asMapList(_sales?['sales']),
+              products: _asMapList(_sales?['products']),
+              promos: _asMapList(_sales?['promos']),
+              extraToppings: _asMapList(_sales?['extra_toppings']),
+              currency: _currency,
+              onUpdateSale: _updateOfflineSaleTransaction,
+              onDeleteSale: _deleteOfflineSaleTransaction,
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
     if (module.key == 'attendance-history') {
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -376,7 +404,8 @@ class _OwnerCategoryPage extends StatelessWidget {
                               ],
                             ),
                           ),
-                          Icon(Icons.chevron_right_rounded, color: module.accent),
+                          Icon(Icons.chevron_right_rounded,
+                              color: module.accent),
                         ],
                       ),
                     ),
@@ -464,9 +493,15 @@ const Map<String, _OwnerModuleUiConfig> _ownerModuleUiConfigs = {
       _OwnerColumnConfig('stock', 'Stock'),
     ],
     fields: [
-      _OwnerFieldConfig(key: 'nama_product', label: 'Nama Product', type: 'text', required: true),
-      _OwnerFieldConfig(key: 'harga', label: 'Harga', type: 'number', required: true),
-      _OwnerFieldConfig(key: 'stock', label: 'Stock', type: 'number', required: true),
+      _OwnerFieldConfig(
+          key: 'nama_product',
+          label: 'Nama Product',
+          type: 'text',
+          required: true),
+      _OwnerFieldConfig(
+          key: 'harga', label: 'Harga', type: 'number', required: true),
+      _OwnerFieldConfig(
+          key: 'stock', label: 'Stock', type: 'number', required: true),
       _OwnerFieldConfig(key: 'deskripsi', label: 'Deskripsi', type: 'textarea'),
     ],
   ),
@@ -476,7 +511,11 @@ const Map<String, _OwnerModuleUiConfig> _ownerModuleUiConfigs = {
       _OwnerColumnConfig('deskripsi', 'Deskripsi'),
     ],
     fields: [
-      _OwnerFieldConfig(key: 'nama_product', label: 'Nama Product', type: 'text', required: true),
+      _OwnerFieldConfig(
+          key: 'nama_product',
+          label: 'Nama Product',
+          type: 'text',
+          required: true),
       _OwnerFieldConfig(key: 'deskripsi', label: 'Deskripsi', type: 'textarea'),
     ],
   ),
@@ -490,12 +529,25 @@ const Map<String, _OwnerModuleUiConfig> _ownerModuleUiConfigs = {
       _OwnerColumnConfig('waste_materials', 'Waste'),
     ],
     fields: [
-      _OwnerFieldConfig(key: 'nama_rm', label: 'Nama Raw Material', type: 'text', required: true),
-      _OwnerFieldConfig(key: 'satuan', label: 'Satuan', type: 'select', required: true, optionsKey: 'satuan_options'),
-      _OwnerFieldConfig(key: 'harga', label: 'Harga', type: 'number', required: true),
-      _OwnerFieldConfig(key: 'quantity', label: 'Quantity', type: 'number', required: true),
-      _OwnerFieldConfig(key: 'stock', label: 'Stock', type: 'number', required: true),
-      _OwnerFieldConfig(key: 'waste_materials', label: 'Waste Materials', type: 'number'),
+      _OwnerFieldConfig(
+          key: 'nama_rm',
+          label: 'Nama Raw Material',
+          type: 'text',
+          required: true),
+      _OwnerFieldConfig(
+          key: 'satuan',
+          label: 'Satuan',
+          type: 'select',
+          required: true,
+          optionsKey: 'satuan_options'),
+      _OwnerFieldConfig(
+          key: 'harga', label: 'Harga', type: 'number', required: true),
+      _OwnerFieldConfig(
+          key: 'quantity', label: 'Quantity', type: 'number', required: true),
+      _OwnerFieldConfig(
+          key: 'stock', label: 'Stock', type: 'number', required: true),
+      _OwnerFieldConfig(
+          key: 'waste_materials', label: 'Waste Materials', type: 'number'),
     ],
   ),
   'extra-toppings': _OwnerModuleUiConfig(
@@ -505,9 +557,15 @@ const Map<String, _OwnerModuleUiConfig> _ownerModuleUiConfigs = {
       _OwnerColumnConfig('is_active', 'Active'),
     ],
     fields: [
-      _OwnerFieldConfig(key: 'name', label: 'Nama Topping', type: 'text', required: true),
-      _OwnerFieldConfig(key: 'price', label: 'Harga', type: 'number', required: true),
-      _OwnerFieldConfig(key: 'is_active', label: 'Status Aktif', type: 'bool', required: true),
+      _OwnerFieldConfig(
+          key: 'name', label: 'Nama Topping', type: 'text', required: true),
+      _OwnerFieldConfig(
+          key: 'price', label: 'Harga', type: 'number', required: true),
+      _OwnerFieldConfig(
+          key: 'is_active',
+          label: 'Status Aktif',
+          type: 'bool',
+          required: true),
     ],
   ),
   'expenses': _OwnerModuleUiConfig(
@@ -518,10 +576,18 @@ const Map<String, _OwnerModuleUiConfig> _ownerModuleUiConfigs = {
       _OwnerColumnConfig('expense_date', 'Tanggal'),
     ],
     fields: [
-      _OwnerFieldConfig(key: 'category', label: 'Kategori', type: 'select', required: true, optionsKey: 'expense_categories'),
-      _OwnerFieldConfig(key: 'title', label: 'Judul', type: 'text', required: true),
-      _OwnerFieldConfig(key: 'amount', label: 'Nominal', type: 'number', required: true),
-      _OwnerFieldConfig(key: 'expense_date', label: 'Tanggal', type: 'date', required: true),
+      _OwnerFieldConfig(
+          key: 'category',
+          label: 'Kategori',
+          type: 'select',
+          required: true,
+          optionsKey: 'expense_categories'),
+      _OwnerFieldConfig(
+          key: 'title', label: 'Judul', type: 'text', required: true),
+      _OwnerFieldConfig(
+          key: 'amount', label: 'Nominal', type: 'number', required: true),
+      _OwnerFieldConfig(
+          key: 'expense_date', label: 'Tanggal', type: 'date', required: true),
       _OwnerFieldConfig(key: 'notes', label: 'Catatan', type: 'textarea'),
     ],
   ),
@@ -533,9 +599,15 @@ const Map<String, _OwnerModuleUiConfig> _ownerModuleUiConfigs = {
       _OwnerColumnConfig('notes', 'Catatan'),
     ],
     fields: [
-      _OwnerFieldConfig(key: 'account_payable', label: 'Account Payable', type: 'text', required: true),
-      _OwnerFieldConfig(key: 'amount', label: 'Nominal', type: 'number', required: true),
-      _OwnerFieldConfig(key: 'due_date', label: 'Jatuh Tempo', type: 'date', required: true),
+      _OwnerFieldConfig(
+          key: 'account_payable',
+          label: 'Account Payable',
+          type: 'text',
+          required: true),
+      _OwnerFieldConfig(
+          key: 'amount', label: 'Nominal', type: 'number', required: true),
+      _OwnerFieldConfig(
+          key: 'due_date', label: 'Jatuh Tempo', type: 'date', required: true),
       _OwnerFieldConfig(key: 'notes', label: 'Catatan', type: 'textarea'),
     ],
   ),
@@ -547,11 +619,22 @@ const Map<String, _OwnerModuleUiConfig> _ownerModuleUiConfigs = {
       _OwnerColumnConfig('minimal_quantity', 'Min Qty'),
     ],
     fields: [
-      _OwnerFieldConfig(key: 'nama_promo', label: 'Nama Promo', type: 'text', required: true),
-      _OwnerFieldConfig(key: 'potongan', label: 'Potongan', type: 'number', required: true),
-      _OwnerFieldConfig(key: 'masa_aktif', label: 'Masa Aktif', type: 'date', required: true),
-      _OwnerFieldConfig(key: 'minimal_quantity', label: 'Minimal Quantity', type: 'number', required: true),
-      _OwnerFieldConfig(key: 'minimal_belanja', label: 'Minimal Belanja', type: 'number', required: true),
+      _OwnerFieldConfig(
+          key: 'nama_promo', label: 'Nama Promo', type: 'text', required: true),
+      _OwnerFieldConfig(
+          key: 'potongan', label: 'Potongan', type: 'number', required: true),
+      _OwnerFieldConfig(
+          key: 'masa_aktif', label: 'Masa Aktif', type: 'date', required: true),
+      _OwnerFieldConfig(
+          key: 'minimal_quantity',
+          label: 'Minimal Quantity',
+          type: 'number',
+          required: true),
+      _OwnerFieldConfig(
+          key: 'minimal_belanja',
+          label: 'Minimal Belanja',
+          type: 'number',
+          required: true),
     ],
   ),
   'customers': _OwnerModuleUiConfig(
@@ -564,8 +647,10 @@ const Map<String, _OwnerModuleUiConfig> _ownerModuleUiConfigs = {
     fields: [
       _OwnerFieldConfig(key: 'nama', label: 'Nama', type: 'text'),
       _OwnerFieldConfig(key: 'no_telp', label: 'No Telepon', type: 'text'),
-      _OwnerFieldConfig(key: 'tiktok_instagram', label: 'TikTok/Instagram', type: 'text'),
-      _OwnerFieldConfig(key: 'pembelian_terakhir', label: 'Pembelian Terakhir', type: 'date'),
+      _OwnerFieldConfig(
+          key: 'tiktok_instagram', label: 'TikTok/Instagram', type: 'text'),
+      _OwnerFieldConfig(
+          key: 'pembelian_terakhir', label: 'Pembelian Terakhir', type: 'date'),
     ],
   ),
   'sops': _OwnerModuleUiConfig(
@@ -574,8 +659,10 @@ const Map<String, _OwnerModuleUiConfig> _ownerModuleUiConfigs = {
       _OwnerColumnConfig('detail', 'Detail'),
     ],
     fields: [
-      _OwnerFieldConfig(key: 'title', label: 'Judul SOP', type: 'text', required: true),
-      _OwnerFieldConfig(key: 'detail', label: 'Detail SOP', type: 'textarea', required: true),
+      _OwnerFieldConfig(
+          key: 'title', label: 'Judul SOP', type: 'text', required: true),
+      _OwnerFieldConfig(
+          key: 'detail', label: 'Detail SOP', type: 'textarea', required: true),
     ],
   ),
   'users': _OwnerModuleUiConfig(
@@ -585,9 +672,20 @@ const Map<String, _OwnerModuleUiConfig> _ownerModuleUiConfigs = {
       _OwnerColumnConfig('status', 'Status'),
     ],
     fields: [
-      _OwnerFieldConfig(key: 'nama', label: 'Nama', type: 'text', required: true),
-      _OwnerFieldConfig(key: 'permission_role_id', label: 'Role', type: 'select', required: true, optionsKey: 'role_options'),
-      _OwnerFieldConfig(key: 'status', label: 'Status', type: 'select', required: true, optionsKey: 'status_options'),
+      _OwnerFieldConfig(
+          key: 'nama', label: 'Nama', type: 'text', required: true),
+      _OwnerFieldConfig(
+          key: 'permission_role_id',
+          label: 'Role',
+          type: 'select',
+          required: true,
+          optionsKey: 'role_options'),
+      _OwnerFieldConfig(
+          key: 'status',
+          label: 'Status',
+          type: 'select',
+          required: true,
+          optionsKey: 'status_options'),
       _OwnerFieldConfig(key: 'password', label: 'Password', type: 'password'),
     ],
   ),
@@ -599,14 +697,41 @@ const Map<String, _OwnerModuleUiConfig> _ownerModuleUiConfigs = {
       _OwnerColumnConfig('status', 'Status'),
     ],
     fields: [
-      _OwnerFieldConfig(key: 'receivable_name', label: 'Nama Piutang', type: 'text', required: true),
-      _OwnerFieldConfig(key: 'place_name', label: 'Nama Tempat', type: 'text', required: true),
-      _OwnerFieldConfig(key: 'consignment_date', label: 'Tanggal Titip', type: 'date', required: true),
-      _OwnerFieldConfig(key: 'due_date', label: 'Jatuh Tempo', type: 'date', required: true),
-      _OwnerFieldConfig(key: 'consigned_value', label: 'Nominal Dititipkan', type: 'number', required: true),
-      _OwnerFieldConfig(key: 'total_value', label: 'Total Nilai', type: 'number', required: true),
-      _OwnerFieldConfig(key: 'status', label: 'Status', type: 'select', required: true, optionsKey: 'account_receivable_status_options'),
-      _OwnerFieldConfig(key: 'items_summary', label: 'Ringkasan Item', type: 'textarea'),
+      _OwnerFieldConfig(
+          key: 'receivable_name',
+          label: 'Nama Piutang',
+          type: 'text',
+          required: true),
+      _OwnerFieldConfig(
+          key: 'place_name',
+          label: 'Nama Tempat',
+          type: 'text',
+          required: true),
+      _OwnerFieldConfig(
+          key: 'consignment_date',
+          label: 'Tanggal Titip',
+          type: 'date',
+          required: true),
+      _OwnerFieldConfig(
+          key: 'due_date', label: 'Jatuh Tempo', type: 'date', required: true),
+      _OwnerFieldConfig(
+          key: 'consigned_value',
+          label: 'Nominal Dititipkan',
+          type: 'number',
+          required: true),
+      _OwnerFieldConfig(
+          key: 'total_value',
+          label: 'Total Nilai',
+          type: 'number',
+          required: true),
+      _OwnerFieldConfig(
+          key: 'status',
+          label: 'Status',
+          type: 'select',
+          required: true,
+          optionsKey: 'account_receivable_status_options'),
+      _OwnerFieldConfig(
+          key: 'items_summary', label: 'Ringkasan Item', type: 'textarea'),
       _OwnerFieldConfig(key: 'notes', label: 'Catatan', type: 'textarea'),
     ],
   ),
@@ -627,11 +752,27 @@ const Map<String, _OwnerModuleUiConfig> _ownerModuleUiConfigs = {
       _OwnerColumnConfig('published_at', 'Publish'),
     ],
     fields: [
-      _OwnerFieldConfig(key: 'title', label: 'Judul', type: 'text', required: true),
-      _OwnerFieldConfig(key: 'body', label: 'Isi Notifikasi', type: 'textarea', required: true),
-      _OwnerFieldConfig(key: 'target_role', label: 'Target Role', type: 'select', required: true, optionsKey: 'notification_target_options'),
-      _OwnerFieldConfig(key: 'status', label: 'Status', type: 'select', required: true, optionsKey: 'notification_status_options'),
-      _OwnerFieldConfig(key: 'published_at', label: 'Tanggal Publish', type: 'date'),
+      _OwnerFieldConfig(
+          key: 'title', label: 'Judul', type: 'text', required: true),
+      _OwnerFieldConfig(
+          key: 'body',
+          label: 'Isi Notifikasi',
+          type: 'textarea',
+          required: true),
+      _OwnerFieldConfig(
+          key: 'target_role',
+          label: 'Target Role',
+          type: 'select',
+          required: true,
+          optionsKey: 'notification_target_options'),
+      _OwnerFieldConfig(
+          key: 'status',
+          label: 'Status',
+          type: 'select',
+          required: true,
+          optionsKey: 'notification_status_options'),
+      _OwnerFieldConfig(
+          key: 'published_at', label: 'Tanggal Publish', type: 'date'),
     ],
   ),
 };
@@ -747,7 +888,8 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
               children: [
                 _BlockCard(
                   title: data['title']?.toString() ?? widget.module.title,
-                  subtitle: data['description']?.toString() ?? widget.module.subtitle,
+                  subtitle:
+                      data['description']?.toString() ?? widget.module.subtitle,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -756,9 +898,7 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: FilledButton.icon(
-                            onPressed: _saving
-                                ? null
-                                : _openCreateFlow,
+                            onPressed: _saving ? null : _openCreateFlow,
                             icon: const Icon(Icons.add_rounded),
                             label: const Text('Tambah'),
                           ),
@@ -788,7 +928,8 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
   }
 
   _OwnerModuleUiConfig _configFor(String key) =>
-      _ownerModuleUiConfigs[key] ?? const _OwnerModuleUiConfig(columns: [], fields: []);
+      _ownerModuleUiConfigs[key] ??
+      const _OwnerModuleUiConfig(columns: [], fields: []);
 
   Widget _buildGenericTable(
     List<Map<String, dynamic>> items,
@@ -805,7 +946,8 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
       scrollDirection: Axis.horizontal,
       child: DataTable(
         columns: [
-          ...config.columns.map((column) => DataColumn(label: Text(column.label))),
+          ...config.columns
+              .map((column) => DataColumn(label: Text(column.label))),
           const DataColumn(label: Text('Aksi')),
         ],
         rows: items.map((item) {
@@ -829,14 +971,13 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
                     ),
                     if (!readOnly && config.fields.isNotEmpty)
                       IconButton(
-                        onPressed: _saving
-                            ? null
-                            : () => _openEditFlow(item),
+                        onPressed: _saving ? null : () => _openEditFlow(item),
                         icon: const Icon(Icons.edit_outlined),
                       ),
                     if (!readOnly)
                       IconButton(
-                        onPressed: _saving ? null : () => _deleteGenericItem(item),
+                        onPressed:
+                            _saving ? null : () => _deleteGenericItem(item),
                         icon: const Icon(Icons.delete_outline_rounded),
                       ),
                     if (readOnly)
@@ -1380,18 +1521,39 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
               ),
               const SizedBox(height: 6),
               if (isRevenue) ...[
-                _InfoRow(label: 'Monthly Revenue', value: _formatCell(item['monthly_target_revenue'])),
-                _InfoRow(label: 'Minimum KPI', value: _formatCell(item['minimum_kpi_value'])),
-                _InfoRow(label: 'Maks. Terlambat', value: _formatCell(item['maximum_late_days'])),
-                _InfoRow(label: 'Min. Attendance %', value: _formatCell(item['minimum_attendance_percentage'])),
-                _InfoRow(label: 'Bonus', value: _formatCell(item['revenue_bonus'])),
+                _InfoRow(
+                    label: 'Monthly Revenue',
+                    value: _formatCell(item['monthly_target_revenue'])),
+                _InfoRow(
+                    label: 'Minimum KPI',
+                    value: _formatCell(item['minimum_kpi_value'])),
+                _InfoRow(
+                    label: 'Maks. Terlambat',
+                    value: _formatCell(item['maximum_late_days'])),
+                _InfoRow(
+                    label: 'Min. Attendance %',
+                    value: _formatCell(item['minimum_attendance_percentage'])),
+                _InfoRow(
+                    label: 'Bonus', value: _formatCell(item['revenue_bonus'])),
               ] else ...[
-                _InfoRow(label: 'Target Harian', value: _formatCell(item['daily_target_qty'])),
-                _InfoRow(label: 'Bonus Harian', value: _formatCell(item['daily_bonus'])),
-                _InfoRow(label: 'Target Mingguan', value: _formatCell(item['weekly_target_qty'])),
-                _InfoRow(label: 'Bonus Mingguan', value: _formatCell(item['weekly_bonus'])),
-                _InfoRow(label: 'Target Bulanan', value: _formatCell(item['monthly_target_qty'])),
-                _InfoRow(label: 'Bonus Bulanan', value: _formatCell(item['monthly_bonus'])),
+                _InfoRow(
+                    label: 'Target Harian',
+                    value: _formatCell(item['daily_target_qty'])),
+                _InfoRow(
+                    label: 'Bonus Harian',
+                    value: _formatCell(item['daily_bonus'])),
+                _InfoRow(
+                    label: 'Target Mingguan',
+                    value: _formatCell(item['weekly_target_qty'])),
+                _InfoRow(
+                    label: 'Bonus Mingguan',
+                    value: _formatCell(item['weekly_bonus'])),
+                _InfoRow(
+                    label: 'Target Bulanan',
+                    value: _formatCell(item['monthly_target_qty'])),
+                _InfoRow(
+                    label: 'Bonus Bulanan',
+                    value: _formatCell(item['monthly_bonus'])),
               ],
             ],
           ),
@@ -1449,19 +1611,63 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
   ) async {
     final fields = isRevenue
         ? const [
-            _OwnerFieldConfig(key: 'monthly_target_revenue', label: 'Monthly Revenue', type: 'number', required: true),
-            _OwnerFieldConfig(key: 'minimum_kpi_value', label: 'Minimum KPI', type: 'number', required: true),
-            _OwnerFieldConfig(key: 'maximum_late_days', label: 'Maks. Terlambat', type: 'number', required: true),
-            _OwnerFieldConfig(key: 'minimum_attendance_percentage', label: 'Min. Attendance %', type: 'number', required: true),
-            _OwnerFieldConfig(key: 'revenue_bonus', label: 'Bonus Revenue', type: 'number', required: true),
+            _OwnerFieldConfig(
+                key: 'monthly_target_revenue',
+                label: 'Monthly Revenue',
+                type: 'number',
+                required: true),
+            _OwnerFieldConfig(
+                key: 'minimum_kpi_value',
+                label: 'Minimum KPI',
+                type: 'number',
+                required: true),
+            _OwnerFieldConfig(
+                key: 'maximum_late_days',
+                label: 'Maks. Terlambat',
+                type: 'number',
+                required: true),
+            _OwnerFieldConfig(
+                key: 'minimum_attendance_percentage',
+                label: 'Min. Attendance %',
+                type: 'number',
+                required: true),
+            _OwnerFieldConfig(
+                key: 'revenue_bonus',
+                label: 'Bonus Revenue',
+                type: 'number',
+                required: true),
           ]
         : const [
-            _OwnerFieldConfig(key: 'daily_target_qty', label: 'Target Harian', type: 'number', required: true),
-            _OwnerFieldConfig(key: 'daily_bonus', label: 'Bonus Harian', type: 'number', required: true),
-            _OwnerFieldConfig(key: 'weekly_target_qty', label: 'Target Mingguan', type: 'number', required: true),
-            _OwnerFieldConfig(key: 'weekly_bonus', label: 'Bonus Mingguan', type: 'number', required: true),
-            _OwnerFieldConfig(key: 'monthly_target_qty', label: 'Target Bulanan', type: 'number', required: true),
-            _OwnerFieldConfig(key: 'monthly_bonus', label: 'Bonus Bulanan', type: 'number', required: true),
+            _OwnerFieldConfig(
+                key: 'daily_target_qty',
+                label: 'Target Harian',
+                type: 'number',
+                required: true),
+            _OwnerFieldConfig(
+                key: 'daily_bonus',
+                label: 'Bonus Harian',
+                type: 'number',
+                required: true),
+            _OwnerFieldConfig(
+                key: 'weekly_target_qty',
+                label: 'Target Mingguan',
+                type: 'number',
+                required: true),
+            _OwnerFieldConfig(
+                key: 'weekly_bonus',
+                label: 'Bonus Mingguan',
+                type: 'number',
+                required: true),
+            _OwnerFieldConfig(
+                key: 'monthly_target_qty',
+                label: 'Target Bulanan',
+                type: 'number',
+                required: true),
+            _OwnerFieldConfig(
+                key: 'monthly_bonus',
+                label: 'Bonus Bulanan',
+                type: 'number',
+                required: true),
           ];
 
     final result = await showDialog<Map<String, dynamic>>(
@@ -1526,7 +1732,8 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
                 return DataRow(
                   cells: [
                     DataCell(Text(item['nama_product']?.toString() ?? '-')),
-                    DataCell(Text(widget.currency.format(item['total_hpp'] ?? 0))),
+                    DataCell(
+                        Text(widget.currency.format(item['total_hpp'] ?? 0))),
                     DataCell(Text(item['updated_at']?.toString() ?? '-')),
                     DataCell(
                       Row(
@@ -1537,11 +1744,14 @@ class _OwnerModulePageState extends State<_OwnerModulePage> {
                             icon: const Icon(Icons.visibility_outlined),
                           ),
                           IconButton(
-                            onPressed: _saving ? null : () => _openHppForm(data, initialItem: item),
+                            onPressed: _saving
+                                ? null
+                                : () => _openHppForm(data, initialItem: item),
                             icon: const Icon(Icons.edit_outlined),
                           ),
                           IconButton(
-                            onPressed: _saving ? null : () => _deleteGenericItem(item),
+                            onPressed:
+                                _saving ? null : () => _deleteGenericItem(item),
                             icon: const Icon(Icons.delete_outline_rounded),
                           ),
                         ],
@@ -1611,7 +1821,8 @@ class _OwnerGenericFormDialog extends StatefulWidget {
   final Map<String, List<Map<String, dynamic>>> extraOptions;
 
   @override
-  State<_OwnerGenericFormDialog> createState() => _OwnerGenericFormDialogState();
+  State<_OwnerGenericFormDialog> createState() =>
+      _OwnerGenericFormDialogState();
 }
 
 class _OwnerGenericFormDialogState extends State<_OwnerGenericFormDialog> {
@@ -1673,7 +1884,8 @@ class _OwnerGenericFormDialogState extends State<_OwnerGenericFormDialog> {
   Widget _buildField(_OwnerFieldConfig field) {
     final options = field.optionsKey == null
         ? const <Map<String, dynamic>>[]
-        : widget.extraOptions[field.optionsKey] ?? const <Map<String, dynamic>>[];
+        : widget.extraOptions[field.optionsKey] ??
+            const <Map<String, dynamic>>[];
 
     if (field.type == 'select') {
       final initialValue = _values[field.key]?.toString();
@@ -1800,7 +2012,8 @@ class _OwnerProductFormDialog extends StatefulWidget {
   final NumberFormat currency;
 
   @override
-  State<_OwnerProductFormDialog> createState() => _OwnerProductFormDialogState();
+  State<_OwnerProductFormDialog> createState() =>
+      _OwnerProductFormDialogState();
 }
 
 class _OwnerProductFormDialogState extends State<_OwnerProductFormDialog> {
@@ -1914,7 +2127,8 @@ class _OwnerProductFormDialogState extends State<_OwnerProductFormDialog> {
                   TextButton.icon(
                     onPressed: _pickImage,
                     icon: const Icon(Icons.photo_library_outlined),
-                    label: Text(_imageFile == null ? 'Pilih Foto' : 'Ganti Foto'),
+                    label:
+                        Text(_imageFile == null ? 'Pilih Foto' : 'Ganti Foto'),
                   ),
                 ],
               ),
@@ -2093,8 +2307,7 @@ class _OwnerProductKnowledgeFormDialogState
             children: [
               TextField(
                 controller: _nameController,
-                decoration:
-                    const InputDecoration(labelText: 'Nama Product *'),
+                decoration: const InputDecoration(labelText: 'Nama Product *'),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -2309,7 +2522,8 @@ class _HppFormDialogState extends State<_HppFormDialog> {
                     child: Text(product['nama_product']?.toString() ?? '-'),
                   );
                 }).toList(),
-                onChanged: (value) => setState(() => _selectedProductId = value),
+                onChanged: (value) =>
+                    setState(() => _selectedProductId = value),
               ),
               const SizedBox(height: 14),
               ..._rows.asMap().entries.map((entry) {
@@ -2321,15 +2535,17 @@ class _HppFormDialogState extends State<_HppFormDialog> {
                     children: [
                       Expanded(
                         child: DropdownButtonFormField<String>(
-                          initialValue: row['id_rm']?.toString().isNotEmpty == true
-                              ? row['id_rm']?.toString()
-                              : null,
+                          initialValue:
+                              row['id_rm']?.toString().isNotEmpty == true
+                                  ? row['id_rm']?.toString()
+                                  : null,
                           decoration:
                               const InputDecoration(labelText: 'Raw Material'),
                           items: widget.rawMaterials.map((material) {
                             return DropdownMenuItem<String>(
                               value: '${material['id_rm']}',
-                              child: Text(material['nama_rm']?.toString() ?? '-'),
+                              child:
+                                  Text(material['nama_rm']?.toString() ?? '-'),
                             );
                           }).toList(),
                           onChanged: (value) => setState(() {
@@ -2343,9 +2559,10 @@ class _HppFormDialogState extends State<_HppFormDialog> {
                           initialValue: row['presentase']?.toString() ?? '',
                           decoration:
                               const InputDecoration(labelText: 'Presentase'),
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
-                          onChanged: (value) => _rows[index]['presentase'] = value,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          onChanged: (value) =>
+                              _rows[index]['presentase'] = value,
                         ),
                       ),
                       IconButton(
@@ -2386,7 +2603,8 @@ class _HppFormDialogState extends State<_HppFormDialog> {
                     (row['presentase']?.toString().isNotEmpty ?? false))
                 .map((row) => {
                       'id_rm': int.tryParse(row['id_rm']!.toString()) ?? 0,
-                      'presentase': num.tryParse(row['presentase']!.toString()) ?? 0,
+                      'presentase':
+                          num.tryParse(row['presentase']!.toString()) ?? 0,
                     })
                 .toList(),
           }),

@@ -26,6 +26,7 @@ class OfflineSale extends Model
         'unit_price',
         'extra_topping_total',
         'extra_toppings',
+        'sugar_level',
         'payment_method',
         'payment_status',
         'paid_at',
