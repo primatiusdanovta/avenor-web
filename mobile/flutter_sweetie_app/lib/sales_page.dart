@@ -158,6 +158,7 @@ Widget buildSmoothiesQueuePageTestHarness({
         body: _QueuePage(
           queueItems: queueItems,
           onCloseQueue: (_) async => true,
+          onRefreshQueue: () async => queueItems,
         ),
       ),
     ),
