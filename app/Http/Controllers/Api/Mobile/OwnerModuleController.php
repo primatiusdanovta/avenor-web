@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\Mobile;
 use App\Http\Controllers\Controller;
 use App\Models\AccountPayable;
 use App\Models\AccountReceivable;
+use App\Models\CupStock;
 use App\Models\Customer;
 use App\Models\Expense;
 use App\Models\ExtraTopping;
@@ -23,6 +24,7 @@ use App\Models\User;
 use App\Support\MarketingMobileSupport;
 use App\Support\RawMaterialUsage;
 use App\Support\SalesRole;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +39,7 @@ class OwnerModuleController extends Controller
 
         return response()->json(match ($module) {
             'products' => $this->productsPayload($storeId),
+            'cups' => $this->cupsPayload($request, $storeId),
             'product-knowledge' => $this->productKnowledgePayload($storeId),
             'raw-materials' => $this->rawMaterialsPayload($storeId),
             'extra-toppings' => $this->extraToppingsPayload($storeId),
@@ -61,6 +64,7 @@ class OwnerModuleController extends Controller
 
         $message = match ($module) {
             'products' => $this->storeProduct($request, $storeId),
+            'cups' => $this->storeCupStock($request, $storeId),
             'product-knowledge' => $this->storeProductKnowledge($request, $storeId),
             'raw-materials' => $this->storeRawMaterial($request, $storeId),
             'extra-toppings' => $this->storeExtraTopping($request, $storeId),
@@ -130,6 +134,21 @@ class OwnerModuleController extends Controller
         return response()->json(['message' => $message]);
     }
 
+    public function finalizeCupStock(Request $request): JsonResponse
+    {
+        $storeId = $this->authorizeOwner($request);
+        $validated = $request->validate([
+            'stock_date' => ['required', 'date'],
+        ]);
+
+        return response()->json([
+            'message' => $this->finalizeCupStockForDate(
+                $storeId,
+                (string) $validated['stock_date']
+            ),
+        ]);
+    }
+
     private function authorizeOwner(Request $request): int
     {
         $user = $request->user();
@@ -141,6 +160,62 @@ class OwnerModuleController extends Controller
         abort_unless($storeId, 403, 'Store aktif tidak ditemukan.');
 
         return (int) $storeId;
+    }
+
+    private function finalizeCupStockForDate(int $storeId, string $stockDate): string
+    {
+        $periodStart = Carbon::parse($stockDate, 'Asia/Jakarta')
+            ->startOfDay()
+            ->setTimezone('UTC');
+        $periodEnd = Carbon::parse($stockDate, 'Asia/Jakarta')
+            ->endOfDay()
+            ->setTimezone('UTC');
+
+        $cupStocks = CupStock::query()
+            ->where('store_id', $storeId)
+            ->whereDate('stock_date', $stockDate)
+            ->orderBy('variant_name')
+            ->get();
+
+        if ($cupStocks->isEmpty()) {
+            abort(422, 'Stock cup untuk tanggal ini belum diinput.');
+        }
+
+        $soldByVariant = OfflineSale::query()
+            ->where('store_id', $storeId)
+            ->whereBetween('created_at', [$periodStart, $periodEnd])
+            ->whereNotNull('product_variant_name')
+            ->selectRaw('LOWER(TRIM(product_variant_name)) as variant_key, SUM(quantity) as total_quantity')
+            ->groupBy('variant_key')
+            ->pluck('total_quantity', 'variant_key');
+
+        $finalizedAt = now();
+
+        DB::transaction(function () use ($cupStocks, $soldByVariant, $finalizedAt): void {
+            foreach ($cupStocks as $cupStock) {
+                $variantKey = Str::lower(trim((string) $cupStock->variant_name));
+                $usedCup = (int) ($soldByVariant[$variantKey] ?? 0);
+
+                $cupStock->update([
+                    'used_cup' => $usedCup,
+                    'remaining_cup' => max((int) $cupStock->stock_cup - $usedCup, 0),
+                    'finalized_at' => $finalizedAt,
+                ]);
+            }
+        });
+
+        return 'Perhitungan cup berhasil diselesaikan.';
+    }
+
+    private function formatMobileDateTime($value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+
+        return \Carbon\Carbon::parse($value)
+            ->setTimezone('Asia/Jakarta')
+            ->format(DATE_ATOM);
     }
 
     private function baseModulePayload(string $title, string $description, array $items, bool $readOnly = false): array
@@ -185,6 +260,101 @@ class OwnerModuleController extends Controller
         );
     }
 
+    private function cupsPayload(Request $request, int $storeId): array
+    {
+        $selectedDate = (string) ($request->query('date') ?: now()->toDateString());
+        $variantNames = ProductVariant::query()
+            ->whereIn(
+                'product_id',
+                Product::query()->where('store_id', $storeId)->select('id_product')
+            )
+            ->whereNotNull('name')
+            ->orderBy('name')
+            ->pluck('name')
+            ->map(fn ($name) => trim((string) $name))
+            ->filter()
+            ->unique(fn (string $name) => Str::lower($name))
+            ->values()
+            ->all();
+
+        $activeItems = CupStock::query()
+            ->where('store_id', $storeId)
+            ->whereDate('stock_date', $selectedDate)
+            ->orderBy('variant_name')
+            ->get()
+            ->keyBy(fn (CupStock $item) => Str::lower($item->variant_name));
+
+        $items = collect($variantNames)
+            ->map(function (string $variantName) use ($activeItems) {
+                /** @var CupStock|null $existing */
+                $existing = $activeItems->get(Str::lower($variantName));
+
+                return [
+                    'id' => $existing?->id,
+                    'variant_name' => $variantName,
+                    'stock_cup' => (int) ($existing?->stock_cup ?? 0),
+                    'used_cup' => (int) ($existing?->used_cup ?? 0),
+                    'remaining_cup' => $existing?->remaining_cup === null
+                        ? null
+                        : (int) $existing->remaining_cup,
+                    'is_finalized' => $existing?->finalized_at !== null,
+                    'finalized_at' => $this->formatMobileDateTime($existing?->finalized_at),
+                ];
+            })
+            ->values()
+            ->all();
+
+        $history = CupStock::query()
+            ->where('store_id', $storeId)
+            ->whereNotNull('finalized_at')
+            ->orderByDesc('stock_date')
+            ->orderBy('variant_name')
+            ->get()
+            ->groupBy(fn (CupStock $item) => optional($item->stock_date)->toDateString())
+            ->map(function ($group, $date) {
+                $rows = collect($group)->map(function (CupStock $item) {
+                    $remainingCup = $item->remaining_cup ?? max(
+                        (int) $item->stock_cup - (int) $item->used_cup,
+                        0
+                    );
+
+                    return [
+                        'variant_name' => $item->variant_name,
+                        'stock_cup' => (int) $item->stock_cup,
+                        'used_cup' => (int) $item->used_cup,
+                        'remaining_cup' => (int) $remainingCup,
+                    ];
+                })->values()->all();
+
+                $lastFinalizedAt = collect($group)
+                    ->map(fn (CupStock $item) => $item->finalized_at)
+                    ->filter()
+                    ->sortDesc()
+                    ->first();
+
+                return [
+                    'date' => $date,
+                    'finalized_at' => $this->formatMobileDateTime($lastFinalizedAt),
+                    'total_stock_cup' => (int) collect($rows)->sum('stock_cup'),
+                    'total_used_cup' => (int) collect($rows)->sum('used_cup'),
+                    'total_remaining_cup' => (int) collect($rows)->sum('remaining_cup'),
+                    'items' => $rows,
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'title' => 'Cup',
+            'description' => 'Input stok cup per hari lalu hitung pemakaian cup berdasarkan penjualan varian.',
+            'selected_date' => $selectedDate,
+            'variants' => array_map(fn (string $name) => ['name' => $name], $variantNames),
+            'items' => $items,
+            'history' => $history,
+            'read_only' => false,
+        ];
+    }
+
     private function productKnowledgePayload(int $storeId): array
     {
         return $this->baseModulePayload(
@@ -202,6 +372,60 @@ class OwnerModuleController extends Controller
                 ])
                 ->all(),
         );
+    }
+
+    private function storeCupStock(Request $request, int $storeId): string
+    {
+        $validated = $request->validate([
+            'stock_date' => ['required', 'date'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.variant_name' => ['required', 'string', 'max:255'],
+            'items.*.stock_cup' => ['required', 'integer', 'min:0'],
+        ]);
+
+        $stockDate = (string) $validated['stock_date'];
+        $rows = collect($validated['items'])
+            ->map(fn (array $item) => [
+                'variant_name' => trim((string) ($item['variant_name'] ?? '')),
+                'stock_cup' => (int) ($item['stock_cup'] ?? 0),
+            ])
+            ->filter(fn (array $item) => $item['variant_name'] !== '')
+            ->unique(fn (array $item) => Str::lower($item['variant_name']))
+            ->values();
+
+        if ($rows->isEmpty()) {
+            abort(422, 'Minimal satu ukuran cup harus diisi.');
+        }
+
+        $alreadyFinalized = CupStock::query()
+            ->where('store_id', $storeId)
+            ->whereDate('stock_date', $stockDate)
+            ->whereNotNull('finalized_at')
+            ->exists();
+
+        if ($alreadyFinalized) {
+            abort(422, 'Perhitungan cup pada tanggal ini sudah selesai.');
+        }
+
+        DB::transaction(function () use ($rows, $stockDate, $storeId): void {
+            foreach ($rows as $row) {
+                CupStock::query()->updateOrCreate(
+                    [
+                        'store_id' => $storeId,
+                        'stock_date' => $stockDate,
+                        'variant_name' => $row['variant_name'],
+                    ],
+                    [
+                        'stock_cup' => $row['stock_cup'],
+                        'used_cup' => 0,
+                        'remaining_cup' => null,
+                        'finalized_at' => null,
+                    ]
+                );
+            }
+        });
+
+        return 'Stock cup harian berhasil disimpan.';
     }
 
     private function rawMaterialsPayload(int $storeId): array

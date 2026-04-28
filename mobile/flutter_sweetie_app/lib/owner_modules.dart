@@ -76,6 +76,13 @@ const List<_OwnerModuleDefinition> _ownerStockModules = [
     accent: Color(0xFF6F90D8),
   ),
   _OwnerModuleDefinition(
+    key: 'cups',
+    title: 'Cup',
+    subtitle: 'Stock cup harian dan hitung pemakaian per ukuran.',
+    icon: Icons.local_cafe_rounded,
+    accent: Color(0xFFC18B2F),
+  ),
+  _OwnerModuleDefinition(
     key: 'hpp',
     title: 'HPP',
     subtitle: 'Kelola perhitungan HPP product.',
@@ -234,6 +241,19 @@ extension _OwnerModuleStateActions on _MarketingRootState {
           builder: (_) => _OwnerStandalonePage(
             title: module.title,
             child: employeeAttendancePage,
+          ),
+        ),
+      );
+      return;
+    }
+
+    if (module.key == 'cups') {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => _CupModulePage(
+            onFetch: ({String? date}) => _fetchCupModule(date: date),
+            onSave: _storeCupModule,
+            onFinalize: _finalizeCupModule,
           ),
         ),
       );
@@ -447,6 +467,444 @@ class _OwnerStandalonePage extends StatelessWidget {
         ),
         child: SafeArea(child: child),
       ),
+    );
+  }
+}
+
+class _CupModulePage extends StatefulWidget {
+  const _CupModulePage({
+    required this.onFetch,
+    required this.onSave,
+    required this.onFinalize,
+  });
+
+  final Future<Map<String, dynamic>> Function({String? date}) onFetch;
+  final Future<void> Function(Map<String, dynamic> payload) onSave;
+  final Future<void> Function(String stockDate) onFinalize;
+
+  @override
+  State<_CupModulePage> createState() => _CupModulePageState();
+}
+
+class _CupModulePageState extends State<_CupModulePage> {
+  final Map<String, TextEditingController> _controllers = {};
+  late DateTime _selectedDate;
+  Map<String, dynamic>? _data;
+  bool _loading = true;
+  bool _saving = false;
+  bool _finalizing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDate = DateTime.now();
+    unawaited(_reload());
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _controllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _reload({DateTime? date}) async {
+    final targetDate = date ?? _selectedDate;
+    setState(() => _loading = true);
+    try {
+      final data = await widget.onFetch(date: _formatDateKey(targetDate));
+      if (!mounted) {
+        return;
+      }
+
+      final parsedDate = _DashboardPage._parseFlexibleDate(
+            data['selected_date']?.toString(),
+          ) ??
+          targetDate;
+
+      setState(() {
+        _data = data;
+        _selectedDate = parsedDate;
+      });
+      _syncControllers(_asMapList(data['items']));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_describeError(error))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  void _syncControllers(List<Map<String, dynamic>> items) {
+    final activeKeys = items
+        .map((item) => item['variant_name']?.toString().trim() ?? '')
+        .where((name) => name.isNotEmpty)
+        .toSet();
+
+    final staleKeys = _controllers.keys
+        .where((key) => !activeKeys.contains(key))
+        .toList(growable: false);
+    for (final key in staleKeys) {
+      _controllers.remove(key)?.dispose();
+    }
+
+    for (final item in items) {
+      final key = item['variant_name']?.toString().trim() ?? '';
+      if (key.isEmpty) {
+        continue;
+      }
+      final value = '${_asInt(item['stock_cup'])}';
+      final controller = _controllers[key];
+      if (controller == null) {
+        _controllers[key] = TextEditingController(text: value);
+        continue;
+      }
+      if (controller.text != value) {
+        controller.text = value;
+      }
+    }
+  }
+
+  String _describeError(Object error) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map<String, dynamic>) {
+        final message = data['message']?.toString().trim();
+        if (message != null && message.isNotEmpty) {
+          return message;
+        }
+      }
+      return error.message ?? 'Terjadi kendala koneksi.';
+    }
+
+    final text = error.toString().trim();
+    return text.startsWith('Exception: ') ? text.substring(11) : text;
+  }
+
+  String _formatDateKey(DateTime value) {
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '${value.year}-$month-$day';
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) {
+      return;
+    }
+    await _reload(date: picked);
+  }
+
+  Future<void> _saveStock() async {
+    final data = _data ?? const <String, dynamic>{};
+    final items = _asMapList(data['items']);
+    if (items.isEmpty) {
+      return;
+    }
+
+    final payload = {
+      'stock_date': _formatDateKey(_selectedDate),
+      'items': items
+          .map((item) => {
+                'variant_name': item['variant_name']?.toString() ?? '',
+                'stock_cup': int.tryParse(
+                      (_controllers[item['variant_name']?.toString()]?.text ??
+                              '0')
+                          .trim(),
+                    ) ??
+                    0,
+              })
+          .toList(),
+    };
+
+    setState(() => _saving = true);
+    try {
+      await widget.onSave(payload);
+      if (!mounted) {
+        return;
+      }
+      await _reload();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Stock cup harian berhasil disimpan.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_describeError(error))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _saving = false);
+      }
+    }
+  }
+
+  Future<void> _finalize() async {
+    setState(() => _finalizing = true);
+    try {
+      await widget.onFinalize(_formatDateKey(_selectedDate));
+      if (!mounted) {
+        return;
+      }
+      await _reload();
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Perhitungan cup berhasil diselesaikan.')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_describeError(error))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _finalizing = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = _data ?? const <String, dynamic>{};
+    final items = _asMapList(data['items']);
+    final history = _asMapList(data['history']);
+    final isFinalized =
+        items.isNotEmpty && items.every((item) => item['is_finalized'] == true);
+    final dateLabel = DateFormat('dd MMM yyyy', 'id_ID').format(_selectedDate);
+
+    return _OwnerStandalonePage(
+      title: 'Cup',
+      child: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              children: [
+                _BlockCard(
+                  title: data['title']?.toString() ?? 'Cup',
+                  subtitle: data['description']?.toString() ??
+                      'Kelola stock cup harian berdasarkan ukuran varian.',
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: _pickDate,
+                            icon: const Icon(Icons.calendar_month_rounded),
+                            label: Text('Tanggal $dateLabel'),
+                          ),
+                          if (isFinalized)
+                            const _QueueBadge(
+                              label: 'Sudah dihitung',
+                              backgroundColor: Color(0xFFE7F7ED),
+                              textColor: Color(0xFF24744A),
+                            )
+                          else
+                            const _QueueBadge(
+                              label: 'Belum dihitung',
+                              backgroundColor: Color(0xFFFFF4E4),
+                              textColor: Color(0xFFA35A00),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      if (items.isEmpty)
+                        const Text('Belum ada varian ukuran yang tersedia.')
+                      else
+                        ...items.map((item) {
+                          final variantName =
+                              item['variant_name']?.toString() ?? '-';
+                          final controller =
+                              _controllers.putIfAbsent(variantName, () {
+                            return TextEditingController(
+                              text: '${_asInt(item['stock_cup'])}',
+                            );
+                          });
+
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFBF6FE),
+                                borderRadius: BorderRadius.circular(18),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    variantName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  TextField(
+                                    controller: controller,
+                                    enabled: !isFinalized,
+                                    keyboardType: TextInputType.number,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Stock Cup',
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      _MiniPill(
+                                        label:
+                                            'Terjual ${_asInt(item['used_cup'])}',
+                                      ),
+                                      _MiniPill(
+                                        label:
+                                            'Sisa ${_asInt(item['remaining_cup'])}',
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: _saving || isFinalized || items.isEmpty
+                                  ? null
+                                  : _saveStock,
+                              icon: const Icon(Icons.save_outlined),
+                              label: Text(_saving
+                                  ? 'Menyimpan...'
+                                  : 'Simpan Stock Cup'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed:
+                                  _finalizing || items.isEmpty || isFinalized
+                                      ? null
+                                      : _finalize,
+                              icon: const Icon(Icons.calculate_outlined),
+                              label: Text(_finalizing
+                                  ? 'Menghitung...'
+                                  : 'Selesai Hitung'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _BlockCard(
+                  title: 'Riwayat Perhitungan Cup',
+                  subtitle:
+                      'Riwayat dihitung per hari setelah tombol selesai hitung diproses.',
+                  child: history.isEmpty
+                      ? const Text('Belum ada riwayat perhitungan cup.')
+                      : Column(
+                          children: history.map((entry) {
+                            final entryDate = _DashboardPage._parseFlexibleDate(
+                              entry['date']?.toString(),
+                            );
+                            final title = entryDate == null
+                                ? (entry['date']?.toString() ?? '-')
+                                : DateFormat('dd MMM yyyy', 'id_ID')
+                                    .format(entryDate);
+                            return Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(
+                                  color: const Color(0xFFEADCF7),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    title,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: [
+                                      _MiniPill(
+                                        label:
+                                            'Stock ${_asInt(entry['total_stock_cup'])}',
+                                      ),
+                                      _MiniPill(
+                                        label:
+                                            'Terjual ${_asInt(entry['total_used_cup'])}',
+                                      ),
+                                      _MiniPill(
+                                        label:
+                                            'Sisa ${_asInt(entry['total_remaining_cup'])}',
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  ..._asMapList(entry['items']).map((detail) {
+                                    return Padding(
+                                      padding: const EdgeInsets.only(bottom: 8),
+                                      child: _InfoRow(
+                                        label: detail['variant_name']
+                                                ?.toString() ??
+                                            '-',
+                                        value:
+                                            'Stock ${_asInt(detail['stock_cup'])} | Terjual ${_asInt(detail['used_cup'])} | Sisa ${_asInt(detail['remaining_cup'])}',
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                ),
+              ],
+            ),
     );
   }
 }

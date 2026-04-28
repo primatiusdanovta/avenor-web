@@ -279,7 +279,7 @@ class OfflineSaleController extends Controller
             'message' => 'Penjualan offline berhasil disimpan.',
             'transaction_code' => $transactionCode,
             'sale_number' => $saleNumber,
-            'created_at' => $timestamp->format('Y-m-d H:i:s'),
+            'created_at' => $this->formatMobileDateTime($timestamp),
             'customer_name' => trim((string) ($validated['customer_nama'] ?? '')) ?: null,
             'total_amount' => max(round($subtotal - (float) ($promo?->potongan ?? 0), 2), 0),
         ], 201);
@@ -470,7 +470,7 @@ class OfflineSaleController extends Controller
                     'transaction_code' => $first?->transaction_code,
                     'customer_name' => $first?->customer?->nama,
                     'payment_status' => $first?->payment_status,
-                    'created_at' => optional($first?->created_at)->format('Y-m-d H:i:s'),
+                    'created_at' => $this->formatMobileDateTime($first?->created_at),
                     'details' => $sales->map(fn (OfflineSale $sale) => [
                         'nama_product' => $sale->nama_product,
                         'product_variant_name' => $sale->product_variant_name,
@@ -546,7 +546,7 @@ class OfflineSaleController extends Controller
                     'payment_status' => $first->payment_status,
                     'approval_status' => $first->approval_status,
                     'bukti_pembelian_url' => $first->bukti_pembelian ? route('api.mobile.offline-sales.proof', ['sale' => $first]) : null,
-                    'created_at' => optional($first->created_at)->format('Y-m-d H:i:s'),
+                    'created_at' => $this->formatMobileDateTime($first->created_at),
                     'total_quantity' => (int) $items->sum('quantity'),
                     'total_harga' => (float) $items->sum('harga'),
                     'items' => $items->map(fn (OfflineSale $sale) => [
@@ -849,6 +849,17 @@ class OfflineSaleController extends Controller
             ->count() + 1;
 
         return $timestamp->format('d/m/y') . ' - ' . $nextNumber;
+    }
+
+    private function formatMobileDateTime($value): ?string
+    {
+        if (! $value) {
+            return null;
+        }
+
+        return Carbon::parse($value)
+            ->setTimezone('Asia/Jakarta')
+            ->format(DATE_ATOM);
     }
 }
 

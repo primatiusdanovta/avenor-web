@@ -244,6 +244,9 @@ class _MarketingRootState extends State<MarketingRoot> {
   String? _token;
   String? _error;
   String? _locationLabel;
+  String _ownerDashboardType = 'all';
+  int? _ownerDashboardMonth;
+  int? _ownerDashboardYear;
   Map<String, dynamic>? _me;
   Map<String, dynamic>? _dashboard;
   Map<String, dynamic>? _attendance;
@@ -253,6 +256,7 @@ class _MarketingRootState extends State<MarketingRoot> {
   Map<String, dynamic>? _knowledge;
   Map<String, dynamic>? _notifications;
   Map<String, dynamic>? _queue;
+  Map<String, dynamic>? _mockCupModule;
   Map<String, dynamic>? _pendingOpenedNotification;
 
   @override
@@ -1161,9 +1165,16 @@ class _MarketingRootState extends State<MarketingRoot> {
       final mePayload = _asMap(meResponse.data);
       final me = _asMap(mePayload['user']);
       final role = me['role']?.toString() ?? '';
+      final dashboardQuery = role == 'owner'
+          ? <String, dynamic>{
+              'type': _ownerDashboardType,
+              'month': _ownerDashboardMonth ?? DateTime.now().month,
+              'year': _ownerDashboardYear ?? DateTime.now().year,
+            }
+          : null;
 
       final futures = <Future<Response<dynamic>>>[
-        _dio.get('/dashboard'),
+        _dio.get('/dashboard', queryParameters: dashboardQuery),
         _dio.get('/attendance'),
         _dio.get('/products'),
         _dio.get('/offline-sales'),
@@ -1186,6 +1197,15 @@ class _MarketingRootState extends State<MarketingRoot> {
       setState(() {
         _me = me;
         _dashboard = _asMap(results[0].data);
+        final ownerFilters = _asMap(_dashboard?['dashboard_filters']);
+        if (role == 'owner' && ownerFilters.isNotEmpty) {
+          _ownerDashboardType =
+              ownerFilters['type']?.toString() ?? _ownerDashboardType;
+          _ownerDashboardMonth =
+              (ownerFilters['month'] as num?)?.toInt() ?? _ownerDashboardMonth;
+          _ownerDashboardYear =
+              (ownerFilters['year'] as num?)?.toInt() ?? _ownerDashboardYear;
+        }
         _attendance = _asMap(results[1].data);
         _products = _asMap(results[2].data);
         _sales = _asMap(results[3].data);
@@ -1200,6 +1220,59 @@ class _MarketingRootState extends State<MarketingRoot> {
       );
       await _refreshNotificationBadgeState();
       await _tryPresentPendingNotification();
+    } finally {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+    }
+  }
+
+  Future<void> _refreshOwnerDashboard({
+    String? type,
+    int? month,
+    int? year,
+  }) async {
+    if (_mockMode) {
+      setState(() {
+        _ownerDashboardType = type ?? _ownerDashboardType;
+        _ownerDashboardMonth =
+            month ?? _ownerDashboardMonth ?? DateTime.now().month;
+        _ownerDashboardYear =
+            year ?? _ownerDashboardYear ?? DateTime.now().year;
+      });
+      return;
+    }
+
+    final nextType = type ?? _ownerDashboardType;
+    final nextMonth = month ?? _ownerDashboardMonth ?? DateTime.now().month;
+    final nextYear = year ?? _ownerDashboardYear ?? DateTime.now().year;
+
+    setState(() {
+      _busy = true;
+      _ownerDashboardType = nextType;
+      _ownerDashboardMonth = nextMonth;
+      _ownerDashboardYear = nextYear;
+    });
+
+    try {
+      final response = await _dio.get(
+        '/dashboard',
+        queryParameters: {
+          'type': nextType,
+          'month': nextMonth,
+          'year': nextYear,
+        },
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _dashboard = _asMap(response.data);
+      });
+    } on DioException catch (error) {
+      _showMessage(_readError(error));
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -1848,10 +1921,26 @@ class _MarketingRootState extends State<MarketingRoot> {
           child: _QueuePage(
             queueItems: queueItems,
             onCloseQueue: _closeQueueItem,
+            onRefreshQueue: _refreshQueueItemsOnly,
           ),
         ),
       ),
     );
+  }
+
+  Future<List<Map<String, dynamic>>> _refreshQueueItemsOnly() async {
+    if (_mockMode) {
+      return _asMapList(_queue?['items']);
+    }
+
+    final response = await _dio.get('/queue');
+    final payload = _asMap(response.data);
+    if (mounted) {
+      setState(() => _queue = payload);
+    } else {
+      _queue = payload;
+    }
+    return _asMapList(payload['items']);
   }
 
   Future<bool> _closeQueueItem(String saleNumber) async {
@@ -1863,9 +1952,8 @@ class _MarketingRootState extends State<MarketingRoot> {
         _queue = {'items': items};
       } else {
         await _dio.post('/queue/close', data: {'sale_number': saleNumber});
+        await _refreshQueueItemsOnly();
       }
-
-      await _refreshAll(showLoader: false);
       return true;
     } on DioException catch (error) {
       _showMessage(_readError(error));
@@ -1916,6 +2004,140 @@ class _MarketingRootState extends State<MarketingRoot> {
 
     final response = await _dio.get('/owner/modules/$module');
     return _asMap(response.data);
+  }
+
+  Future<Map<String, dynamic>> _fetchCupModule({String? date}) async {
+    if (_mockMode) {
+      return _buildMockCupModule(selectedDate: date);
+    }
+
+    final response = await _dio.get(
+      '/owner/modules/cups',
+      queryParameters: {
+        if (date != null && date.trim().isNotEmpty) 'date': date.trim(),
+      },
+    );
+    return _asMap(response.data);
+  }
+
+  Future<void> _storeCupModule(Map<String, dynamic> payload) async {
+    if (_mockMode) {
+      _mockCupModule = {
+        ..._buildMockCupModule(selectedDate: payload['stock_date']?.toString()),
+        'selected_date':
+            payload['stock_date']?.toString() ?? _formatYmd(DateTime.now()),
+        'items': _asMapList(payload['items']).map((item) {
+          return {
+            'variant_name': item['variant_name'],
+            'stock_cup': _asInt(item['stock_cup']),
+            'used_cup': 0,
+            'remaining_cup': null,
+            'is_finalized': false,
+            'finalized_at': null,
+          };
+        }).toList(),
+      };
+      return;
+    }
+
+    await _dio.post('/owner/modules/cups', data: payload);
+  }
+
+  Future<void> _finalizeCupModule(String stockDate) async {
+    if (_mockMode) {
+      final current = _mockCupModule;
+      if (current != null) {
+        final selectedDate = current['selected_date']?.toString() ?? stockDate;
+        final sales = _asMapList(_sales?['sales']);
+        final usage = <String, int>{};
+        for (final sale in sales) {
+          final createdAt = _DashboardPage._parseFlexibleDate(
+            sale['created_at']?.toString(),
+          );
+          if (createdAt == null || _formatYmd(createdAt) != selectedDate) {
+            continue;
+          }
+          for (final item in _asMapList(sale['items'])) {
+            final key = item['product_variant_name']?.toString().trim() ?? '';
+            if (key.isEmpty) {
+              continue;
+            }
+            usage[key] = (usage[key] ?? 0) + _asInt(item['quantity']);
+          }
+        }
+        final items = _asMapList(current['items']).map((item) {
+          final key = item['variant_name']?.toString().trim() ?? '';
+          final used = usage[key] ?? 0;
+          final stock = _asInt(item['stock_cup']);
+          return {
+            ...item,
+            'used_cup': used,
+            'remaining_cup': max(stock - used, 0),
+            'is_finalized': true,
+            'finalized_at': DateTime.now().toIso8601String(),
+          };
+        }).toList();
+        _mockCupModule = {
+          ...current,
+          'items': items,
+          'history': [
+            {
+              'date': selectedDate,
+              'finalized_at': DateTime.now().toIso8601String(),
+              'total_stock_cup': items.fold<int>(
+                  0, (sum, item) => sum + _asInt(item['stock_cup'])),
+              'total_used_cup': items.fold<int>(
+                  0, (sum, item) => sum + _asInt(item['used_cup'])),
+              'total_remaining_cup': items.fold<int>(
+                  0, (sum, item) => sum + _asInt(item['remaining_cup'])),
+              'items': items,
+            },
+          ],
+        };
+      }
+      return;
+    }
+
+    await _dio.post(
+      '/owner/modules/cups/finalize',
+      data: {'stock_date': stockDate},
+    );
+  }
+
+  Map<String, dynamic> _buildMockCupModule({String? selectedDate}) {
+    final date = selectedDate ?? _formatYmd(DateTime.now());
+    final existing = _mockCupModule;
+    if (existing != null && existing['selected_date']?.toString() == date) {
+      return existing;
+    }
+
+    final variantNames = _asMapList(_products?['products'])
+        .expand((product) => _asMapList(product['variants']))
+        .map((variant) => variant['name']?.toString().trim() ?? '')
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+
+    return {
+      'title': 'Cup',
+      'description':
+          'Input stok cup per hari lalu hitung pemakaian cup berdasarkan penjualan varian.',
+      'selected_date': date,
+      'variants': variantNames.map((name) => {'name': name}).toList(),
+      'items': variantNames
+          .map((name) => {
+                'variant_name': name,
+                'stock_cup': 0,
+                'used_cup': 0,
+                'remaining_cup': null,
+                'is_finalized': false,
+                'finalized_at': null,
+              })
+          .toList(),
+      'history': <Map<String, dynamic>>[],
+      'read_only': false,
+    };
   }
 
   Future<void> _storeOwnerModule(
@@ -2202,6 +2424,8 @@ class _MarketingRootState extends State<MarketingRoot> {
         currency: _currency,
         isOwner: true,
         onNavigate: (index) => setState(() => _navigationIndex = index),
+        busy: _busy,
+        onOwnerFilterChanged: _refreshOwnerDashboard,
       ),
       _OwnerCategoryPage(
         title: 'Stock and Inventory',
@@ -3056,6 +3280,7 @@ class _QueueSheet extends StatelessWidget {
                           final item = queueItems[index];
                           return _QueueSaleCard(
                             item: item,
+                            busy: false,
                             onClose: () async {
                               final success = await onCloseQueue(
                                 item['sale_number']?.toString() ?? '',
@@ -3080,10 +3305,12 @@ class _QueuePage extends StatefulWidget {
   const _QueuePage({
     required this.queueItems,
     required this.onCloseQueue,
+    required this.onRefreshQueue,
   });
 
   final List<Map<String, dynamic>> queueItems;
   final Future<bool> Function(String saleNumber) onCloseQueue;
+  final Future<List<Map<String, dynamic>>> Function() onRefreshQueue;
 
   @override
   State<_QueuePage> createState() => _QueuePageState();
@@ -3091,11 +3318,18 @@ class _QueuePage extends StatefulWidget {
 
 class _QueuePageState extends State<_QueuePage> {
   late List<Map<String, dynamic>> _queueItems;
+  Timer? _autoRefreshTimer;
+  bool _refreshing = false;
+  String? _closingSaleNumber;
 
   @override
   void initState() {
     super.initState();
     _queueItems = List<Map<String, dynamic>>.from(widget.queueItems);
+    _autoRefreshTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => unawaited(_refreshQueue(silent: true)),
+    );
   }
 
   @override
@@ -3106,14 +3340,52 @@ class _QueuePageState extends State<_QueuePage> {
     }
   }
 
-  Future<void> _handleClose(Map<String, dynamic> item) async {
-    final saleNumber = item['sale_number']?.toString() ?? '';
-    if (saleNumber.isEmpty) {
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _refreshQueue({bool silent = false}) async {
+    if (_refreshing) {
       return;
     }
 
+    if (!silent && mounted) {
+      setState(() => _refreshing = true);
+    } else {
+      _refreshing = true;
+    }
+
+    try {
+      final items = await widget.onRefreshQueue();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _queueItems = List<Map<String, dynamic>>.from(items);
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _refreshing = false);
+      } else {
+        _refreshing = false;
+      }
+    }
+  }
+
+  Future<void> _handleClose(Map<String, dynamic> item) async {
+    final saleNumber = item['sale_number']?.toString() ?? '';
+    if (saleNumber.isEmpty || _closingSaleNumber != null) {
+      return;
+    }
+
+    setState(() => _closingSaleNumber = saleNumber);
     final success = await widget.onCloseQueue(saleNumber);
     if (!mounted || !success) {
+      if (mounted) {
+        setState(() => _closingSaleNumber = null);
+      }
       return;
     }
 
@@ -3121,6 +3393,7 @@ class _QueuePageState extends State<_QueuePage> {
       _queueItems.removeWhere(
         (entry) => entry['sale_number']?.toString() == saleNumber,
       );
+      _closingSaleNumber = null;
     });
 
     await _showSweetieSuccessDialog(
@@ -3153,7 +3426,18 @@ class _QueuePageState extends State<_QueuePage> {
               icon: Icons.format_list_numbered_rounded,
               title: 'Antrian Penjualan',
               subtitle:
-                  'Nomor penjualan, nama customer, quantity, dan extra topping aktif.',
+                  'Nomor penjualan, nama customer, quantity, dan extra topping aktif. Auto refresh tiap 5 detik.',
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _refreshing ? null : _refreshQueue,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: Text(_refreshing ? 'Memuat...' : 'Refresh'),
+                ),
+              ),
             ),
             Expanded(
               child: _queueItems.isEmpty
@@ -3166,6 +3450,8 @@ class _QueuePageState extends State<_QueuePage> {
                         final item = _queueItems[index];
                         return _QueueSaleCard(
                           item: item,
+                          busy: _closingSaleNumber ==
+                              item['sale_number']?.toString(),
                           onClose: () => _handleClose(item),
                         );
                       },
@@ -3181,10 +3467,12 @@ class _QueuePageState extends State<_QueuePage> {
 class _QueueSaleCard extends StatelessWidget {
   const _QueueSaleCard({
     required this.item,
+    required this.busy,
     required this.onClose,
   });
 
   final Map<String, dynamic> item;
+  final bool busy;
   final Future<void> Function() onClose;
 
   @override
@@ -3299,9 +3587,15 @@ class _QueueSaleCard extends StatelessWidget {
           Align(
             alignment: Alignment.centerRight,
             child: TextButton.icon(
-              onPressed: onClose,
-              icon: const Icon(Icons.check_circle_outline_rounded),
-              label: const Text('Selesaikan antrian'),
+              onPressed: busy ? null : onClose,
+              icon: busy
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.check_circle_outline_rounded),
+              label: Text(busy ? 'Memproses...' : 'Selesaikan antrian'),
             ),
           ),
         ],
@@ -4004,6 +4298,8 @@ class _DashboardPage extends StatelessWidget {
     required this.currency,
     required this.isOwner,
     required this.onNavigate,
+    required this.busy,
+    required this.onOwnerFilterChanged,
   });
 
   final Map<String, dynamic> me;
@@ -4015,6 +4311,12 @@ class _DashboardPage extends StatelessWidget {
   final NumberFormat currency;
   final bool isOwner;
   final ValueChanged<int> onNavigate;
+  final bool busy;
+  final Future<void> Function({
+    String? type,
+    int? month,
+    int? year,
+  }) onOwnerFilterChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -4023,6 +4325,8 @@ class _DashboardPage extends StatelessWidget {
         context,
         dashboard: dashboard,
         currency: currency,
+        busy: busy,
+        onFilterChanged: onOwnerFilterChanged,
       );
     }
 
@@ -4836,6 +5140,12 @@ class _InventoryPage extends StatelessWidget {
     BuildContext context, {
     required Map<String, dynamic> dashboard,
     required NumberFormat currency,
+    required bool busy,
+    required Future<void> Function({
+      String? type,
+      int? month,
+      int? year,
+    }) onFilterChanged,
   }) {
     final filters = _asMap(dashboard['dashboard_filters']);
     final dashboardData = _asMap(dashboard['dashboard_data']);
@@ -4843,6 +5153,7 @@ class _InventoryPage extends StatelessWidget {
     final topProducts = _asMapList(dashboardData['top_products']);
     final types = _asMapList(filters['types']);
     final months = _asMapList(filters['months']);
+    final years = _asMapList(filters['years']);
 
     String labelFor(List<Map<String, dynamic>> source, dynamic value) {
       for (final item in source) {
@@ -4853,19 +5164,57 @@ class _InventoryPage extends StatelessWidget {
       return '$value';
     }
 
-    final filterLabel =
+    final _ =
         '${labelFor(types, filters['type'])} • ${labelFor(months, filters['month'])} ${filters['year'] ?? ''}';
 
-    Widget filterChip(String label) {
+    final selectedType = filters['type']?.toString() ?? 'all';
+    final selectedMonth =
+        (filters['month'] as num?)?.toInt() ?? DateTime.now().month;
+    final selectedYear =
+        (filters['year'] as num?)?.toInt() ?? DateTime.now().year;
+
+    Widget filterChip(
+      String label, {
+      VoidCallback? onTap,
+      IconData? icon,
+    }) {
       return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: kSweetieLavender,
           borderRadius: BorderRadius.circular(999),
         ),
-        child: Text(
-          label,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: busy ? null : onTap,
+            borderRadius: BorderRadius.circular(999),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (busy) ...[
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 8),
+                  ] else if (icon != null) ...[
+                    Icon(icon, size: 14, color: kSweetieInk),
+                    const SizedBox(width: 6),
+                  ],
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       );
     }
@@ -4903,9 +5252,40 @@ class _InventoryPage extends StatelessWidget {
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  filterChip(filterLabel),
                   filterChip(
-                    dashboardData['period_label']?.toString() ?? '-',
+                    labelFor(types, selectedType),
+                    icon: Icons.tune_rounded,
+                    onTap: () async {
+                      final selected = await _showOwnerDashboardTypePicker(
+                        context,
+                        types: types,
+                        selectedType: selectedType,
+                      );
+                      if (selected == null || selected == selectedType) {
+                        return;
+                      }
+                      await onFilterChanged(type: selected);
+                    },
+                  ),
+                  filterChip(
+                    '${labelFor(months, selectedMonth)} $selectedYear',
+                    icon: Icons.calendar_month_rounded,
+                    onTap: () async {
+                      final selected = await _showOwnerDashboardPeriodPicker(
+                        context,
+                        months: months,
+                        years: years,
+                        selectedMonth: selectedMonth,
+                        selectedYear: selectedYear,
+                      );
+                      if (selected == null) {
+                        return;
+                      }
+                      await onFilterChanged(
+                        month: selected.$1,
+                        year: selected.$2,
+                      );
+                    },
                   ),
                 ],
               ),
@@ -5021,6 +5401,131 @@ class _InventoryPage extends StatelessWidget {
                 ),
         ),
       ],
+    );
+  }
+
+  static Future<String?> _showOwnerDashboardTypePicker(
+    BuildContext context, {
+    required List<Map<String, dynamic>> types,
+    required String selectedType,
+  }) {
+    return showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SafeArea(
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFFFDF8FE),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Pilih Jenis Penjualan',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 14),
+              ...types.map((item) {
+                final value = item['value']?.toString() ?? '';
+                final active = value == selectedType;
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    active
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_off_rounded,
+                    color: active ? kSweetiePurple : const Color(0xFF8A7D96),
+                  ),
+                  title: Text(item['label']?.toString() ?? value),
+                  onTap: () => Navigator.of(context).pop(value),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Future<(int, int)?> _showOwnerDashboardPeriodPicker(
+    BuildContext context, {
+    required List<Map<String, dynamic>> months,
+    required List<Map<String, dynamic>> years,
+    required int selectedMonth,
+    required int selectedYear,
+  }) {
+    var workingMonth = selectedMonth;
+    var workingYear = selectedYear;
+
+    return showModalBottomSheet<(int, int)>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SafeArea(
+        child: StatefulBuilder(
+          builder: (context, setSheetState) => Container(
+            decoration: const BoxDecoration(
+              color: Color(0xFFFDF8FE),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Pilih Bulan dan Tahun',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<int>(
+                  initialValue: workingMonth,
+                  decoration: const InputDecoration(labelText: 'Bulan'),
+                  items: months
+                      .map(
+                        (item) => DropdownMenuItem<int>(
+                          value: (item['value'] as num?)?.toInt(),
+                          child: Text(item['label']?.toString() ?? '-'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    setSheetState(() => workingMonth = value ?? workingMonth);
+                  },
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  initialValue: workingYear,
+                  decoration: const InputDecoration(labelText: 'Tahun'),
+                  items: years
+                      .map(
+                        (item) => DropdownMenuItem<int>(
+                          value: (item['value'] as num?)?.toInt(),
+                          child: Text(item['label']?.toString() ?? '-'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    setSheetState(() => workingYear = value ?? workingYear);
+                  },
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () =>
+                        Navigator.of(context).pop((workingMonth, workingYear)),
+                    child: const Text('Terapkan'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -6718,6 +7223,7 @@ class _SalesPageState extends State<_SalesPage> {
     // Field lookup nomor telepon dinonaktifkan untuk Smoothies Sweetie.
   }
 
+  // ignore: unused_element
   Future<void> _showSalesHistorySheet(BuildContext context) =>
       showSmoothiesSalesHistorySheet(
         context,

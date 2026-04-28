@@ -46,6 +46,7 @@ Route::prefix('mobile')->name('api.mobile.')->group(function () {
         Route::post('/queue/close', [MobileOfflineSaleController::class, 'closeQueue'])->name('queue.close');
         Route::get('/owner/modules/{module}', [MobileOwnerModuleController::class, 'index'])->name('owner.modules.index');
         Route::post('/owner/modules/{module}', [MobileOwnerModuleController::class, 'store'])->name('owner.modules.store');
+        Route::post('/owner/modules/cups/finalize', [MobileOwnerModuleController::class, 'finalizeCupStock'])->name('owner.modules.cups.finalize');
         Route::put('/owner/modules/{module}/{record}', [MobileOwnerModuleController::class, 'update'])->name('owner.modules.update');
         Route::delete('/owner/modules/{module}/{record}', [MobileOwnerModuleController::class, 'destroy'])->name('owner.modules.destroy');
     });
