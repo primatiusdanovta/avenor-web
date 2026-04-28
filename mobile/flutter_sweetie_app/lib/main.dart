@@ -8,6 +8,7 @@ import 'package:animations/animations.dart';
 import 'package:badges/badges.dart' as badges;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_chips_input/flutter_chips_input.dart';
 import 'package:geolocator/geolocator.dart';
@@ -1399,7 +1400,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     return false;
   }
 
-  Future<void> _submitSale({
+  Future<bool> _submitSale({
     required String customerName,
     required String customerPhone,
     required String customerSocial,
@@ -1434,6 +1435,7 @@ class _MarketingRootState extends State<MarketingRoot> {
       if (mounted) {
         await _showSaleSuccessDialog(saleSummary ?? const <String, dynamic>{});
       }
+      return true;
     } on DioException catch (error) {
       _showMessage(_readError(error));
     } catch (error) {
@@ -1443,6 +1445,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         setState(() => _busy = false);
       }
     }
+    return false;
   }
 
   Future<void> _updateOfflineSaleTransaction({
@@ -1531,62 +1534,34 @@ class _MarketingRootState extends State<MarketingRoot> {
         (saleSummary['total_harga'] as num?)?.toDouble() ??
         0;
 
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 72,
-              height: 72,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: kSweetieLavender,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Image.asset(kSweetieLogoAsset, fit: BoxFit.contain),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Penjualan Berhasil',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 14),
-            _InfoRow(
-              label: 'No. Penjualan',
-              value: saleSummary['sale_number']?.toString().trim().isNotEmpty ==
-                      true
+    return _showSweetieSuccessDialog(
+      context,
+      title: 'Penjualan Berhasil',
+      subtitle: 'Transaksi berhasil disimpan dan siap diproses.',
+      details: [
+        _InfoRow(
+          label: 'No. Penjualan',
+          value:
+              saleSummary['sale_number']?.toString().trim().isNotEmpty == true
                   ? saleSummary['sale_number'].toString()
                   : (saleSummary['transaction_code']?.toString() ?? '-'),
-            ),
-            _InfoRow(
-              label: 'Tanggal',
-              value: saleSummary['created_at']?.toString() ?? '-',
-            ),
-            _InfoRow(
-              label: 'Pemesan',
-              value:
-                  saleSummary['customer_name']?.toString().trim().isNotEmpty ==
-                          true
-                      ? saleSummary['customer_name'].toString()
-                      : 'Customer umum',
-            ),
-            _InfoRow(
-              label: 'Total',
-              value: _currency.format(amount),
-            ),
-          ],
         ),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Tutup'),
-          ),
-        ],
-      ),
+        _InfoRow(
+          label: 'Tanggal',
+          value: saleSummary['created_at']?.toString() ?? '-',
+        ),
+        _InfoRow(
+          label: 'Pemesan',
+          value:
+              saleSummary['customer_name']?.toString().trim().isNotEmpty == true
+                  ? saleSummary['customer_name'].toString()
+                  : 'Customer umum',
+        ),
+        _InfoRow(
+          label: 'Total',
+          value: _currency.format(amount),
+        ),
+      ],
     );
   }
 
@@ -1879,7 +1854,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     );
   }
 
-  Future<void> _closeQueueItem(String saleNumber) async {
+  Future<bool> _closeQueueItem(String saleNumber) async {
     setState(() => _busy = true);
     try {
       if (_mockMode) {
@@ -1891,6 +1866,7 @@ class _MarketingRootState extends State<MarketingRoot> {
       }
 
       await _refreshAll(showLoader: false);
+      return true;
     } on DioException catch (error) {
       _showMessage(_readError(error));
     } finally {
@@ -1898,6 +1874,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         setState(() => _busy = false);
       }
     }
+    return false;
   }
 
   Future<void> _refreshAttendanceForDate(DateTime date) async {
@@ -3042,7 +3019,7 @@ class _QueueSheet extends StatelessWidget {
   });
 
   final List<Map<String, dynamic>> queueItems;
-  final Future<void> Function(String saleNumber) onCloseQueue;
+  final Future<bool> Function(String saleNumber) onCloseQueue;
 
   @override
   Widget build(BuildContext context) {
@@ -3080,10 +3057,10 @@ class _QueueSheet extends StatelessWidget {
                           return _QueueSaleCard(
                             item: item,
                             onClose: () async {
-                              await onCloseQueue(
+                              final success = await onCloseQueue(
                                 item['sale_number']?.toString() ?? '',
                               );
-                              if (context.mounted) {
+                              if (context.mounted && success) {
                                 Navigator.of(context).pop();
                               }
                             },
@@ -3099,14 +3076,68 @@ class _QueueSheet extends StatelessWidget {
   }
 }
 
-class _QueuePage extends StatelessWidget {
+class _QueuePage extends StatefulWidget {
   const _QueuePage({
     required this.queueItems,
     required this.onCloseQueue,
   });
 
   final List<Map<String, dynamic>> queueItems;
-  final Future<void> Function(String saleNumber) onCloseQueue;
+  final Future<bool> Function(String saleNumber) onCloseQueue;
+
+  @override
+  State<_QueuePage> createState() => _QueuePageState();
+}
+
+class _QueuePageState extends State<_QueuePage> {
+  late List<Map<String, dynamic>> _queueItems;
+
+  @override
+  void initState() {
+    super.initState();
+    _queueItems = List<Map<String, dynamic>>.from(widget.queueItems);
+  }
+
+  @override
+  void didUpdateWidget(covariant _QueuePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!listEquals(oldWidget.queueItems, widget.queueItems)) {
+      _queueItems = List<Map<String, dynamic>>.from(widget.queueItems);
+    }
+  }
+
+  Future<void> _handleClose(Map<String, dynamic> item) async {
+    final saleNumber = item['sale_number']?.toString() ?? '';
+    if (saleNumber.isEmpty) {
+      return;
+    }
+
+    final success = await widget.onCloseQueue(saleNumber);
+    if (!mounted || !success) {
+      return;
+    }
+
+    setState(() {
+      _queueItems.removeWhere(
+        (entry) => entry['sale_number']?.toString() == saleNumber,
+      );
+    });
+
+    await _showSweetieSuccessDialog(
+      context,
+      title: 'Antrian Selesai',
+      subtitle: 'Pesanan berhasil ditandai selesai tanpa perlu keluar halaman.',
+      details: [
+        _InfoRow(label: 'No. Penjualan', value: saleNumber),
+        _InfoRow(
+          label: 'Pemesan',
+          value: item['customer_name']?.toString().trim().isNotEmpty == true
+              ? item['customer_name'].toString()
+              : 'Customer umum',
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -3125,21 +3156,17 @@ class _QueuePage extends StatelessWidget {
                   'Nomor penjualan, nama customer, quantity, dan extra topping aktif.',
             ),
             Expanded(
-              child: queueItems.isEmpty
+              child: _queueItems.isEmpty
                   ? const Center(child: Text('Tidak ada antrian aktif.'))
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
-                      itemCount: queueItems.length,
+                      itemCount: _queueItems.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
-                        final item = queueItems[index];
+                        final item = _queueItems[index];
                         return _QueueSaleCard(
                           item: item,
-                          onClose: () async {
-                            await onCloseQueue(
-                              item['sale_number']?.toString() ?? '',
-                            );
-                          },
+                          onClose: () => _handleClose(item),
                         );
                       },
                     ),
@@ -6459,7 +6486,7 @@ class _SalesPage extends StatefulWidget {
   final NumberFormat currency;
   final DateFormat dateTime;
   final Future<XFile?> Function() onPickProof;
-  final Future<void> Function({
+  final Future<bool> Function({
     required String customerName,
     required String customerPhone,
     required String customerSocial,
@@ -7187,24 +7214,15 @@ class _SalesPageState extends State<_SalesPage> {
     return (_selectedPromo?['potongan'] as num?)?.toDouble() ?? 0;
   }
 
-  int get _totalSelectedItems {
-    return _items.fold<int>(0, (sum, item) => sum + item.quantity);
-  }
-
-  List<String> get _selectedItemNames {
-    final names = <String>[];
-    for (final item in _items) {
-      final product = _productById(item.productId);
-      if (product != null) {
-        final toppingLabel = item.extraToppingIds.isEmpty
-            ? ''
-            : ' + ${_toppingSummary(item.extraToppingIds)}';
-        names.add(
-          '${_lineTitle(item)} (${_sugarLevelLabel(item.sugarLevel)})$toppingLabel x${item.quantity}',
-        );
-      }
-    }
-    return names;
+  void _resetForm() {
+    setState(() {
+      _customerNameController.clear();
+      _items.clear();
+      _promoId = null;
+      _paymentMethod = 'Cash';
+      _qrisConfirmed = false;
+      _completedSopChecklist.clear();
+    });
   }
 
   @override
@@ -7213,11 +7231,383 @@ class _SalesPageState extends State<_SalesPage> {
     final requiresQrisConfirmation = _paymentMethod == 'Qris';
     final width = MediaQuery.of(context).size.width;
     final compactCatalog = width < 560;
+    final isTabletLayout = width >= 1024;
     final catalogCrossAxisCount = compactCatalog
         ? 2
         : width < 920
             ? 3
             : 4;
+
+    final orderSection = Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFBF6FE),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFE7D9F4)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Pesanan Aktif',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _items.isEmpty
+                ? 'Belum ada product dipilih.'
+                : 'Qty bisa ditambah atau dikurangi langsung dari kartu item.',
+            style: GoogleFonts.plusJakartaSans(
+              fontSize: 12,
+              height: 1.4,
+              color: const Color(0xFF766C8B),
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (_items.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                isTabletLayout
+                    ? 'Pilih product dari foto di sebelah kiri untuk mulai input penjualan.'
+                    : 'Pilih product dari foto di atas untuk mulai input penjualan.',
+                textAlign: TextAlign.center,
+              ),
+            )
+          else
+            ..._items.asMap().entries.map((entry) {
+              final product = _productById(entry.value.productId);
+              if (product == null) {
+                return const SizedBox.shrink();
+              }
+              return Padding(
+                padding: EdgeInsets.only(
+                  bottom: entry.key == _items.length - 1 ? 0 : 12,
+                ),
+                child: _SalesOrderLineCard(
+                  product: product,
+                  draft: entry.value,
+                  currency: widget.currency,
+                  unitPrice: _lineUnitPrice(entry.value),
+                  totalPrice: _lineTotal(entry.value),
+                  toppingSummary: _toppingSummary(entry.value.extraToppingIds),
+                  sugarLevelLabel: _sugarLevelLabel(entry.value.sugarLevel),
+                  onDecrease: () => _changeLineQuantity(entry.key, -1),
+                  onIncrease: () => _changeLineQuantity(entry.key, 1),
+                  onEditVariant: () => _editLineVariant(entry.key),
+                  onEditToppings: () => _editLineToppings(entry.key),
+                  onEditSugarLevel: () => _editLineSugarLevel(entry.key),
+                  onRemove: () => setState(() => _items.removeAt(entry.key)),
+                ),
+              );
+            }),
+        ],
+      ),
+    );
+
+    final paymentSection = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _PickerField(
+          fieldKey: const ValueKey('sales-payment-method-picker'),
+          heroTag: 'sales-payment-method',
+          accent: const Color(0xFF2C8C82),
+          icon: Icons.payments_outlined,
+          label: 'Metode pembayaran',
+          title: _paymentMethod,
+          subtitle: _paymentMethod == 'Qris'
+              ? 'Tampilkan QRIS lalu lanjutkan transaksi ke antrian'
+              : 'Transaksi ditutup sebagai pembayaran tunai',
+          onTap: () async {
+            final selected = await _showSmoothiesSalesStaticOptionsSheet(
+              context: context,
+              heroTag: 'sales-payment-sheet',
+              accent: const Color(0xFF2C8C82),
+              icon: Icons.payments_outlined,
+              title: 'Metode Pembayaran',
+              subtitle: 'Pilih alur pembayaran yang dipakai kasir.',
+              options: const [
+                _StaticOption<String>(
+                  value: 'Cash',
+                  title: 'Cash',
+                  subtitle: 'Customer bayar tunai di kasir',
+                ),
+                _StaticOption<String>(
+                  value: 'Qris',
+                  title: 'Qris',
+                  subtitle: 'Customer scan QRIS lalu pesanan masuk antrian',
+                ),
+              ],
+              selectedValue: _paymentMethod,
+            );
+            if (!mounted || selected == null) {
+              return;
+            }
+            setState(() {
+              _paymentMethod = selected;
+              if (selected != 'Qris') {
+                _qrisConfirmed = false;
+              }
+            });
+          },
+        ),
+        if (_paymentMethod == 'Qris') ...[
+          const SizedBox(height: 10),
+          Container(
+            key: const ValueKey('sales-qris-panel'),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F0FB),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE4D7F4)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'QRIS siap dipakai',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Tunjukkan QRIS ke customer, tunggu pembayaran sukses, lalu tutup transaksi agar nomor antrian terbentuk.',
+                  style: TextStyle(fontSize: 12, height: 1.4),
+                ),
+                const SizedBox(height: 12),
+                Center(
+                  child: InkWell(
+                    key: const ValueKey('sales-qris-image-trigger'),
+                    borderRadius: BorderRadius.circular(18),
+                    onTap: () async {
+                      await showDialog<void>(
+                        context: context,
+                        builder: (dialogContext) => AlertDialog(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(20),
+                                child: Container(
+                                  width: 320,
+                                  height: 320,
+                                  color: Colors.white,
+                                  alignment: Alignment.center,
+                                  child: _SalesImageFrame(
+                                    imageUrl: qrisImageSource,
+                                    width: 280,
+                                    height: 280,
+                                    fit: BoxFit.contain,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                width: double.infinity,
+                                child: FilledButton(
+                                  onPressed: () {
+                                    setState(() => _qrisConfirmed = true);
+                                    Navigator.of(dialogContext).pop();
+                                  },
+                                  child: const Text('Sudah Bayar'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: Container(
+                        width: 220,
+                        height: 220,
+                        color: Colors.white,
+                        alignment: Alignment.center,
+                        child: _SalesImageFrame(
+                          imageUrl: qrisImageSource,
+                          width: 180,
+                          height: 180,
+                          fit: BoxFit.contain,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _qrisConfirmed
+                      ? 'Pembayaran QRIS sudah dikonfirmasi.'
+                      : 'Tap gambar QRIS untuk memperbesar lalu tekan "Sudah Bayar".',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _qrisConfirmed
+                        ? const Color(0xFF2E7D32)
+                        : const Color(0xFF6F665F),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    key: const ValueKey('sales-qris-confirm-button'),
+                    onPressed: () {
+                      setState(() => _qrisConfirmed = true);
+                    },
+                    child: Text(
+                      _qrisConfirmed
+                          ? 'Pembayaran Terkonfirmasi'
+                          : 'Sudah Bayar',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: 14),
+        _PickerField(
+          fieldKey: const ValueKey('sales-promo-picker'),
+          heroTag: 'sales-promo',
+          accent: const Color(0xFF6A47D1),
+          icon: Icons.local_offer_outlined,
+          label: 'Promo aktif',
+          title: _selectedPromo == null
+              ? 'Tanpa promo'
+              : _selectedPromo!['nama_promo']?.toString() ?? 'Promo',
+          subtitle: _selectedPromo == null
+              ? 'Tap untuk memilih promo'
+              : _promoLabel(_selectedPromo!),
+          enabled: widget.promos.isNotEmpty,
+          onTap: _pickPromo,
+        ),
+        if (_selectedPromo != null) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F0FB),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Text(
+              'Syarat promo: min ${(_selectedPromo!['minimal_quantity'] as num?)?.toInt() ?? 0} item, min belanja ${widget.currency.format((_selectedPromo!['minimal_belanja'] as num?)?.toDouble() ?? 0)}.',
+              style: const TextStyle(fontSize: 12, height: 1.4),
+            ),
+          ),
+        ],
+      ],
+    );
+
+    final summarySection = Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: kSweetieInk,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        children: [
+          _SummaryRow(
+            label: 'Subtotal',
+            value: widget.currency.format(_subtotal),
+            valueColor: Colors.white,
+          ),
+          _SummaryRow(
+            label: 'Diskon',
+            value: widget.currency.format(_discount),
+            valueColor: Colors.white,
+          ),
+          _SummaryRow(
+            label: 'Total estimasi',
+            value: widget.currency
+                .format((_subtotal - _discount).clamp(0, _subtotal)),
+            valueColor: Colors.white,
+            emphasized: true,
+          ),
+        ],
+      ),
+    );
+
+    final sopSection = _actionableSopSteps.isEmpty
+        ? null
+        : Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F0FB),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE4D7F4)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Checklist SOP Sebelum Close',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Kasir menyelesaikan langkah operasional ini sebelum pembayaran ditutup.',
+                  style: TextStyle(fontSize: 12, height: 1.4),
+                ),
+                const SizedBox(height: 10),
+                ..._actionableSopSteps.map(
+                  (step) => CheckboxListTile(
+                    key: ValueKey('sales-sop-check-${step['id']}'),
+                    value: _completedSopChecklist.contains(step['id']),
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: Text(
+                      step['title'] ?? 'SOP',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                    subtitle: Text(
+                      step['detail'] ?? '-',
+                      style: const TextStyle(fontSize: 12, height: 1.4),
+                    ),
+                    onChanged: (value) {
+                      setState(() {
+                        final id = step['id'] ?? '';
+                        if (id.isEmpty) {
+                          return;
+                        }
+                        if (value == true) {
+                          _completedSopChecklist.add(id);
+                        } else {
+                          _completedSopChecklist.remove(id);
+                        }
+                      });
+                    },
+                  ),
+                ),
+                if (!_isSopChecklistComplete)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 6),
+                    child: Text(
+                      'Selesaikan checklist SOP dulu sebelum menutup pembayaran.',
+                      style: TextStyle(
+                        color: Color(0xFFC05D3B),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -7226,79 +7616,142 @@ class _SalesPageState extends State<_SalesPage> {
           title: 'Penjualan',
           subtitle:
               'Pilih product lewat foto, lalu lanjutkan popup varian dan extra topping.',
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: _customerNameController,
-                decoration: const InputDecoration(labelText: 'Nama customer'),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Pilih Menu',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: kSweetieInk,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Tap foto product. Setelah itu kasir akan memilih varian, lalu extra topping.',
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 12,
-                  height: 1.4,
-                  color: const Color(0xFF766C8B),
-                ),
-              ),
-              const SizedBox(height: 14),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: widget.products.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: catalogCrossAxisCount,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: compactCatalog ? 0.75 : 0.86,
-                ),
-                itemBuilder: (context, index) {
-                  final product = widget.products[index];
-                  return _SalesCatalogCard(
-                    key: ValueKey(
-                      'sales-catalog-product-${product['id_product']}',
-                    ),
-                    product: product,
-                    currency: widget.currency,
-                    stock: _productAvailableStock(product),
-                    onTap: () => _onProductTap(product),
-                  );
-                },
-              ),
-              const SizedBox(height: 18),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFBF6FE),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFFE7D9F4)),
-                ),
-                child: Column(
+          child: isTabletLayout
+              ? Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Expanded(
+                      flex: 7,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          TextField(
+                            controller: _customerNameController,
+                            decoration: const InputDecoration(
+                                labelText: 'Nama customer'),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Pilih Menu',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: kSweetieInk,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Tap foto product. Setelah itu kasir akan memilih varian, lalu extra topping.',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontSize: 12,
+                              height: 1.4,
+                              color: const Color(0xFF766C8B),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: widget.products.length,
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: catalogCrossAxisCount,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                              childAspectRatio: compactCatalog ? 0.75 : 0.86,
+                            ),
+                            itemBuilder: (context, index) {
+                              final product = widget.products[index];
+                              return _SalesCatalogCard(
+                                key: ValueKey(
+                                  'sales-catalog-product-${product['id_product']}',
+                                ),
+                                product: product,
+                                currency: widget.currency,
+                                stock: _productAvailableStock(product),
+                                onTap: () => _onProductTap(product),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 18),
+                    Expanded(
+                      flex: 5,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          orderSection,
+                          const SizedBox(height: 16),
+                          paymentSection,
+                          const SizedBox(height: 16),
+                          summarySection,
+                          if (sopSection != null) ...[
+                            const SizedBox(height: 16),
+                            sopSection,
+                          ],
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              key: const ValueKey('sales-submit-button'),
+                              onPressed: widget.busy ||
+                                      widget.products.isEmpty ||
+                                      _hasInvalidItems ||
+                                      !_isSopChecklistComplete ||
+                                      (requiresQrisConfirmation &&
+                                          !_qrisConfirmed)
+                                  ? null
+                                  : () async {
+                                      final success = await widget.onSubmit(
+                                        customerName:
+                                            _customerNameController.text.trim(),
+                                        customerPhone: '',
+                                        customerSocial: '',
+                                        items:
+                                            List<_SaleItemDraft>.from(_items),
+                                        paymentMethod: _paymentMethod,
+                                        requireProof: false,
+                                        promoId: _promoId,
+                                        proof: null,
+                                      );
+                                      if (success && mounted) {
+                                        _resetForm();
+                                      }
+                                    },
+                              child: Text(
+                                widget.busy
+                                    ? 'Menyimpan...'
+                                    : 'Tutup pembayaran',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: _customerNameController,
+                      decoration:
+                          const InputDecoration(labelText: 'Nama customer'),
+                    ),
+                    const SizedBox(height: 16),
                     Text(
-                      'Pesanan Aktif',
+                      'Pilih Menu',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
+                        color: kSweetieInk,
                       ),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _items.isEmpty
-                          ? 'Belum ada product dipilih.'
-                          : 'Qty bisa ditambah atau dikurangi langsung dari kartu item.',
+                      'Tap foto product. Setelah itu kasir akan memilih varian, lalu extra topping.',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 12,
                         height: 1.4,
@@ -7306,434 +7759,73 @@ class _SalesPageState extends State<_SalesPage> {
                       ),
                     ),
                     const SizedBox(height: 14),
-                    if (_items.isEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Text(
-                          'Pilih product dari foto di atas untuk mulai input penjualan.',
-                          textAlign: TextAlign.center,
-                        ),
-                      )
-                    else
-                      ..._items.asMap().entries.map((entry) {
-                        final product = _productById(entry.value.productId);
-                        if (product == null) {
-                          return const SizedBox.shrink();
-                        }
-                        return Padding(
-                          padding: EdgeInsets.only(
-                            bottom: entry.key == _items.length - 1 ? 0 : 12,
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: widget.products.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: catalogCrossAxisCount,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: compactCatalog ? 0.75 : 0.86,
+                      ),
+                      itemBuilder: (context, index) {
+                        final product = widget.products[index];
+                        return _SalesCatalogCard(
+                          key: ValueKey(
+                            'sales-catalog-product-${product['id_product']}',
                           ),
-                          child: _SalesOrderLineCard(
-                            product: product,
-                            draft: entry.value,
-                            currency: widget.currency,
-                            unitPrice: _lineUnitPrice(entry.value),
-                            totalPrice: _lineTotal(entry.value),
-                            toppingSummary:
-                                _toppingSummary(entry.value.extraToppingIds),
-                            sugarLevelLabel:
-                                _sugarLevelLabel(entry.value.sugarLevel),
-                            onDecrease: () =>
-                                _changeLineQuantity(entry.key, -1),
-                            onIncrease: () => _changeLineQuantity(entry.key, 1),
-                            onEditVariant: () => _editLineVariant(entry.key),
-                            onEditToppings: () => _editLineToppings(entry.key),
-                            onEditSugarLevel: () =>
-                                _editLineSugarLevel(entry.key),
-                            onRemove: () =>
-                                setState(() => _items.removeAt(entry.key)),
-                          ),
+                          product: product,
+                          currency: widget.currency,
+                          stock: _productAvailableStock(product),
+                          onTap: () => _onProductTap(product),
                         );
-                      }),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              _PickerField(
-                fieldKey: const ValueKey('sales-payment-method-picker'),
-                heroTag: 'sales-payment-method',
-                accent: const Color(0xFF2C8C82),
-                icon: Icons.payments_outlined,
-                label: 'Metode pembayaran',
-                title: _paymentMethod,
-                subtitle: _paymentMethod == 'Qris'
-                    ? 'Tampilkan QRIS lalu lanjutkan transaksi ke antrian'
-                    : 'Transaksi ditutup sebagai pembayaran tunai',
-                onTap: () async {
-                  final selected = await _showSmoothiesSalesStaticOptionsSheet(
-                    context: context,
-                    heroTag: 'sales-payment-sheet',
-                    accent: const Color(0xFF2C8C82),
-                    icon: Icons.payments_outlined,
-                    title: 'Metode Pembayaran',
-                    subtitle: 'Pilih alur pembayaran yang dipakai kasir.',
-                    options: const [
-                      _StaticOption<String>(
-                        value: 'Cash',
-                        title: 'Cash',
-                        subtitle: 'Customer bayar tunai di kasir',
-                      ),
-                      _StaticOption<String>(
-                        value: 'Qris',
-                        title: 'Qris',
-                        subtitle:
-                            'Customer scan QRIS lalu pesanan masuk antrian',
-                      ),
-                    ],
-                    selectedValue: _paymentMethod,
-                  );
-                  if (!mounted || selected == null) {
-                    return;
-                  }
-                  setState(() {
-                    _paymentMethod = selected;
-                    if (selected != 'Qris') {
-                      _qrisConfirmed = false;
-                    }
-                  });
-                },
-              ),
-              if (_paymentMethod == 'Qris') ...[
-                const SizedBox(height: 10),
-                Container(
-                  key: const ValueKey('sales-qris-panel'),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF7F0FB),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFE4D7F4)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'QRIS siap dipakai',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Tunjukkan QRIS ke customer, tunggu pembayaran sukses, lalu tutup transaksi agar nomor antrian terbentuk.',
-                        style: TextStyle(fontSize: 12, height: 1.4),
-                      ),
-                      const SizedBox(height: 12),
-                      InkWell(
-                        key: const ValueKey('sales-qris-image-trigger'),
-                        borderRadius: BorderRadius.circular(18),
-                        onTap: () async {
-                          await showDialog<void>(
-                            context: context,
-                            builder: (dialogContext) => AlertDialog(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  ClipRRect(
-                                    borderRadius: BorderRadius.circular(20),
-                                    child: _SalesImageFrame(
-                                      imageUrl: qrisImageSource,
-                                      height: 320,
-                                      fit: BoxFit.contain,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  SizedBox(
-                                    width: double.infinity,
-                                    child: FilledButton(
-                                      onPressed: () {
-                                        setState(() => _qrisConfirmed = true);
-                                        Navigator.of(dialogContext).pop();
-                                      },
-                                      child: const Text('Sudah Bayar'),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(18),
-                          child: _SalesImageFrame(
-                            imageUrl: qrisImageSource,
-                            height: 180,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _qrisConfirmed
-                            ? 'Pembayaran QRIS sudah dikonfirmasi.'
-                            : 'Tap gambar QRIS untuk memperbesar lalu tekan "Sudah Bayar".',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: _qrisConfirmed
-                              ? const Color(0xFF2E7D32)
-                              : const Color(0xFF6F665F),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          key: const ValueKey('sales-qris-confirm-button'),
-                          onPressed: () {
-                            setState(() => _qrisConfirmed = true);
-                          },
-                          child: Text(
-                            _qrisConfirmed
-                                ? 'Pembayaran Terkonfirmasi'
-                                : 'Sudah Bayar',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              const SizedBox(height: 14),
-              _PickerField(
-                fieldKey: const ValueKey('sales-promo-picker'),
-                heroTag: 'sales-promo',
-                accent: const Color(0xFF6A47D1),
-                icon: Icons.local_offer_outlined,
-                label: 'Promo aktif',
-                title: _selectedPromo == null
-                    ? 'Tanpa promo'
-                    : _selectedPromo!['nama_promo']?.toString() ?? 'Promo',
-                subtitle: _selectedPromo == null
-                    ? 'Tap untuk memilih promo'
-                    : _promoLabel(_selectedPromo!),
-                enabled: widget.promos.isNotEmpty,
-                onTap: _pickPromo,
-              ),
-              if (_selectedPromo != null) ...[
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF7F0FB),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Text(
-                    'Syarat promo: min ${(_selectedPromo!['minimal_quantity'] as num?)?.toInt() ?? 0} item, min belanja ${widget.currency.format((_selectedPromo!['minimal_belanja'] as num?)?.toDouble() ?? 0)}.',
-                    style: const TextStyle(fontSize: 12, height: 1.4),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: kSweetieInk,
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                child: Column(
-                  children: [
-                    _SummaryRow(
-                      label: 'Subtotal',
-                      value: widget.currency.format(_subtotal),
-                      valueColor: Colors.white,
+                      },
                     ),
-                    _SummaryRow(
-                      label: 'Diskon',
-                      value: widget.currency.format(_discount),
-                      valueColor: Colors.white,
-                    ),
-                    _SummaryRow(
-                      label: 'Total estimasi',
-                      value: widget.currency
-                          .format((_subtotal - _discount).clamp(0, _subtotal)),
-                      valueColor: Colors.white,
-                      emphasized: true,
+                    const SizedBox(height: 18),
+                    orderSection,
+                    const SizedBox(height: 16),
+                    paymentSection,
+                    const SizedBox(height: 16),
+                    summarySection,
+                    if (sopSection != null) ...[
+                      const SizedBox(height: 16),
+                      sopSection,
+                    ],
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        key: const ValueKey('sales-submit-button'),
+                        onPressed: widget.busy ||
+                                widget.products.isEmpty ||
+                                _hasInvalidItems ||
+                                !_isSopChecklistComplete ||
+                                (requiresQrisConfirmation && !_qrisConfirmed)
+                            ? null
+                            : () async {
+                                final success = await widget.onSubmit(
+                                  customerName:
+                                      _customerNameController.text.trim(),
+                                  customerPhone: '',
+                                  customerSocial: '',
+                                  items: List<_SaleItemDraft>.from(_items),
+                                  paymentMethod: _paymentMethod,
+                                  requireProof: false,
+                                  promoId: _promoId,
+                                  proof: null,
+                                );
+                                if (success && mounted) {
+                                  _resetForm();
+                                }
+                              },
+                        child: Text(
+                          widget.busy ? 'Menyimpan...' : 'Tutup pembayaran',
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 14),
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF7F0FB),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFE4D7F4)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Preview Transaksi',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _MiniPill(label: '$_totalSelectedItems item'),
-                        _MiniPill(label: _paymentMethod),
-                        _MiniPill(
-                          label: _selectedPromo == null
-                              ? 'Tanpa promo'
-                              : (_selectedPromo!['kode_promo']
-                                          ?.toString()
-                                          .trim()
-                                          .isNotEmpty ==
-                                      true
-                                  ? _selectedPromo!['kode_promo'].toString()
-                                  : (_selectedPromo!['nama_promo']
-                                          ?.toString() ??
-                                      'Promo')),
-                        ),
-                        _MiniPill(
-                          label: widget.currency.format(
-                              (_subtotal - _discount).clamp(0, _subtotal)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      _selectedItemNames.isEmpty
-                          ? 'Belum ada item valid yang dipilih.'
-                          : _selectedItemNames.take(3).join(', '),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        height: 1.4,
-                        color: Color(0xFF766C8B),
-                      ),
-                    ),
-                    if (_selectedItemNames.length > 3) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        '+${_selectedItemNames.length - 3} item lainnya',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF766C8B),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              if (_actionableSopSteps.isNotEmpty) ...[
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF7F0FB),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: const Color(0xFFE4D7F4)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Checklist SOP Sebelum Close',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Kasir menyelesaikan langkah operasional ini sebelum pembayaran ditutup.',
-                        style: TextStyle(fontSize: 12, height: 1.4),
-                      ),
-                      const SizedBox(height: 10),
-                      ..._actionableSopSteps.map(
-                        (step) => CheckboxListTile(
-                          key: ValueKey('sales-sop-check-${step['id']}'),
-                          value: _completedSopChecklist.contains(step['id']),
-                          contentPadding: EdgeInsets.zero,
-                          controlAffinity: ListTileControlAffinity.leading,
-                          title: Text(
-                            step['title'] ?? 'SOP',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
-                          ),
-                          subtitle: Text(
-                            step['detail'] ?? '-',
-                            style: const TextStyle(fontSize: 12, height: 1.4),
-                          ),
-                          onChanged: (value) {
-                            setState(() {
-                              final id = step['id'] ?? '';
-                              if (id.isEmpty) {
-                                return;
-                              }
-                              if (value == true) {
-                                _completedSopChecklist.add(id);
-                              } else {
-                                _completedSopChecklist.remove(id);
-                              }
-                            });
-                          },
-                        ),
-                      ),
-                      if (!_isSopChecklistComplete)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 6),
-                          child: Text(
-                            'Selesaikan checklist SOP dulu sebelum menutup pembayaran.',
-                            style: TextStyle(
-                              color: Color(0xFFC05D3B),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  key: const ValueKey('sales-submit-button'),
-                  onPressed: widget.busy ||
-                          widget.products.isEmpty ||
-                          _hasInvalidItems ||
-                          !_isSopChecklistComplete ||
-                          (requiresQrisConfirmation && !_qrisConfirmed)
-                      ? null
-                      : () => widget.onSubmit(
-                            customerName: _customerNameController.text.trim(),
-                            customerPhone: '',
-                            customerSocial: '',
-                            items: List<_SaleItemDraft>.from(_items),
-                            paymentMethod: _paymentMethod,
-                            requireProof: false,
-                            promoId: _promoId,
-                            proof: null,
-                          ),
-                  child:
-                      Text(widget.busy ? 'Menyimpan...' : 'Tutup pembayaran'),
-                ),
-              ),
-            ],
-          ),
         ),
         if (widget.sops.isNotEmpty) ...[
           const SizedBox(height: 16),
@@ -7829,10 +7921,15 @@ class _SalesCatalogCard extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius:
                       const BorderRadius.vertical(top: Radius.circular(24)),
-                  child: _SalesImageFrame(
-                    imageUrl: imageUrl,
-                    height: double.infinity,
-                    fit: BoxFit.cover,
+                  child: Container(
+                    color: const Color(0xFFFCF8FF),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.all(14),
+                    child: _SalesImageFrame(
+                      imageUrl: imageUrl,
+                      height: double.infinity,
+                      fit: BoxFit.contain,
+                    ),
                   ),
                 ),
               ),
@@ -7945,11 +8042,18 @@ class _SalesOrderLineCard extends StatelessWidget {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(18),
-                      child: _SalesImageFrame(
-                        imageUrl: imageUrl,
+                      child: Container(
                         width: 112,
                         height: 112,
-                        fit: BoxFit.cover,
+                        color: const Color(0xFFFCF8FF),
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.all(10),
+                        child: _SalesImageFrame(
+                          imageUrl: imageUrl,
+                          width: 92,
+                          height: 92,
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 14),
@@ -7981,11 +8085,18 @@ class _SalesOrderLineCard extends StatelessWidget {
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(18),
-                      child: _SalesImageFrame(
-                        imageUrl: imageUrl,
+                      child: Container(
                         width: double.infinity,
                         height: 160,
-                        fit: BoxFit.cover,
+                        color: const Color(0xFFFCF8FF),
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.all(12),
+                        child: _SalesImageFrame(
+                          imageUrl: imageUrl,
+                          width: 136,
+                          height: 136,
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -10956,6 +11067,76 @@ class _InfoRow extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _showSweetieSuccessDialog(
+  BuildContext context, {
+  required String title,
+  String? subtitle,
+  List<Widget> details = const <Widget>[],
+}) {
+  return showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (dialogContext) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0.7, end: 1),
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOutBack,
+            builder: (_, value, child) => Transform.scale(
+              scale: value,
+              child: child,
+            ),
+            child: Container(
+              width: 78,
+              height: 78,
+              decoration: BoxDecoration(
+                color: const Color(0xFFEAF8EE),
+                borderRadius: BorderRadius.circular(26),
+              ),
+              child: const Icon(
+                Icons.check_circle_rounded,
+                size: 46,
+                color: Color(0xFF2E7D32),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+          ),
+          if (subtitle != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.45,
+                color: Color(0xFF6F665F),
+              ),
+            ),
+          ],
+          if (details.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            ...details,
+          ],
+        ],
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('Tutup'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _SummaryRow extends StatelessWidget {

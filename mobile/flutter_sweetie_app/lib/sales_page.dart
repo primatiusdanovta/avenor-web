@@ -30,7 +30,7 @@ class SmoothiesSalesPageModule extends StatelessWidget {
   final NumberFormat currency;
   final DateFormat dateTime;
   final Future<XFile?> Function() onPickProof;
-  final Future<void> Function({
+  final Future<bool> Function({
     required String customerName,
     required String customerPhone,
     required String customerSocial,
@@ -86,7 +86,7 @@ class SmoothiesSalesPageModule extends StatelessWidget {
 Widget buildSmoothiesSalesPageTestHarness({
   Key? key,
   Map<String, dynamic>? fixture,
-  Future<void> Function({
+  Future<bool> Function({
     required String customerName,
     required String customerPhone,
     required String customerSocial,
@@ -136,7 +136,8 @@ Widget buildSmoothiesSalesPageTestHarness({
                 required requireProof,
                 promoId,
                 proof,
-              }) async {},
+              }) async =>
+                  true,
           onLookupCustomer: onLookupCustomer ?? (_) async => null,
           mockMode: true,
         ),
@@ -156,7 +157,7 @@ Widget buildSmoothiesQueuePageTestHarness({
       home: Scaffold(
         body: _QueuePage(
           queueItems: queueItems,
-          onCloseQueue: (_) async {},
+          onCloseQueue: (_) async => true,
         ),
       ),
     ),

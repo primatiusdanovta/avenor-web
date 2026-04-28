@@ -83,6 +83,8 @@ class _OfflineSalesManagementPageState
           _sales[index] = _applyUpdatedSale(_sales[index], payload);
         }
       });
+    } catch (_) {
+      // Parent handler already shows the backend error. Keep this page stable.
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
@@ -125,6 +127,8 @@ class _OfflineSalesManagementPageState
               sale['transaction_code']?.toString(),
         );
       });
+    } catch (_) {
+      // Parent handler already shows the backend error. Keep this page stable.
     } finally {
       if (mounted) {
         setState(() => _submitting = false);
@@ -823,7 +827,7 @@ class _OfflineSaleEditorLine {
     bool clearVariantId = false,
   }) {
     return _OfflineSaleEditorLine(
-      saleItemId: this.saleItemId,
+      saleItemId: saleItemId,
       productId: productId ?? this.productId,
       variantId: clearVariantId ? null : (variantId ?? this.variantId),
       quantity: quantity ?? this.quantity,

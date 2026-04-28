@@ -32,11 +32,19 @@ class OfflineSaleController extends Controller
         $user = $request->user();
         abort_unless(in_array($user?->role, SalesRole::mobileRoles(), true), 403);
         $storeId = MarketingMobileSupport::currentStoreId($user);
+        $accessibleStoreIds = $this->accessibleStoreIds($user);
 
         $sales = OfflineSale::query()
             ->with('customer')
-            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
-            ->where('id_user', $user->id_user)
+            ->when(
+                ! empty($accessibleStoreIds),
+                fn ($query) => $query->whereIn('store_id', $accessibleStoreIds),
+                fn ($query) => $query->when($storeId, fn ($inner) => $inner->where('store_id', $storeId))
+            )
+            ->when(
+                $user->role !== SalesRole::OWNER,
+                fn ($query) => $query->where('id_user', $user->id_user)
+            )
             ->orderByDesc('created_at')
             ->orderByDesc('id_penjualan_offline')
             ->get();
@@ -280,10 +288,18 @@ class OfflineSaleController extends Controller
     public function update(Request $request, OfflineSale $sale): JsonResponse
     {
         $user = $request->user();
-        abort_unless($sale->store_id === MarketingMobileSupport::currentStoreId($user), 403);
+        abort_unless(
+            $this->canAccessSaleStore($user, $sale),
+            403,
+            'Transaksi ini tidak termasuk store yang bisa Anda kelola.'
+        );
 
         $transactionSales = $this->transactionSales($sale, $user);
-        abort_unless($this->canManageTransaction($user, $transactionSales), 403);
+        abort_unless(
+            $this->canManageTransaction($user, $transactionSales),
+            403,
+            'Anda tidak memiliki akses untuk mengubah transaksi ini.'
+        );
 
         $validated = $this->validateTransactionPayload($request, ! MarketingMobileSupport::isSmoothiesSweetieUser($user));
         [$products, $promo, $lineSubtotals, $onhands, $totalQuantity, $subtotal, $storeId, $variants, $extraToppings] = $this->prepareTransactionContext(
@@ -396,10 +412,18 @@ class OfflineSaleController extends Controller
     public function destroy(Request $request, OfflineSale $sale): JsonResponse
     {
         $user = $request->user();
-        abort_unless($sale->store_id === MarketingMobileSupport::currentStoreId($user), 403);
+        abort_unless(
+            $this->canAccessSaleStore($user, $sale),
+            403,
+            'Transaksi ini tidak termasuk store yang bisa Anda kelola.'
+        );
 
         $transactionSales = $this->transactionSales($sale, $user);
-        abort_unless($this->canManageTransaction($user, $transactionSales), 403);
+        abort_unless(
+            $this->canManageTransaction($user, $transactionSales),
+            403,
+            'Anda tidak memiliki akses untuk menghapus transaksi ini.'
+        );
 
         $receiptPath = $sale->bukti_pembelian;
 
@@ -577,8 +601,14 @@ class OfflineSaleController extends Controller
 
     private function transactionSales(OfflineSale $sale, User $user): Collection
     {
+        $accessibleStoreIds = $this->accessibleStoreIds($user);
+
         return OfflineSale::query()
-            ->where('store_id', MarketingMobileSupport::currentStoreId($user))
+            ->when(
+                ! empty($accessibleStoreIds),
+                fn ($query) => $query->whereIn('store_id', $accessibleStoreIds),
+                fn ($query) => $query->where('store_id', MarketingMobileSupport::currentStoreId($user))
+            )
             ->where('transaction_code', $sale->transaction_code)
             ->orderBy('id_penjualan_offline')
             ->get();
@@ -593,6 +623,26 @@ class OfflineSaleController extends Controller
         return $transactionSales->every(
             fn (OfflineSale $item) => (int) $item->id_user === (int) $user->id_user
         );
+    }
+
+    private function canAccessSaleStore(User $user, OfflineSale $sale): bool
+    {
+        $accessibleStoreIds = $this->accessibleStoreIds($user);
+        if ($accessibleStoreIds === []) {
+            return (int) $sale->store_id === (int) MarketingMobileSupport::currentStoreId($user);
+        }
+
+        return in_array((int) $sale->store_id, $accessibleStoreIds, true);
+    }
+
+    private function accessibleStoreIds(User $user): array
+    {
+        return $user->stores()
+            ->pluck('stores.id')
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->values()
+            ->all();
     }
 
     private function prepareTransactionContext(array $validated, int $userId): array
