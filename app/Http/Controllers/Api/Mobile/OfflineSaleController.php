@@ -254,8 +254,17 @@ class OfflineSaleController extends Controller
                     'extra_topping_total' => $extraToppingTotal,
                     'extra_toppings' => $selectedExtraToppings->map(fn ($topping) => ['id' => $topping->id, 'name' => $topping->name, 'price' => (float) $topping->price])->all(),
                     'sugar_level' => $this->normalizeSugarLevel($item['sugar_level'] ?? null),
+                    'notes' => $this->normalizeNotes($item['notes'] ?? null),
                     'payment_method' => $validated['payment_method'] ?? 'Cash',
                     'payment_status' => 'paid',
+                    'cash_received' => $this->normalizeCashReceived($validated['payment_method'] ?? 'Cash', $validated['cash_received'] ?? null),
+                    'change_amount' => $this->normalizeChangeAmount(
+                        $validated['payment_method'] ?? 'Cash',
+                        $validated['cash_received'] ?? null,
+                        max($lineSubtotal - $lineDiscount, 0),
+                        $subtotal,
+                        (float) ($promo?->potongan ?? 0)
+                    ),
                     'paid_at' => $timestamp,
                     'id_product_onhand' => $onhands[(int) $item['id_product']]?->id_product_onhand ?? null,
                     'promo_id' => $promo?->id,
@@ -345,7 +354,19 @@ class OfflineSaleController extends Controller
                             'price' => (float) $topping->price,
                         ])->all(),
                         'sugar_level' => $sugarLevel,
+                        'notes' => $this->normalizeNotes($item['notes'] ?? null),
                         'payment_method' => $validated['payment_method'] ?? $existing->payment_method ?? 'Cash',
+                        'cash_received' => $this->normalizeCashReceived(
+                            $validated['payment_method'] ?? $existing->payment_method ?? 'Cash',
+                            $validated['cash_received'] ?? $existing->cash_received
+                        ),
+                        'change_amount' => $this->normalizeChangeAmount(
+                            $validated['payment_method'] ?? $existing->payment_method ?? 'Cash',
+                            $validated['cash_received'] ?? $existing->cash_received,
+                            max($lineSubtotal - $lineDiscount, 0),
+                            $subtotal,
+                            (float) ($promo?->potongan ?? 0)
+                        ),
                         'nama_product' => trim(($product?->nama_product ?? '') . ($variant?->name ? ' - ' . $variant->name : '')),
                         'quantity' => (int) $item['quantity'],
                         'harga' => max($lineSubtotal - $lineDiscount, 0),
@@ -375,8 +396,20 @@ class OfflineSaleController extends Controller
                         'price' => (float) $topping->price,
                     ])->all(),
                     'sugar_level' => $sugarLevel,
+                    'notes' => $this->normalizeNotes($item['notes'] ?? null),
                     'payment_method' => $validated['payment_method'] ?? $sale->payment_method ?? 'Cash',
                     'payment_status' => $sale->payment_status,
+                    'cash_received' => $this->normalizeCashReceived(
+                        $validated['payment_method'] ?? $sale->payment_method ?? 'Cash',
+                        $validated['cash_received'] ?? $sale->cash_received
+                    ),
+                    'change_amount' => $this->normalizeChangeAmount(
+                        $validated['payment_method'] ?? $sale->payment_method ?? 'Cash',
+                        $validated['cash_received'] ?? $sale->cash_received,
+                        max($lineSubtotal - $lineDiscount, 0),
+                        $subtotal,
+                        (float) ($promo?->potongan ?? 0)
+                    ),
                     'paid_at' => $sale->paid_at,
                     'id_product_onhand' => $sale->id_product_onhand,
                     'promo_id' => $promo?->id,
@@ -476,6 +509,7 @@ class OfflineSaleController extends Controller
                         'product_variant_name' => $sale->product_variant_name,
                         'quantity' => (int) $sale->quantity,
                         'sugar_level' => $this->normalizeSugarLevel($sale->sugar_level),
+                        'notes' => $sale->notes,
                         'extra_toppings' => collect($sale->extra_toppings ?? [])
                             ->pluck('name')
                             ->filter()
@@ -544,6 +578,8 @@ class OfflineSaleController extends Controller
                     'kode_promo' => $first->kode_promo,
                     'payment_method' => $first->payment_method,
                     'payment_status' => $first->payment_status,
+                    'cash_received' => (float) ($first->cash_received ?? 0),
+                    'change_amount' => (float) ($first->change_amount ?? 0),
                     'approval_status' => $first->approval_status,
                     'bukti_pembelian_url' => $first->bukti_pembelian ? route('api.mobile.offline-sales.proof', ['sale' => $first]) : null,
                     'created_at' => $this->formatMobileDateTime($first->created_at),
@@ -557,6 +593,7 @@ class OfflineSaleController extends Controller
                         'product_variant_name' => $sale->product_variant_name,
                         'extra_topping_ids' => collect($sale->extra_toppings ?? [])->pluck('id')->values()->all(),
                         'sugar_level' => $this->normalizeSugarLevel($sale->sugar_level),
+                        'notes' => $sale->notes,
                         'extra_toppings' => collect($sale->extra_toppings ?? [])->map(fn ($topping) => [
                             'id' => $topping['id'] ?? null,
                             'name' => $topping['name'] ?? null,
@@ -584,8 +621,10 @@ class OfflineSaleController extends Controller
             'items.*.extra_topping_ids' => ['nullable', 'array'],
             'items.*.extra_topping_ids.*' => ['integer', 'exists:extra_toppings,id'],
             'items.*.sugar_level' => ['nullable', 'in:Normal,Less,No Sugar'],
+            'items.*.notes' => ['nullable', 'string', 'max:500'],
             'promo_id' => ['nullable', 'exists:promos,id'],
             'payment_method' => ['nullable', 'in:Cash,Qris'],
+            'cash_received' => ['nullable', 'numeric', 'min:0'],
         ], [
         ]);
     }
@@ -597,6 +636,43 @@ class OfflineSaleController extends Controller
         return in_array($normalized, ['Normal', 'Less', 'No Sugar'], true)
             ? $normalized
             : 'Normal';
+    }
+
+    private function normalizeNotes(?string $value): ?string
+    {
+        $normalized = trim((string) $value);
+
+        return $normalized !== '' ? $normalized : null;
+    }
+
+    private function normalizeCashReceived(string $paymentMethod, mixed $value): ?float
+    {
+        if ($paymentMethod !== 'Cash') {
+            return null;
+        }
+
+        return max((float) ($value ?? 0), 0);
+    }
+
+    private function normalizeChangeAmount(
+        string $paymentMethod,
+        mixed $cashReceived,
+        float $lineAmount,
+        float $subtotal,
+        float $discount
+    ): ?float {
+        if ($paymentMethod !== 'Cash') {
+            return null;
+        }
+
+        $transactionTotal = max(round($subtotal - $discount, 2), 0);
+        if ($transactionTotal <= 0) {
+            return max((float) ($cashReceived ?? 0), 0);
+        }
+
+        // The same transaction total is written to every row in this grouped sale.
+        $received = max((float) ($cashReceived ?? 0), 0);
+        return max(round($received - $transactionTotal, 2), 0);
     }
 
     private function transactionSales(OfflineSale $sale, User $user): Collection

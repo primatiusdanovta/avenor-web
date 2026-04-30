@@ -12,6 +12,7 @@ class _SalesSubmitService {
     required String customerSocial,
     required List<_SaleItemDraft> items,
     required String paymentMethod,
+    required double? cashReceived,
     required bool requireProof,
     required int? promoId,
     required XFile? proof,
@@ -30,6 +31,7 @@ class _SalesSubmitService {
         customerSocial: customerSocial,
         items: items,
         paymentMethod: paymentMethod,
+        cashReceived: cashReceived,
         promoId: promoId,
         onSyncMockDerivedState: onSyncMockDerivedState,
         isCountedAsOnHand: isCountedAsOnHand,
@@ -43,6 +45,10 @@ class _SalesSubmitService {
       ..add(MapEntry('customer_no_telp', customerPhone))
       ..add(MapEntry('customer_tiktok_instagram', customerSocial))
       ..add(MapEntry('payment_method', paymentMethod));
+
+    if (cashReceived != null) {
+      form.fields.add(MapEntry('cash_received', '$cashReceived'));
+    }
 
     if (promoId != null) {
       form.fields.add(MapEntry('promo_id', '$promoId'));
@@ -80,6 +86,14 @@ class _SalesSubmitService {
           items[index].sugarLevel,
         ),
       );
+      if (items[index].notes.trim().isNotEmpty) {
+        form.fields.add(
+          MapEntry(
+            'items[$index][notes]',
+            items[index].notes.trim(),
+          ),
+        );
+      }
     }
 
     if (proof != null) {
@@ -106,6 +120,7 @@ class _SalesSubmitService {
     required String customerSocial,
     required List<_SaleItemDraft> items,
     required String paymentMethod,
+    required double? cashReceived,
     required int? promoId,
     required VoidCallback onSyncMockDerivedState,
     required bool Function(Map<String, dynamic>) isCountedAsOnHand,
@@ -197,6 +212,7 @@ class _SalesSubmitService {
         'extra_topping_ids': item.extraToppingIds,
         'extra_toppings': selectedExtraToppings,
         'sugar_level': item.sugarLevel,
+        'notes': item.notes.trim().isEmpty ? null : item.notes.trim(),
         'quantity': item.quantity,
         'harga': line,
       });
@@ -217,6 +233,9 @@ class _SalesSubmitService {
       'sale_number': saleNumber,
       'payment_method': paymentMethod,
       'payment_status': 'paid',
+      'cash_received': cashReceived,
+      'change_amount':
+          paymentMethod == 'Cash' ? max((cashReceived ?? 0) - total, 0) : null,
       'approval_status': 'disetujui',
       'nama_customer': customerName,
       'customer_no_telp': customerPhone,
@@ -251,6 +270,7 @@ class _SalesSubmitService {
                 'product_variant_name': item['product_variant_name'],
                 'quantity': item['quantity'],
                 'sugar_level': item['sugar_level'],
+                'notes': item['notes'],
                 'extra_toppings': ((item['extra_toppings'] as List?) ?? [])
                     .cast<Map<String, dynamic>>()
                     .map((entry) => entry['name']?.toString() ?? '')

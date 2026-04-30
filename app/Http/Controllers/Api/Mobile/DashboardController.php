@@ -7,6 +7,7 @@ use App\Models\Attendance;
 use App\Models\Expense;
 use App\Models\OfflineSale;
 use App\Models\OnlineSaleItem;
+use App\Models\Product;
 use App\Models\ProductOnhand;
 use App\Models\RawMaterial;
 use App\Models\User;
@@ -26,12 +27,12 @@ class DashboardController extends Controller
         $storeId = MarketingMobileSupport::currentStoreId($user);
 
         if ($user->role === SalesRole::OWNER) {
-            [$monthStart, $monthEnd, $dashboardFilters] = $this->resolveDashboardPeriod($request);
+            [$periodStart, $periodEnd, $dashboardFilters] = $this->resolveDashboardPeriod($request, $storeId);
             $dashboardData = $this->buildOwnerDashboardData(
                 $storeId,
-                $monthStart,
-                $monthEnd,
-                (string) ($dashboardFilters['type'] ?? 'all')
+                $periodStart,
+                $periodEnd,
+                $dashboardFilters
             );
 
             return response()->json([
@@ -109,27 +110,33 @@ class DashboardController extends Controller
         ]);
     }
 
-    private function buildOwnerDashboardData(?int $storeId, Carbon $monthStart, Carbon $monthEnd, string $salesType): array
+    private function buildOwnerDashboardData(?int $storeId, Carbon $periodStart, Carbon $periodEnd, array $filters): array
     {
+        $salesType = (string) ($filters['type'] ?? 'all');
+        $productId = isset($filters['product_id']) ? (int) $filters['product_id'] : null;
+        $paymentMethod = $filters['payment_method'] ? (string) $filters['payment_method'] : null;
         $includeOffline = in_array($salesType, ['all', 'offline'], true);
         $includeOnline = in_array($salesType, ['all', 'online'], true);
         $offlineSales = $includeOffline
             ? OfflineSale::query()
                 ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
                 ->where('approval_status', '!=', 'ditolak')
-                ->whereBetween('created_at', [$monthStart, $monthEnd])
+                ->whereBetween('created_at', [$periodStart, $periodEnd])
+                ->when($productId, fn ($query) => $query->where('id_product', $productId))
+                ->when($paymentMethod, fn ($query) => $query->where('payment_method', $paymentMethod))
                 ->get()
             : collect();
         $onlineItems = $includeOnline
             ? OnlineSaleItem::query()
                 ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
-                ->whereBetween('created_at', [$monthStart, $monthEnd])
+                ->whereBetween('created_at', [$periodStart, $periodEnd])
+                ->when($productId, fn ($query) => $query->where('id_product', $productId))
                 ->get()
             : collect();
         $operationalExpenseTotal = round((float) Expense::query()
             ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
             ->where('category', 'operasional')
-            ->whereBetween('expense_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
+            ->whereBetween('expense_date', [$periodStart->toDateString(), $periodEnd->toDateString()])
             ->sum('amount'), 2);
         $wasteLossTotal = round((float) RawMaterial::query()
             ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
@@ -142,7 +149,7 @@ class DashboardController extends Controller
         $revenueTotal = round($offlineRevenue + $onlineRevenue, 2);
         $grossProfitTotal = round(($offlineRevenue - $offlineHpp) + ($onlineRevenue - $onlineHpp) - $wasteLossTotal, 2);
         $netProfitTotal = round($grossProfitTotal - $operationalExpenseTotal, 2);
-        $teamPerformance = $this->buildTeamPerformance($storeId, $monthStart, $monthEnd);
+        $teamPerformance = $this->buildTeamPerformance($storeId, $periodStart, $periodEnd, $productId, $paymentMethod);
         $topProducts = $this->buildTopProducts($offlineSales, $onlineItems);
         $onDutyCount = Attendance::query()
             ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
@@ -158,7 +165,7 @@ class DashboardController extends Controller
 
         return [
             'mode' => 'manager',
-            'period_label' => $monthStart->copy()->locale('id')->translatedFormat('F Y'),
+            'period_label' => $this->buildPeriodLabel($filters, $periodStart, $periodEnd),
             'active_filter_type' => $salesType,
             'kpis' => [
                 'gross_profit_offline_total' => $offlineRevenue,
@@ -218,7 +225,7 @@ class DashboardController extends Controller
             ->all();
     }
 
-    private function buildTeamPerformance(?int $storeId, Carbon $monthStart, Carbon $monthEnd): array
+    private function buildTeamPerformance(?int $storeId, Carbon $monthStart, Carbon $monthEnd, ?int $productId = null, ?string $paymentMethod = null): array
     {
         $users = User::query()
             ->when($storeId, fn ($query) => $query->whereHas('stores', fn ($stores) => $stores->where('stores.id', $storeId)))
@@ -232,6 +239,8 @@ class DashboardController extends Controller
                 ->where('id_user', $member->id_user)
                 ->where('approval_status', '!=', 'ditolak')
                 ->whereBetween('created_at', [$monthStart, $monthEnd])
+                ->when($productId, fn ($query) => $query->where('id_product', $productId))
+                ->when($paymentMethod, fn ($query) => $query->where('payment_method', $paymentMethod))
                 ->get();
             $attendanceDays = Attendance::query()
                 ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
@@ -251,33 +260,70 @@ class DashboardController extends Controller
         })->values()->all();
     }
 
-    private function resolveDashboardPeriod(Request $request): array
+    private function resolveDashboardPeriod(Request $request, ?int $storeId): array
     {
         $validated = $request->validate([
             'type' => ['nullable', 'in:all,offline,online'],
             'month' => ['nullable', 'integer', 'between:1,12'],
             'year' => ['nullable', 'integer', 'between:2020,2100'],
+            'date' => ['nullable', 'date'],
+            'date_from' => ['nullable', 'date'],
+            'date_to' => ['nullable', 'date'],
+            'product_id' => ['nullable', 'integer'],
+            'payment_method' => ['nullable', 'in:Cash,Qris'],
         ]);
 
         $selectedType = (string) ($validated['type'] ?? 'all');
         $selectedMonth = (int) ($validated['month'] ?? now()->month);
         $selectedYear = (int) ($validated['year'] ?? now()->year);
+        $selectedDate = isset($validated['date']) ? Carbon::parse((string) $validated['date'])->startOfDay() : null;
+        $selectedDateFrom = isset($validated['date_from']) ? Carbon::parse((string) $validated['date_from'])->startOfDay() : null;
+        $selectedDateTo = isset($validated['date_to']) ? Carbon::parse((string) $validated['date_to'])->endOfDay() : null;
         $monthStart = Carbon::create($selectedYear, $selectedMonth, 1)->startOfMonth();
         $monthEnd = $monthStart->copy()->endOfMonth();
+        $periodStart = $selectedDate?->copy()
+            ?? $selectedDateFrom?->copy()
+            ?? $monthStart;
+        $periodEnd = $selectedDate?->copy()->endOfDay()
+            ?? $selectedDateTo?->copy()
+            ?? $monthEnd;
+        if ($periodEnd->lt($periodStart)) {
+            [$periodStart, $periodEnd] = [$periodEnd->copy()->startOfDay(), $periodStart->copy()->endOfDay()];
+        }
         $currentYear = now()->year;
+        $products = Product::query()
+            ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
+            ->orderBy('nama_product')
+            ->get(['id_product', 'nama_product'])
+            ->map(fn ($product) => [
+                'value' => (int) $product->id_product,
+                'label' => (string) $product->nama_product,
+            ])
+            ->values()
+            ->all();
 
         return [
-            $monthStart,
-            $monthEnd,
+            $periodStart,
+            $periodEnd,
             [
                 'type' => $selectedType,
                 'month' => $selectedMonth,
                 'year' => $selectedYear,
-                'period_label' => $monthStart->copy()->locale('id')->translatedFormat('F Y'),
+                'date' => $selectedDate?->toDateString(),
+                'date_from' => $selectedDateFrom?->toDateString(),
+                'date_to' => $selectedDateTo?->toDateString(),
+                'product_id' => isset($validated['product_id']) ? (int) $validated['product_id'] : null,
+                'payment_method' => $validated['payment_method'] ?? null,
+                'period_label' => $this->buildPeriodLabel($validated, $periodStart, $periodEnd),
                 'types' => [
                     ['value' => 'all', 'label' => 'All Selling'],
                     ['value' => 'offline', 'label' => 'Offline Selling'],
                     ['value' => 'online', 'label' => 'Online Selling'],
+                ],
+                'products' => $products,
+                'payment_methods' => [
+                    ['value' => 'Cash', 'label' => 'Cash'],
+                    ['value' => 'Qris', 'label' => 'Qris'],
                 ],
                 'months' => collect(range(1, 12))->map(fn (int $month) => [
                     'value' => $month,
@@ -289,6 +335,21 @@ class DashboardController extends Controller
                 ])->values()->all(),
             ],
         ];
+    }
+
+    private function buildPeriodLabel(array $filters, Carbon $periodStart, Carbon $periodEnd): string
+    {
+        if (! empty($filters['date'])) {
+            return Carbon::parse((string) $filters['date'])->locale('id')->translatedFormat('d F Y');
+        }
+
+        if (! empty($filters['date_from']) || ! empty($filters['date_to'])) {
+            return $periodStart->copy()->locale('id')->translatedFormat('d F Y')
+                . ' - '
+                . $periodEnd->copy()->locale('id')->translatedFormat('d F Y');
+        }
+
+        return $periodStart->copy()->locale('id')->translatedFormat('F Y');
     }
 }
 

@@ -164,6 +164,8 @@ class _OfflineSalesManagementPageState
       'promo': promo?['nama_promo'],
       'kode_promo': promo?['kode_promo'],
       'payment_method': payload['payment_method'],
+      'cash_received': payload['cash_received'],
+      'change_amount': payload['change_amount'],
       'total_quantity': items.fold<int>(
         0,
         (sum, item) => sum + ((item['quantity'] as num?)?.toInt() ?? 0),
@@ -217,6 +219,7 @@ class _OfflineSalesManagementPageState
       'extra_topping_ids': extraToppingIds,
       'extra_toppings': toppings,
       'sugar_level': item['sugar_level'] ?? 'Normal',
+      'notes': item['notes'],
       'quantity': quantity,
       'harga': unitPrice * quantity,
     };
@@ -296,14 +299,12 @@ class _OfflineSalesManagementPageState
                                     'Qty ${((sale['total_quantity'] as num?)?.toInt() ?? 0)}',
                               ),
                               _MiniPill(
-                                label: sale['payment_method']?.toString() ??
-                                    'Cash',
+                                label:
+                                    'Total ${widget.currency.format((sale['total_harga'] as num?)?.toDouble() ?? 0)}',
                               ),
                               _MiniPill(
-                                label: widget.currency.format(
-                                  (sale['total_harga'] as num?)?.toDouble() ??
-                                      0,
-                                ),
+                                label: sale['payment_method']?.toString() ??
+                                    'Cash',
                               ),
                               _MiniPill(
                                 label: sale['promo']
@@ -322,7 +323,7 @@ class _OfflineSalesManagementPageState
                                   (item) => Padding(
                                     padding: const EdgeInsets.only(bottom: 6),
                                     child: Text(
-                                      '${item['nama_product'] ?? '-'} x${item['quantity'] ?? 0} • Sugar ${item['sugar_level'] ?? 'Normal'}${(((item['extra_toppings'] as List?) ?? []).isEmpty) ? '' : ' • ${((item['extra_toppings'] as List?) ?? []).cast<Map<String, dynamic>>().map((topping) => topping['name']).whereType<String>().join(', ')}'}',
+                                      '${item['nama_product'] ?? '-'} x${item['quantity'] ?? 0} • Sugar ${item['sugar_level'] ?? 'Normal'}${(item['notes']?.toString().trim().isNotEmpty ?? false) ? ' • Notes ${item['notes']}' : ''}${(((item['extra_toppings'] as List?) ?? []).isEmpty) ? '' : ' • ${((item['extra_toppings'] as List?) ?? []).cast<Map<String, dynamic>>().map((topping) => topping['name']).whereType<String>().join(', ')}'}',
                                       style: const TextStyle(fontSize: 12),
                                     ),
                                   ),
@@ -410,6 +411,7 @@ class _OfflineSaleEditorDialogState extends State<_OfflineSaleEditorDialog> {
             variantId: (item['product_variant_id'] as num?)?.toInt(),
             quantity: (item['quantity'] as num?)?.toInt() ?? 1,
             sugarLevel: item['sugar_level']?.toString() ?? 'Normal',
+            notes: item['notes']?.toString() ?? '',
             extraToppingIds:
                 ((item['extra_topping_ids'] as List?) ?? []).cast<int>(),
           ),
@@ -545,6 +547,7 @@ class _OfflineSaleEditorDialogState extends State<_OfflineSaleEditorDialog> {
               if (line.variantId != null) 'product_variant_id': line.variantId,
               'quantity': line.quantity,
               'sugar_level': line.sugarLevel,
+              'notes': line.notes,
               'extra_topping_ids': line.extraToppingIds,
             },
           )
@@ -808,6 +811,7 @@ class _OfflineSaleEditorLine {
     this.variantId,
     this.quantity = 1,
     this.sugarLevel = 'Normal',
+    this.notes = '',
     this.extraToppingIds = const <int>[],
   });
 
@@ -816,6 +820,7 @@ class _OfflineSaleEditorLine {
   final int? variantId;
   final int quantity;
   final String sugarLevel;
+  final String notes;
   final List<int> extraToppingIds;
 
   _OfflineSaleEditorLine copyWith({
@@ -823,6 +828,7 @@ class _OfflineSaleEditorLine {
     int? variantId,
     int? quantity,
     String? sugarLevel,
+    String? notes,
     List<int>? extraToppingIds,
     bool clearVariantId = false,
   }) {
@@ -832,6 +838,7 @@ class _OfflineSaleEditorLine {
       variantId: clearVariantId ? null : (variantId ?? this.variantId),
       quantity: quantity ?? this.quantity,
       sugarLevel: sugarLevel ?? this.sugarLevel,
+      notes: notes ?? this.notes,
       extraToppingIds: extraToppingIds ?? this.extraToppingIds,
     );
   }

@@ -6,6 +6,7 @@ class _SaleItemDraft {
     required this.variantId,
     required this.extraToppingIds,
     required this.sugarLevel,
+    required this.notes,
     required this.quantity,
   });
 
@@ -13,6 +14,7 @@ class _SaleItemDraft {
   final int? variantId;
   final List<int> extraToppingIds;
   final String sugarLevel;
+  final String notes;
   final int quantity;
 
   _SaleItemDraft copyWith({
@@ -20,6 +22,7 @@ class _SaleItemDraft {
     int? variantId,
     List<int>? extraToppingIds,
     String? sugarLevel,
+    String? notes,
     int? quantity,
   }) {
     return _SaleItemDraft(
@@ -27,6 +30,7 @@ class _SaleItemDraft {
       variantId: variantId ?? this.variantId,
       extraToppingIds: extraToppingIds ?? this.extraToppingIds,
       sugarLevel: sugarLevel ?? this.sugarLevel,
+      notes: notes ?? this.notes,
       quantity: quantity ?? this.quantity,
     );
   }

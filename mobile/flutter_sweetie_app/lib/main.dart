@@ -247,6 +247,11 @@ class _MarketingRootState extends State<MarketingRoot> {
   String _ownerDashboardType = 'all';
   int? _ownerDashboardMonth;
   int? _ownerDashboardYear;
+  String? _ownerDashboardDate;
+  String? _ownerDashboardDateFrom;
+  String? _ownerDashboardDateTo;
+  int? _ownerDashboardProductId;
+  String? _ownerDashboardPaymentMethod;
   Map<String, dynamic>? _me;
   Map<String, dynamic>? _dashboard;
   Map<String, dynamic>? _attendance;
@@ -1170,6 +1175,15 @@ class _MarketingRootState extends State<MarketingRoot> {
               'type': _ownerDashboardType,
               'month': _ownerDashboardMonth ?? DateTime.now().month,
               'year': _ownerDashboardYear ?? DateTime.now().year,
+              if (_ownerDashboardDate != null) 'date': _ownerDashboardDate,
+              if (_ownerDashboardDateFrom != null)
+                'date_from': _ownerDashboardDateFrom,
+              if (_ownerDashboardDateTo != null)
+                'date_to': _ownerDashboardDateTo,
+              if (_ownerDashboardProductId != null)
+                'product_id': _ownerDashboardProductId,
+              if (_ownerDashboardPaymentMethod != null)
+                'payment_method': _ownerDashboardPaymentMethod,
             }
           : null;
 
@@ -1205,6 +1219,18 @@ class _MarketingRootState extends State<MarketingRoot> {
               (ownerFilters['month'] as num?)?.toInt() ?? _ownerDashboardMonth;
           _ownerDashboardYear =
               (ownerFilters['year'] as num?)?.toInt() ?? _ownerDashboardYear;
+          _ownerDashboardDate =
+              ownerFilters['date']?.toString() ?? _ownerDashboardDate;
+          _ownerDashboardDateFrom =
+              ownerFilters['date_from']?.toString() ?? _ownerDashboardDateFrom;
+          _ownerDashboardDateTo =
+              ownerFilters['date_to']?.toString() ?? _ownerDashboardDateTo;
+          _ownerDashboardProductId =
+              (ownerFilters['product_id'] as num?)?.toInt() ??
+                  _ownerDashboardProductId;
+          _ownerDashboardPaymentMethod =
+              ownerFilters['payment_method']?.toString() ??
+                  _ownerDashboardPaymentMethod;
         }
         _attendance = _asMap(results[1].data);
         _products = _asMap(results[2].data);
@@ -1231,6 +1257,15 @@ class _MarketingRootState extends State<MarketingRoot> {
     String? type,
     int? month,
     int? year,
+    String? date,
+    String? dateFrom,
+    String? dateTo,
+    int? productId,
+    bool clearProductId = false,
+    String? paymentMethod,
+    bool clearPaymentMethod = false,
+    bool clearDate = false,
+    bool clearDateRange = false,
   }) async {
     if (_mockMode) {
       setState(() {
@@ -1239,6 +1274,16 @@ class _MarketingRootState extends State<MarketingRoot> {
             month ?? _ownerDashboardMonth ?? DateTime.now().month;
         _ownerDashboardYear =
             year ?? _ownerDashboardYear ?? DateTime.now().year;
+        _ownerDashboardDate = clearDate ? null : (date ?? _ownerDashboardDate);
+        _ownerDashboardDateFrom =
+            clearDateRange ? null : (dateFrom ?? _ownerDashboardDateFrom);
+        _ownerDashboardDateTo =
+            clearDateRange ? null : (dateTo ?? _ownerDashboardDateTo);
+        _ownerDashboardProductId =
+            clearProductId ? null : (productId ?? _ownerDashboardProductId);
+        _ownerDashboardPaymentMethod = clearPaymentMethod
+            ? null
+            : (paymentMethod ?? _ownerDashboardPaymentMethod);
       });
       return;
     }
@@ -1246,12 +1291,27 @@ class _MarketingRootState extends State<MarketingRoot> {
     final nextType = type ?? _ownerDashboardType;
     final nextMonth = month ?? _ownerDashboardMonth ?? DateTime.now().month;
     final nextYear = year ?? _ownerDashboardYear ?? DateTime.now().year;
+    final nextDate = clearDate ? null : (date ?? _ownerDashboardDate);
+    final nextDateFrom =
+        clearDateRange ? null : (dateFrom ?? _ownerDashboardDateFrom);
+    final nextDateTo =
+        clearDateRange ? null : (dateTo ?? _ownerDashboardDateTo);
+    final nextProductId =
+        clearProductId ? null : (productId ?? _ownerDashboardProductId);
+    final nextPaymentMethod = clearPaymentMethod
+        ? null
+        : (paymentMethod ?? _ownerDashboardPaymentMethod);
 
     setState(() {
       _busy = true;
       _ownerDashboardType = nextType;
       _ownerDashboardMonth = nextMonth;
       _ownerDashboardYear = nextYear;
+      _ownerDashboardDate = nextDate;
+      _ownerDashboardDateFrom = nextDateFrom;
+      _ownerDashboardDateTo = nextDateTo;
+      _ownerDashboardProductId = nextProductId;
+      _ownerDashboardPaymentMethod = nextPaymentMethod;
     });
 
     try {
@@ -1261,6 +1321,14 @@ class _MarketingRootState extends State<MarketingRoot> {
           'type': nextType,
           'month': nextMonth,
           'year': nextYear,
+          if (nextDate != null && nextDate.isNotEmpty) 'date': nextDate,
+          if (nextDateFrom != null && nextDateFrom.isNotEmpty)
+            'date_from': nextDateFrom,
+          if (nextDateTo != null && nextDateTo.isNotEmpty)
+            'date_to': nextDateTo,
+          if (nextProductId != null) 'product_id': nextProductId,
+          if (nextPaymentMethod != null && nextPaymentMethod.isNotEmpty)
+            'payment_method': nextPaymentMethod,
         },
       );
 
@@ -1479,6 +1547,7 @@ class _MarketingRootState extends State<MarketingRoot> {
     required String customerSocial,
     required List<_SaleItemDraft> items,
     required String paymentMethod,
+    required double? cashReceived,
     required bool requireProof,
     int? promoId,
     XFile? proof,
@@ -1496,6 +1565,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         customerSocial: customerSocial,
         items: items,
         paymentMethod: paymentMethod,
+        cashReceived: cashReceived,
         requireProof: requireProof,
         promoId: promoId,
         proof: proof,
@@ -2270,6 +2340,7 @@ class _MarketingRootState extends State<MarketingRoot> {
               required customerSocial,
               required items,
               required paymentMethod,
+              required cashReceived,
               required requireProof,
               promoId,
               proof,
@@ -2280,6 +2351,7 @@ class _MarketingRootState extends State<MarketingRoot> {
               customerSocial: customerSocial,
               items: items.cast<_SaleItemDraft>(),
               paymentMethod: paymentMethod,
+              cashReceived: cashReceived,
               requireProof: requireProof,
               promoId: promoId,
               proof: proof,
@@ -2390,6 +2462,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         required customerSocial,
         required items,
         required paymentMethod,
+        required cashReceived,
         required requireProof,
         promoId,
         proof,
@@ -2400,6 +2473,7 @@ class _MarketingRootState extends State<MarketingRoot> {
         customerSocial: customerSocial,
         items: items.cast<_SaleItemDraft>(),
         paymentMethod: paymentMethod,
+        cashReceived: cashReceived,
         requireProof: requireProof,
         promoId: promoId,
         proof: proof,
@@ -3677,6 +3751,7 @@ class _QueueDetailTile extends StatelessWidget {
     final productName = _extractBaseProductName(rawName);
     final quantity = (detail['quantity'] as num?)?.toInt() ?? 0;
     final sugarLevel = detail['sugar_level']?.toString().trim();
+    final notes = detail['notes']?.toString().trim();
     final toppings = ((detail['extra_toppings'] as List?) ?? [])
         .map((entry) => entry?.toString().trim() ?? '')
         .where((entry) => entry.isNotEmpty)
@@ -3756,6 +3831,12 @@ class _QueueDetailTile extends StatelessWidget {
                       backgroundColor: const Color(0xFFFFF0F7),
                       textColor: const Color(0xFFB84E88),
                     ),
+                    if (notes != null && notes.isNotEmpty)
+                      _QueueBadge(
+                        label: 'Notes: $notes',
+                        backgroundColor: const Color(0xFFEFF4FF),
+                        textColor: const Color(0xFF4569A8),
+                      ),
                     if (toppings.isEmpty)
                       const _QueueBadge(
                         label: 'Tidak Pakai Topping',
@@ -4316,6 +4397,15 @@ class _DashboardPage extends StatelessWidget {
     String? type,
     int? month,
     int? year,
+    String? date,
+    String? dateFrom,
+    String? dateTo,
+    int? productId,
+    bool clearProductId,
+    String? paymentMethod,
+    bool clearPaymentMethod,
+    bool clearDate,
+    bool clearDateRange,
   }) onOwnerFilterChanged;
 
   @override
@@ -5145,6 +5235,15 @@ class _InventoryPage extends StatelessWidget {
       String? type,
       int? month,
       int? year,
+      String? date,
+      String? dateFrom,
+      String? dateTo,
+      int? productId,
+      bool clearProductId,
+      String? paymentMethod,
+      bool clearPaymentMethod,
+      bool clearDate,
+      bool clearDateRange,
     }) onFilterChanged,
   }) {
     final filters = _asMap(dashboard['dashboard_filters']);
@@ -5152,6 +5251,8 @@ class _InventoryPage extends StatelessWidget {
     final kpis = _asMap(dashboardData['kpis']);
     final topProducts = _asMapList(dashboardData['top_products']);
     final types = _asMapList(filters['types']);
+    final products = _asMapList(filters['products']);
+    final paymentMethods = _asMapList(filters['payment_methods']);
     final months = _asMapList(filters['months']);
     final years = _asMapList(filters['years']);
 
@@ -5172,6 +5273,11 @@ class _InventoryPage extends StatelessWidget {
         (filters['month'] as num?)?.toInt() ?? DateTime.now().month;
     final selectedYear =
         (filters['year'] as num?)?.toInt() ?? DateTime.now().year;
+    final selectedDate = filters['date']?.toString();
+    final selectedDateFrom = filters['date_from']?.toString();
+    final selectedDateTo = filters['date_to']?.toString();
+    final selectedProductId = (filters['product_id'] as num?)?.toInt();
+    final selectedPaymentMethod = filters['payment_method']?.toString();
 
     Widget filterChip(
       String label, {
@@ -5287,6 +5393,124 @@ class _InventoryPage extends StatelessWidget {
                       );
                     },
                   ),
+                  filterChip(
+                    selectedDate == null || selectedDate.isEmpty
+                        ? 'Tanggal tertentu'
+                        : selectedDate,
+                    icon: Icons.event_available_rounded,
+                    onTap: () async {
+                      final initial = _DashboardPage._parseFlexibleDate(
+                            selectedDate,
+                          ) ??
+                          DateTime.now();
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: initial,
+                        firstDate: DateTime(2024),
+                        lastDate: DateTime(2100),
+                      );
+                      if (picked == null) {
+                        return;
+                      }
+                      await onFilterChanged(
+                        date: _formatDateKey(picked),
+                        clearDateRange: true,
+                      );
+                    },
+                  ),
+                  filterChip(
+                    selectedDateFrom == null || selectedDateTo == null
+                        ? 'Range tanggal'
+                        : '$selectedDateFrom - $selectedDateTo',
+                    icon: Icons.date_range_rounded,
+                    onTap: () async {
+                      final range = await showDateRangePicker(
+                        context: context,
+                        firstDate: DateTime(2024),
+                        lastDate: DateTime(2100),
+                        initialDateRange:
+                            selectedDateFrom != null && selectedDateTo != null
+                                ? DateTimeRange(
+                                    start: _DashboardPage._parseFlexibleDate(
+                                          selectedDateFrom,
+                                        ) ??
+                                        DateTime.now(),
+                                    end: _DashboardPage._parseFlexibleDate(
+                                          selectedDateTo,
+                                        ) ??
+                                        DateTime.now(),
+                                  )
+                                : null,
+                      );
+                      if (range == null) {
+                        return;
+                      }
+                      await onFilterChanged(
+                        dateFrom: _formatDateKey(range.start),
+                        dateTo: _formatDateKey(range.end),
+                        clearDate: true,
+                      );
+                    },
+                  ),
+                  filterChip(
+                    selectedProductId == null
+                        ? 'Semua product'
+                        : labelFor(products, selectedProductId),
+                    icon: Icons.shopping_bag_outlined,
+                    onTap: () async {
+                      final selected = await _showOwnerDashboardProductPicker(
+                        context,
+                        products: products,
+                        selectedProductId: selectedProductId,
+                      );
+                      if (selected == selectedProductId) {
+                        return;
+                      }
+                      await onFilterChanged(
+                        productId: selected,
+                        clearProductId: selected == null,
+                      );
+                    },
+                  ),
+                  filterChip(
+                    selectedPaymentMethod == null ||
+                            selectedPaymentMethod.isEmpty
+                        ? 'Semua pembayaran'
+                        : selectedPaymentMethod,
+                    icon: Icons.payments_outlined,
+                    onTap: () async {
+                      final selected = await _showOwnerDashboardPaymentPicker(
+                        context,
+                        paymentMethods: paymentMethods,
+                        selectedPaymentMethod: selectedPaymentMethod,
+                      );
+                      if (selected == selectedPaymentMethod) {
+                        return;
+                      }
+                      await onFilterChanged(
+                        paymentMethod: selected,
+                        clearPaymentMethod: selected == null,
+                      );
+                    },
+                  ),
+                  if (selectedDate != null ||
+                      selectedDateFrom != null ||
+                      selectedDateTo != null ||
+                      selectedProductId != null ||
+                      (selectedPaymentMethod != null &&
+                          selectedPaymentMethod.isNotEmpty))
+                    filterChip(
+                      'Reset Filter',
+                      icon: Icons.restart_alt_rounded,
+                      onTap: () async {
+                        await onFilterChanged(
+                          clearDate: true,
+                          clearDateRange: true,
+                          clearProductId: true,
+                          clearPaymentMethod: true,
+                        );
+                      },
+                    ),
                 ],
               ),
             ],
@@ -5527,6 +5751,134 @@ class _InventoryPage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static Future<int?> _showOwnerDashboardProductPicker(
+    BuildContext context, {
+    required List<Map<String, dynamic>> products,
+    required int? selectedProductId,
+  }) {
+    return showModalBottomSheet<int?>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SafeArea(
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFFFDF8FE),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Pilih Product',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 14),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  selectedProductId == null
+                      ? Icons.radio_button_checked_rounded
+                      : Icons.radio_button_off_rounded,
+                  color: selectedProductId == null
+                      ? kSweetiePurple
+                      : const Color(0xFF8A7D96),
+                ),
+                title: const Text('Semua product'),
+                onTap: () => Navigator.of(context).pop(null),
+              ),
+              ...products.map((item) {
+                final value = (item['value'] as num?)?.toInt();
+                final active = value == selectedProductId;
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    active
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_off_rounded,
+                    color: active ? kSweetiePurple : const Color(0xFF8A7D96),
+                  ),
+                  title: Text(item['label']?.toString() ?? '-'),
+                  onTap: value == null
+                      ? null
+                      : () => Navigator.of(context).pop(value),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Future<String?> _showOwnerDashboardPaymentPicker(
+    BuildContext context, {
+    required List<Map<String, dynamic>> paymentMethods,
+    required String? selectedPaymentMethod,
+  }) {
+    return showModalBottomSheet<String?>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SafeArea(
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFFFDF8FE),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Pilih Pembayaran',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 14),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  selectedPaymentMethod == null
+                      ? Icons.radio_button_checked_rounded
+                      : Icons.radio_button_off_rounded,
+                  color: selectedPaymentMethod == null
+                      ? kSweetiePurple
+                      : const Color(0xFF8A7D96),
+                ),
+                title: const Text('Semua pembayaran'),
+                onTap: () => Navigator.of(context).pop(null),
+              ),
+              ...paymentMethods.map((item) {
+                final value = item['value']?.toString();
+                final active = value == selectedPaymentMethod;
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(
+                    active
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_off_rounded,
+                    color: active ? kSweetiePurple : const Color(0xFF8A7D96),
+                  ),
+                  title: Text(item['label']?.toString() ?? '-'),
+                  onTap: value == null
+                      ? null
+                      : () => Navigator.of(context).pop(value),
+                );
+              }),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _formatDateKey(DateTime value) {
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '${value.year}-$month-$day';
   }
 
   Future<void> _openSweetieStockSheet(BuildContext context) {
@@ -6997,6 +7349,7 @@ class _SalesPage extends StatefulWidget {
     required String customerSocial,
     required List<_SaleItemDraft> items,
     required String paymentMethod,
+    required double? cashReceived,
     required bool requireProof,
     int? promoId,
     XFile? proof,
@@ -7010,6 +7363,7 @@ class _SalesPage extends StatefulWidget {
 
 class _SalesPageState extends State<_SalesPage> {
   final TextEditingController _customerNameController = TextEditingController();
+  final TextEditingController _cashReceivedController = TextEditingController();
   late final List<_SaleItemDraft> _items;
   int? _promoId;
   String _paymentMethod = 'Cash';
@@ -7025,6 +7379,7 @@ class _SalesPageState extends State<_SalesPage> {
   @override
   void dispose() {
     _customerNameController.dispose();
+    _cashReceivedController.dispose();
     super.dispose();
   }
 
@@ -7054,7 +7409,33 @@ class _SalesPageState extends State<_SalesPage> {
 
   List<Map<String, dynamic>> _variantsForProduct(int? productId) {
     final product = _productById(productId);
-    return ((product?['variants'] as List?) ?? []).cast<Map<String, dynamic>>();
+    final variants =
+        ((product?['variants'] as List?) ?? []).cast<Map<String, dynamic>>();
+    variants.sort((left, right) {
+      final leftRank = _variantRank(left['name']?.toString());
+      final rightRank = _variantRank(right['name']?.toString());
+      if (leftRank != rightRank) {
+        return leftRank.compareTo(rightRank);
+      }
+      return (left['name']?.toString() ?? '')
+          .toLowerCase()
+          .compareTo((right['name']?.toString() ?? '').toLowerCase());
+    });
+    return variants;
+  }
+
+  int _variantRank(String? rawName) {
+    final name = rawName?.trim().toLowerCase() ?? '';
+    if (name == 'reguler' || name == 'regular') {
+      return 0;
+    }
+    if (name == 'large') {
+      return 1;
+    }
+    if (name == 'jumbo') {
+      return 2;
+    }
+    return 10;
   }
 
   int? _defaultVariantId(Map<String, dynamic>? product) {
@@ -7207,6 +7588,49 @@ class _SalesPageState extends State<_SalesPage> {
     }
   }
 
+  String _notesLabel(String value) {
+    final notes = value.trim();
+    return notes.isEmpty ? 'Tanpa notes' : notes;
+  }
+
+  Future<String?> _showNotesPickerForDraft({
+    required String selectedNotes,
+  }) async {
+    final controller = TextEditingController(text: selectedNotes);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        title: const Text('Notes / Keterangan'),
+        content: SizedBox(
+          width: 420,
+          child: TextField(
+            controller: controller,
+            maxLines: 3,
+            maxLength: 500,
+            decoration: const InputDecoration(
+              labelText: 'Keterangan',
+              hintText: 'Contoh: es sedikit, cup pisah, jangan terlalu kental',
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(''),
+            child: const Text('Tanpa Notes'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(controller.text.trim()),
+            child: const Text('Tambah Notes'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+    return result;
+  }
+
   String _promoLabel(Map<String, dynamic> promo) {
     final label = promo['option_label']?.toString().trim();
     if (label != null && label.isNotEmpty) {
@@ -7278,7 +7702,8 @@ class _SalesPageState extends State<_SalesPage> {
   bool _hasSameConfiguration(_SaleItemDraft left, _SaleItemDraft right) {
     if (left.productId != right.productId ||
         left.variantId != right.variantId ||
-        left.sugarLevel != right.sugarLevel) {
+        left.sugarLevel != right.sugarLevel ||
+        left.notes.trim() != right.notes.trim()) {
       return false;
     }
 
@@ -7551,11 +7976,19 @@ class _SalesPageState extends State<_SalesPage> {
       return null;
     }
 
+    final notes = await _showNotesPickerForDraft(
+      selectedNotes: seed?.notes ?? '',
+    );
+    if (!mounted || notes == null) {
+      return null;
+    }
+
     return _SaleItemDraft(
       productId: productId,
       variantId: variants.isEmpty ? null : variantId,
       extraToppingIds: _normalizeToppingIds(toppingIds),
       sugarLevel: sugarLevel,
+      notes: notes,
       quantity: 1,
     );
   }
@@ -7680,6 +8113,20 @@ class _SalesPageState extends State<_SalesPage> {
     });
   }
 
+  Future<void> _editLineNotes(int index) async {
+    final current = _items[index];
+    final notes = await _showNotesPickerForDraft(
+      selectedNotes: current.notes,
+    );
+    if (!mounted || notes == null) {
+      return;
+    }
+
+    setState(() {
+      _items[index] = current.copyWith(notes: notes);
+    });
+  }
+
   void _changeLineQuantity(int index, int delta) {
     final current = _items[index];
     final product = _productById(current.productId);
@@ -7726,6 +8173,7 @@ class _SalesPageState extends State<_SalesPage> {
       _items.clear();
       _promoId = null;
       _paymentMethod = 'Cash';
+      _cashReceivedController.clear();
       _qrisConfirmed = false;
       _completedSopChecklist.clear();
     });
@@ -7735,6 +8183,14 @@ class _SalesPageState extends State<_SalesPage> {
   Widget build(BuildContext context) {
     final qrisImageSource = kSweetieQrisAsset;
     final requiresQrisConfirmation = _paymentMethod == 'Qris';
+    final totalAmount = (_subtotal - _discount).clamp(0, _subtotal).toDouble();
+    final cashReceived = double.tryParse(
+        _cashReceivedController.text.trim().replaceAll(',', '.'));
+    final changeAmount = _paymentMethod == 'Cash'
+        ? max((cashReceived ?? 0) - totalAmount, 0)
+        : 0.0;
+    final isCashPaymentValid =
+        _paymentMethod != 'Cash' || ((cashReceived ?? 0) >= totalAmount);
     final width = MediaQuery.of(context).size.width;
     final compactCatalog = width < 560;
     final isTabletLayout = width >= 1024;
@@ -7807,11 +8263,13 @@ class _SalesPageState extends State<_SalesPage> {
                   totalPrice: _lineTotal(entry.value),
                   toppingSummary: _toppingSummary(entry.value.extraToppingIds),
                   sugarLevelLabel: _sugarLevelLabel(entry.value.sugarLevel),
+                  notesLabel: _notesLabel(entry.value.notes),
                   onDecrease: () => _changeLineQuantity(entry.key, -1),
                   onIncrease: () => _changeLineQuantity(entry.key, 1),
                   onEditVariant: () => _editLineVariant(entry.key),
                   onEditToppings: () => _editLineToppings(entry.key),
                   onEditSugarLevel: () => _editLineSugarLevel(entry.key),
+                  onEditNotes: () => _editLineNotes(entry.key),
                   onRemove: () => setState(() => _items.removeAt(entry.key)),
                 ),
               );
@@ -7863,9 +8321,54 @@ class _SalesPageState extends State<_SalesPage> {
               if (selected != 'Qris') {
                 _qrisConfirmed = false;
               }
+              if (selected != 'Cash') {
+                _cashReceivedController.clear();
+              }
             });
           },
         ),
+        if (_paymentMethod == 'Cash') ...[
+          const SizedBox(height: 10),
+          TextField(
+            controller: _cashReceivedController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Uang yang diterima',
+              hintText: 'Masukkan nominal uang diterima',
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F0FB),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _InfoRow(
+                  label: 'Total bayar',
+                  value: widget.currency.format(totalAmount),
+                ),
+                _InfoRow(
+                  label: 'Kembalian',
+                  value: widget.currency.format(changeAmount),
+                ),
+                if (!isCashPaymentValid)
+                  const Text(
+                    'Uang yang diterima harus sama atau lebih besar dari total bayar.',
+                    style: TextStyle(
+                      color: Color(0xFFC05D3B),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
         if (_paymentMethod == 'Qris') ...[
           const SizedBox(height: 10),
           Container(
@@ -8036,8 +8539,7 @@ class _SalesPageState extends State<_SalesPage> {
           ),
           _SummaryRow(
             label: 'Total estimasi',
-            value: widget.currency
-                .format((_subtotal - _discount).clamp(0, _subtotal)),
+            value: widget.currency.format(totalAmount),
             valueColor: Colors.white,
             emphasized: true,
           ),
@@ -8206,6 +8708,7 @@ class _SalesPageState extends State<_SalesPage> {
                                       widget.products.isEmpty ||
                                       _hasInvalidItems ||
                                       !_isSopChecklistComplete ||
+                                      !isCashPaymentValid ||
                                       (requiresQrisConfirmation &&
                                           !_qrisConfirmed)
                                   ? null
@@ -8218,6 +8721,7 @@ class _SalesPageState extends State<_SalesPage> {
                                         items:
                                             List<_SaleItemDraft>.from(_items),
                                         paymentMethod: _paymentMethod,
+                                        cashReceived: cashReceived,
                                         requireProof: false,
                                         promoId: _promoId,
                                         proof: null,
@@ -8307,6 +8811,7 @@ class _SalesPageState extends State<_SalesPage> {
                                 widget.products.isEmpty ||
                                 _hasInvalidItems ||
                                 !_isSopChecklistComplete ||
+                                !isCashPaymentValid ||
                                 (requiresQrisConfirmation && !_qrisConfirmed)
                             ? null
                             : () async {
@@ -8317,6 +8822,7 @@ class _SalesPageState extends State<_SalesPage> {
                                   customerSocial: '',
                                   items: List<_SaleItemDraft>.from(_items),
                                   paymentMethod: _paymentMethod,
+                                  cashReceived: cashReceived,
                                   requireProof: false,
                                   promoId: _promoId,
                                   proof: null,
@@ -8495,11 +9001,13 @@ class _SalesOrderLineCard extends StatelessWidget {
     required this.totalPrice,
     required this.toppingSummary,
     required this.sugarLevelLabel,
+    required this.notesLabel,
     required this.onDecrease,
     required this.onIncrease,
     required this.onEditVariant,
     required this.onEditToppings,
     required this.onEditSugarLevel,
+    required this.onEditNotes,
     required this.onRemove,
   });
 
@@ -8510,11 +9018,13 @@ class _SalesOrderLineCard extends StatelessWidget {
   final double totalPrice;
   final String toppingSummary;
   final String sugarLevelLabel;
+  final String notesLabel;
   final VoidCallback onDecrease;
   final VoidCallback onIncrease;
   final VoidCallback onEditVariant;
   final VoidCallback onEditToppings;
   final VoidCallback onEditSugarLevel;
+  final VoidCallback onEditNotes;
   final VoidCallback onRemove;
 
   @override
@@ -8570,10 +9080,12 @@ class _SalesOrderLineCard extends StatelessWidget {
                         variantName: variantName,
                         toppingSummary: toppingSummary,
                         sugarLevelLabel: sugarLevelLabel,
+                        notesLabel: notesLabel,
                         draft: draft,
                         onEditVariant: onEditVariant,
                         onEditToppings: onEditToppings,
                         onEditSugarLevel: onEditSugarLevel,
+                        onEditNotes: onEditNotes,
                         onRemove: onRemove,
                       ),
                     ),
@@ -8612,10 +9124,12 @@ class _SalesOrderLineCard extends StatelessWidget {
                       variantName: variantName,
                       toppingSummary: toppingSummary,
                       sugarLevelLabel: sugarLevelLabel,
+                      notesLabel: notesLabel,
                       draft: draft,
                       onEditVariant: onEditVariant,
                       onEditToppings: onEditToppings,
                       onEditSugarLevel: onEditSugarLevel,
+                      onEditNotes: onEditNotes,
                       onRemove: onRemove,
                     ),
                     const SizedBox(height: 12),
@@ -8664,10 +9178,12 @@ class _SalesOrderLineInfo extends StatelessWidget {
     required this.variantName,
     required this.toppingSummary,
     required this.sugarLevelLabel,
+    required this.notesLabel,
     required this.draft,
     required this.onEditVariant,
     required this.onEditToppings,
     required this.onEditSugarLevel,
+    required this.onEditNotes,
     required this.onRemove,
   });
 
@@ -8675,10 +9191,12 @@ class _SalesOrderLineInfo extends StatelessWidget {
   final String? variantName;
   final String toppingSummary;
   final String sugarLevelLabel;
+  final String notesLabel;
   final _SaleItemDraft draft;
   final VoidCallback onEditVariant;
   final VoidCallback onEditToppings;
   final VoidCallback onEditSugarLevel;
+  final VoidCallback onEditNotes;
   final VoidCallback onRemove;
 
   @override
@@ -8735,6 +9253,15 @@ class _SalesOrderLineInfo extends StatelessWidget {
             color: Color(0xFF766C8B),
           ),
         ),
+        const SizedBox(height: 6),
+        Text(
+          'Notes: $notesLabel',
+          style: const TextStyle(
+            fontSize: 12,
+            height: 1.4,
+            color: Color(0xFF766C8B),
+          ),
+        ),
         const SizedBox(height: 10),
         Wrap(
           spacing: 8,
@@ -8755,6 +9282,12 @@ class _SalesOrderLineInfo extends StatelessWidget {
             OutlinedButton(
               onPressed: onEditSugarLevel,
               child: const Text('Ubah Sugar'),
+            ),
+            OutlinedButton(
+              onPressed: onEditNotes,
+              child: Text(
+                draft.notes.trim().isEmpty ? 'Tambah Notes' : 'Ubah Notes',
+              ),
             ),
           ],
         ),
