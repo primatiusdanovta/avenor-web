@@ -227,7 +227,7 @@ class OfflineSaleController extends Controller
         $saleNumber = $this->generateSaleNumber($storeId, $timestamp);
         $discounts = $this->allocateDiscounts($lineSubtotals, (float) ($promo?->potongan ?? 0));
 
-        DB::transaction(function () use ($validated, $user, $products, $promo, $path, $timestamp, $discounts, $lineSubtotals, $onhands, $transactionCode, $saleNumber, $storeId, $variants, $extraToppings): void {
+        DB::transaction(function () use ($validated, $user, $products, $promo, $path, $timestamp, $discounts, $lineSubtotals, $onhands, $transactionCode, $saleNumber, $storeId, $variants, $extraToppings, $subtotal): void {
             $customer = $this->resolveCustomer($validated, $timestamp, $storeId);
 
             foreach ($validated['items'] as $index => $item) {
@@ -321,7 +321,7 @@ class OfflineSaleController extends Controller
         $timestamp = $sale->created_at ?? now();
         $discounts = $this->allocateDiscounts($lineSubtotals, (float) ($promo?->potongan ?? 0));
 
-        DB::transaction(function () use ($validated, $sale, $transactionSales, $products, $promo, $timestamp, $discounts, $lineSubtotals, $storeId, $variants, $extraToppings): void {
+        DB::transaction(function () use ($validated, $sale, $transactionSales, $products, $promo, $timestamp, $discounts, $lineSubtotals, $storeId, $variants, $extraToppings, $subtotal): void {
             $customer = $this->resolveCustomer($validated, $timestamp instanceof Carbon ? $timestamp : Carbon::parse($timestamp), $storeId);
             $existingById = $transactionSales->keyBy('id_penjualan_offline');
             $keepIds = [];
