@@ -359,7 +359,7 @@ class ProductLandingData
             return $configuredUrl . $separator . 'text=' . $message;
         }
 
-        $phone = preg_replace('/\D+/', '', (string) env('LANDING_WHATSAPP_NUMBER', ''));
+        $phone = preg_replace('/\D+/', '', (string) config('app.landing_whatsapp_number', ''));
 
         return $phone
             ? 'https://wa.me/' . $phone . '?text=' . $message

@@ -11,7 +11,7 @@ class MarketingPushNotificationService
 {
     public function sendPublishedNotification(MarketingNotification $notification): array
     {
-        $serverKey = trim((string) env('FCM_SERVER_KEY', ''));
+        $serverKey = trim((string) config('services.fcm.server_key', ''));
 
         if ($serverKey === '') {
             Log::info('FCM_SERVER_KEY belum diatur. Push notification dilewati.', [

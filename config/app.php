@@ -54,6 +54,10 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    'admin_route_prefix' => trim((string) env('ADMIN_ROUTE_PREFIX', 'administrator'), '/'),
+
+    'landing_whatsapp_number' => env('LANDING_WHATSAPP_NUMBER', ''),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

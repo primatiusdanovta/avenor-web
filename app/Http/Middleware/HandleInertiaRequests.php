@@ -90,7 +90,7 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'appName' => config('app.name'),
-            'adminPrefix' => '/' . trim((string) env('ADMIN_ROUTE_PREFIX', 'administrator'), '/'),
+            'adminPrefix' => '/' . trim((string) config('app.admin_route_prefix', 'administrator'), '/'),
             'navigation' => $navigation,
             'inventoryAlerts' => in_array($user?->role, ['superadmin', 'admin'], true) ? [
                 'products' => Product::query()

@@ -47,4 +47,8 @@ return [
         'binary' => env('FFMPEG_BINARY', 'ffmpeg'),
     ],
 
+    'fcm' => [
+        'server_key' => env('FCM_SERVER_KEY', ''),
+    ],
+
 ];

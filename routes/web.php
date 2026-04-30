@@ -44,7 +44,7 @@ use App\Support\ProductLandingData;
 use Illuminate\Support\Facades\Route;
 
 /** @var string $administratorPrefix */
-$administratorPrefix = trim((string) env('ADMIN_ROUTE_PREFIX', 'administrator'), '/');
+$administratorPrefix = trim((string) config('app.admin_route_prefix', 'administrator'), '/');
 
 Route::get('/', MasterGatewayController::class)->name('landing-page');
 Route::get('/robots.txt', [TechnicalSeoController::class, 'robots'])->name('seo.robots');

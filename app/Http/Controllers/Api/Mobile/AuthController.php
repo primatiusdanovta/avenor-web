@@ -45,7 +45,7 @@ class AuthController extends Controller
         }
 
         $plainTextToken = Str::random(80);
-        $expiresAt = now()->addDays((int) env('MOBILE_TOKEN_EXPIRES_DAYS', 30));
+        $expiresAt = now()->addDays((int) config('mobile.token_expires_days', 30));
 
         MobileAccessToken::query()->create([
             'user_id' => $user->id_user,

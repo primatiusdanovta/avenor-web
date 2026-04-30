@@ -69,7 +69,7 @@
 </head>
 <body class="hold-transition layout-fixed sidebar-expand-lg bg-body-tertiary">
     <script>
-        window.AVENOR_ADMIN_PREFIX = @json('/' . trim((string) env('ADMIN_ROUTE_PREFIX', 'administrator'), '/'));
+        window.AVENOR_ADMIN_PREFIX = @json('/' . trim((string) config('app.admin_route_prefix', 'administrator'), '/'));
     </script>
     <div id="global-loading-overlay" class="global-loading-overlay" aria-hidden="true">
         <div class="global-loading-card">
