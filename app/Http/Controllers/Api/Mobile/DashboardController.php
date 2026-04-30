@@ -233,7 +233,7 @@ class DashboardController extends Controller
             ->orderBy('nama')
             ->get();
 
-        return $users->map(function (User $member) use ($storeId, $monthStart, $monthEnd) {
+        return $users->map(function (User $member) use ($storeId, $monthStart, $monthEnd, $productId, $paymentMethod) {
             $memberSales = OfflineSale::query()
                 ->when($storeId, fn ($query) => $query->where('store_id', $storeId))
                 ->where('id_user', $member->id_user)
